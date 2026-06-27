@@ -285,9 +285,10 @@ export default function AdminDashboard({ user, onLogout }) {
       )
     }
 
-    const cashEnd = cashPct
-    const jazzEnd = cashEnd + jazzPct
-    const creditEnd = jazzEnd + creditPct
+    const creditPct = credit / total
+const cashEnd = cashPct
+const jazzEnd = cashEnd + jazzPct
+const creditEnd = jazzEnd + creditPct
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
