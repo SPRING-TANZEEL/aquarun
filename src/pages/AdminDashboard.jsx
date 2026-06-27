@@ -10,6 +10,7 @@ import CEOCashPosition from './CEOCashPosition'
 import BusinessSettings from './BusinessSettings'
 import Inventory from './Inventory'
 import Reports from './Reports'
+import Transactions from './Transactions'
 
 const menuItems = [
   { key: 'dashboard', icon: '📊', label: 'Dashboard' },
@@ -22,6 +23,7 @@ const menuItems = [
   { key: 'cashposition', icon: '🏦', label: 'CEO Cash Position' },
   { key: 'inventory', icon: '🏭', label: 'Inventory' },
   { key: 'reports', icon: '📈', label: 'Reports' },
+  { key: 'transactions', icon: '🗂️', label: 'Transactions' },
   { key: 'settings', icon: '⚙️', label: 'Settings' },
 ]
 
@@ -83,7 +85,8 @@ export default function AdminDashboard({ user, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [alerts, setAlerts] = useState({
     pendingOrders: 0, pendingCashTransfers: 0,
-    pendingJazz: 0, pendingSalaryRequests: 0
+    pendingJazz: 0, pendingSalaryRequests: 0,
+    totalReceivable: 0, totalCustomers: 0
   })
   const [businessName, setBusinessName] = useState('AquaRun')
   const [businessLogo, setBusinessLogo] = useState(null)
@@ -112,10 +115,12 @@ export default function AdminDashboard({ user, onLogout }) {
       .select('total_amount, amount_received, payment_method, qty_19l, qty_half_litre, qty_1_5l')
       .gte('delivered_at', from + 'T00:00:00')
       .lte('delivered_at', to + 'T23:59:59')
+      .eq('is_voided', false)
 
     const { data: payments } = await supabase.from('payments')
       .select('amount, payment_method, jazzcash_confirmed')
       .gte('payment_date', from).lte('payment_date', to)
+      .eq('is_voided', false)
 
     let totalSales = 0, cashCollected = 0, jazzSales = 0, creditSales = 0
     let bottles19l = 0, bottlesHalf = 0, bottles15l = 0, deliveryCount = 0
@@ -151,8 +156,8 @@ export default function AdminDashboard({ user, onLogout }) {
     const { count: pendingOrders } = await supabase.from('orders').select('*', { count: 'exact', head: true }).eq('status', 'pending')
     const { count: pendingCashTransfers } = await supabase.from('cash_transfers').select('*', { count: 'exact', head: true }).eq('to_office', true).eq('status', 'pending')
     const { count: pendingSalaryRequests } = await supabase.from('salary_advances').select('*', { count: 'exact', head: true }).eq('requested_from', 'ceo').eq('status', 'pending')
-    const { data: jazzPending } = await supabase.from('deliveries').select('total_amount').eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false)
-    const { data: jazzPayPending } = await supabase.from('payments').select('amount').eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false)
+    const { data: jazzPending } = await supabase.from('deliveries').select('total_amount').eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
+    const { data: jazzPayPending } = await supabase.from('payments').select('amount').eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
     const pendingJazz = (jazzPending?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) + (jazzPayPending?.reduce((s, p) => s + Number(p.amount), 0) || 0)
     const { data: customers } = await supabase.from('customers').select('balance').eq('is_active', true)
     const totalReceivable = customers?.reduce((s, c) => s + Number(c.balance), 0) || 0
@@ -166,7 +171,10 @@ export default function AdminDashboard({ user, onLogout }) {
       const dateStr = d.toISOString().split('T')[0]
       const dayLabel = d.toLocaleDateString('en-PK', { weekday: 'short', day: '2-digit' })
       const { data: dayDeliveries } = await supabase.from('deliveries')
-        .select('total_amount').gte('delivered_at', dateStr + 'T00:00:00').lte('delivered_at', dateStr + 'T23:59:59')
+        .select('total_amount')
+        .gte('delivered_at', dateStr + 'T00:00:00')
+        .lte('delivered_at', dateStr + 'T23:59:59')
+        .eq('is_voided', false)
       const dayTotal = dayDeliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
       chart.push({ label: dayLabel, value: dayTotal, date: dateStr })
     }
@@ -230,11 +238,11 @@ export default function AdminDashboard({ user, onLogout }) {
 
     return (
       <svg width="100%" viewBox={`0 0 ${totalW + 40} ${chartH + 50}`} style={{ overflow: 'visible' }}>
-        {[0, 0.5, 1].map((pct, i) => (
+        {[0, 0.5, 1].map((p, i) => (
           <g key={i}>
-            <line x1="30" y1={chartH - pct * chartH} x2={totalW + 40} y2={chartH - pct * chartH} stroke="#f0f0f0" strokeWidth="1" />
-            <text x="28" y={chartH - pct * chartH + 4} textAnchor="end" fontSize="9" fill="#bbb">
-              {pct === 0 ? '0' : Math.round(maxVal * pct / 1000) + 'k'}
+            <line x1="30" y1={chartH - p * chartH} x2={totalW + 40} y2={chartH - p * chartH} stroke="#f0f0f0" strokeWidth="1" />
+            <text x="28" y={chartH - p * chartH + 4} textAnchor="end" fontSize="9" fill="#bbb">
+              {p === 0 ? '0' : Math.round(maxVal * p / 1000) + 'k'}
             </text>
           </g>
         ))}
@@ -268,6 +276,7 @@ export default function AdminDashboard({ user, onLogout }) {
     const total = cash + jazz + credit || 1
     const cashPct = cash / total
     const jazzPct = jazz / total
+    const creditPct = credit / total
     const r = 44
     const cx = 55
     const cy = 55
@@ -285,10 +294,9 @@ export default function AdminDashboard({ user, onLogout }) {
       )
     }
 
-    const creditPct = credit / total
-const cashEnd = cashPct
-const jazzEnd = cashEnd + jazzPct
-const creditEnd = jazzEnd + creditPct
+    const cashEnd = cashPct
+    const jazzEnd = cashEnd + jazzPct
+    const creditEnd = jazzEnd + creditPct
 
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -305,7 +313,7 @@ const creditEnd = jazzEnd + creditPct
           {[
             { label: 'Cash', value: cash, color: '#1a7a4a', pct: Math.round(cashPct * 100) },
             { label: 'JazzCash', value: jazz, color: '#9c27b0', pct: Math.round(jazzPct * 100) },
-            { label: 'Credit', value: credit, color: '#f44336', pct: Math.round((credit / total) * 100) },
+            { label: 'Credit', value: credit, color: '#f44336', pct: Math.round(creditPct * 100) },
           ].map(item => (
             <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.color, flexShrink: 0 }} />
@@ -455,7 +463,6 @@ const creditEnd = jazzEnd + creditPct
           {/* EXECUTIVE DASHBOARD */}
           {activePage === 'dashboard' && (
             <div>
-              {/* Period Selector */}
               <div style={{ marginBottom: '16px' }}>
                 <h2 style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 4px' }}>Executive Summary</h2>
                 <p style={{ fontSize: '12px', color: '#888', margin: '0 0 12px' }}>Comparing {dates?.label} vs {dates?.prevLabel}</p>
@@ -507,7 +514,7 @@ const creditEnd = jazzEnd + creditPct
                     </p>
                   </div>
 
-                  {/* Metric Cards — 2 columns on mobile, 4 on desktop */}
+                  {/* Metric Cards */}
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '10px', marginBottom: '12px' }}>
                     <MetricCard title="Cash Collected" value={stats?.cashCollected} prefix="Rs." icon="💵"
                       current={stats?.cashCollected} previous={prevStats?.cashCollected} color="#1a7a4a" />
@@ -533,7 +540,7 @@ const creditEnd = jazzEnd + creditPct
                       color="#ea580c" onClick={() => navigateTo('cashtransfer')} />
                   </div>
 
-                  {/* Charts — stack on mobile */}
+                  {/* Charts */}
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '12px', marginBottom: '14px' }}>
                     <div style={{ background: 'white', borderRadius: '14px', padding: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
                       <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 4px' }}>Daily Sales — Last 7 Days</h3>
@@ -605,6 +612,7 @@ const creditEnd = jazzEnd + creditPct
           {activePage === 'cashposition' && <CEOCashPosition />}
           {activePage === 'inventory' && <Inventory />}
           {activePage === 'reports' && <Reports />}
+          {activePage === 'transactions' && <Transactions />}
           {activePage === 'settings' && <BusinessSettings />}
         </div>
       </div>
