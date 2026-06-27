@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import AdminDashboard from './pages/AdminDashboard'
 import RiderDashboard from './pages/RiderDashboard'
@@ -13,6 +13,22 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [loggedIn, setLoggedIn] = useState(false)
   const [currentUser, setCurrentUser] = useState(null)
+  const [checking, setChecking] = useState(true)
+
+  // Check localStorage on app start
+  useEffect(() => {
+    const saved = localStorage.getItem('aquarun_user')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        setCurrentUser(parsed)
+        setLoggedIn(true)
+      } catch (e) {
+        localStorage.removeItem('aquarun_user')
+      }
+    }
+    setChecking(false)
+  }, [])
 
   async function handleLogin() {
     setError('')
@@ -29,13 +45,17 @@ export default function App() {
       if (error || !data) {
         setError('Wrong PIN. Please try again.')
       } else {
-        setCurrentUser({ ...data, role: 'rider' })
+        const userData = { ...data, role: 'rider' }
+        localStorage.setItem('aquarun_user', JSON.stringify(userData))
+        setCurrentUser(userData)
         setLoggedIn(true)
       }
 
     } else if (role === 'admin') {
       if (username === 'admin' && password === 'aquarun123') {
-        setCurrentUser({ full_name: 'Admin', role: 'admin' })
+        const userData = { full_name: 'Admin', role: 'admin' }
+        localStorage.setItem('aquarun_user', JSON.stringify(userData))
+        setCurrentUser(userData)
         setLoggedIn(true)
       } else {
         setError('Username or password is incorrect.')
@@ -54,23 +74,50 @@ export default function App() {
       } else if (data.customer_password !== password && data.password_plain !== password) {
         setError('Incorrect password.')
       } else {
-        setCurrentUser({ ...data, role: 'customer' })
+        const userData = { ...data, role: 'customer' }
+        localStorage.setItem('aquarun_user', JSON.stringify(userData))
+        setCurrentUser(userData)
         setLoggedIn(true)
       }
     }
     setLoading(false)
   }
 
+  function handleLogout() {
+    localStorage.removeItem('aquarun_user')
+    setLoggedIn(false)
+    setCurrentUser(null)
+    setPin('')
+    setUsername('')
+    setPassword('')
+  }
+
+  // Show nothing while checking localStorage
+  if (checking) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0f4c81 0%, #1a7a4a 100%)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center'
+      }}>
+        <div style={{ textAlign: 'center', color: 'white' }}>
+          <div style={{ fontSize: '48px', marginBottom: '12px' }}>💧</div>
+          <p style={{ fontSize: '16px', opacity: 0.8 }}>Loading AquaRun...</p>
+        </div>
+      </div>
+    )
+  }
+
   if (loggedIn && currentUser?.role === 'admin') {
-    return <AdminDashboard user={currentUser} onLogout={() => { setLoggedIn(false); setCurrentUser(null) }} />
+    return <AdminDashboard user={currentUser} onLogout={handleLogout} />
   }
 
   if (loggedIn && currentUser?.role === 'rider') {
-    return <RiderDashboard user={currentUser} onLogout={() => { setLoggedIn(false); setCurrentUser(null) }} />
+    return <RiderDashboard user={currentUser} onLogout={handleLogout} />
   }
 
   if (loggedIn && currentUser?.role === 'customer') {
-    return <CustomerDashboard user={currentUser} onLogout={() => { setLoggedIn(false); setCurrentUser(null) }} />
+    return <CustomerDashboard user={currentUser} onLogout={handleLogout} />
   }
 
   return (
