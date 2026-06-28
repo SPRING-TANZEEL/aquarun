@@ -1,17 +1,17 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { getCustomersOffline, savePendingDelivery, savePendingPayment, savePendingQuickSale, updateCustomerBalanceOffline } from '../offlineDB'
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
-export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClearPreSelected }) {
-  const [mode, setMode] = useState(null) // null | 'search' | 'walkin'
+export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClearPreSelected, isOnline, dbReady }) {
+  const [mode, setMode] = useState(null)
   const [search, setSearch] = useState('')
   const [customers, setCustomers] = useState([])
   const [searching, setSearching] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
-  const [saleMode, setSaleMode] = useState(null) // null | 'sale' | 'payment'
+  const [saleMode, setSaleMode] = useState(null)
 
-  // Sale fields
   const [qty19l, setQty19l] = useState(1)
   const [qtyHalf, setQtyHalf] = useState(0)
   const [qty15l, setQty15l] = useState(0)
@@ -19,10 +19,8 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
   const [paymentMethod, setPaymentMethod] = useState(null)
   const [cashReceived, setCashReceived] = useState('')
 
-  // Payment fields
   const [paymentAmount, setPaymentAmount] = useState('')
 
-  // Walk-in fields
   const [walkInRate, setWalkInRate] = useState(null)
   const [walkInQty, setWalkInQty] = useState(1)
   const [walkInPayment, setWalkInPayment] = useState(null)
@@ -42,11 +40,31 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     setSearch(val)
     if (val.length < 2) { setCustomers([]); return }
     setSearching(true)
-    const { data } = await supabase.from('customers')
-      .select('*').eq('is_active', true)
-      .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`)
-      .limit(6)
-    setCustomers(data || [])
+
+    try {
+      if (isOnline) {
+        const { data } = await supabase.from('customers')
+          .select('*').eq('is_active', true)
+          .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`)
+          .limit(6)
+        setCustomers(data || [])
+      } else {
+        // Search from offline storage
+        const offlineCustomers = await getCustomersOffline()
+        const filtered = offlineCustomers.filter(c =>
+          c.is_active && (
+            c.full_name?.toLowerCase().includes(val.toLowerCase()) ||
+            c.mobile?.includes(val) ||
+            c.customer_code?.toLowerCase().includes(val.toLowerCase())
+          )
+        ).slice(0, 6)
+        setCustomers(filtered)
+      }
+    } catch (err) {
+      console.error('Search error:', err)
+      setCustomers([])
+    }
+
     setSearching(false)
   }
 
@@ -109,8 +127,9 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     const isCash = paymentMethod === 'cash'
     const received = isCash ? Number(cashReceived) : 0
     const creditPortion = isCredit ? total : isCash ? (total - received) : 0
+    const now = new Date().toISOString()
 
-    const { error } = await supabase.from('deliveries').insert([{
+    const deliveryData = {
       customer_id: selectedCustomer.id,
       rider_id: rider.id,
       qty_19l: qty19l,
@@ -121,17 +140,31 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
       payment_method: paymentMethod,
       amount_received: isJazz ? 0 : received,
       credit_amount: creditPortion,
-      jazzcash_confirmed: false
-    }])
-
-    if (error) { alert('Error: ' + error.message); setSaving(false); return }
-
-    if (creditPortion > 0) {
-      const newBalance = Number(selectedCustomer.balance) + creditPortion
-      await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id)
+      jazzcash_confirmed: false,
+      delivered_at: now,
+      is_voided: false
     }
 
-    setSuccess({ type: 'sale', customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod })
+    if (isOnline) {
+      const { error } = await supabase.from('deliveries').insert([deliveryData])
+      if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      if (creditPortion > 0) {
+        const newBalance = Number(selectedCustomer.balance) + creditPortion
+        await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id)
+      }
+    } else {
+      await savePendingDelivery(deliveryData)
+      if (creditPortion > 0) {
+        const newBalance = Number(selectedCustomer.balance) + creditPortion
+        await updateCustomerBalanceOffline(selectedCustomer.id, newBalance)
+      }
+    }
+
+    setSuccess({
+      type: 'sale', customer: selectedCustomer.full_name,
+      total, received, creditPortion, paymentMethod,
+      savedOffline: !isOnline
+    })
     resetAll()
     setSaving(false)
   }
@@ -144,23 +177,39 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     const isJazz = paymentMethod === 'jazzcash'
     setSaving(true)
 
-    const { error } = await supabase.from('payments').insert([{
+    const paymentData = {
       customer_id: selectedCustomer.id,
       rider_id: rider.id,
       amount,
       payment_method: paymentMethod,
       payment_date: new Date().toISOString().split('T')[0],
       notes: isJazz ? 'JazzCash — pending admin confirmation' : 'Cash received by rider',
-      jazzcash_confirmed: isJazz ? false : true
-    }])
-
-    if (error) { alert('Error: ' + error.message); setSaving(false); return }
-
-    if (!isJazz) {
-      await supabase.from('customers').update({ balance: Number(selectedCustomer.balance) - amount }).eq('id', selectedCustomer.id)
+      jazzcash_confirmed: isJazz ? false : true,
+      is_voided: false
     }
 
-    setSuccess({ type: 'payment', customer: selectedCustomer.full_name, amount, paymentMethod, note: isJazz ? 'Balance reduces after admin confirms.' : 'Balance reduced immediately.' })
+    if (isOnline) {
+      const { error } = await supabase.from('payments').insert([paymentData])
+      if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      if (!isJazz) {
+        await supabase.from('customers').update({
+          balance: Number(selectedCustomer.balance) - amount
+        }).eq('id', selectedCustomer.id)
+      }
+    } else {
+      await savePendingPayment(paymentData)
+      if (!isJazz) {
+        const newBalance = Number(selectedCustomer.balance) - amount
+        await updateCustomerBalanceOffline(selectedCustomer.id, newBalance)
+      }
+    }
+
+    setSuccess({
+      type: 'payment', customer: selectedCustomer.full_name,
+      amount, paymentMethod,
+      note: isJazz ? 'Balance reduces after admin confirms.' : 'Balance reduced immediately.',
+      savedOffline: !isOnline
+    })
     resetAll()
     setSaving(false)
   }
@@ -182,8 +231,9 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     const isJazz = walkInPayment === 'jazzcash'
     const received = isCash ? Number(walkInCash) : total
     const credit = isCash ? (total - received) : 0
+    const now = new Date().toISOString()
 
-    const { error } = await supabase.from('deliveries').insert([{
+    const saleData = {
       customer_id: null,
       rider_id: rider.id,
       qty_19l: walkInQty,
@@ -194,12 +244,23 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
       payment_method: walkInPayment,
       amount_received: isJazz ? 0 : received,
       credit_amount: credit,
-      jazzcash_confirmed: false
-    }])
+      jazzcash_confirmed: false,
+      delivered_at: now,
+      is_voided: false
+    }
 
-    if (error) { alert('Error: ' + error.message); setSaving(false); return }
+    if (isOnline) {
+      const { error } = await supabase.from('deliveries').insert([saleData])
+      if (error) { alert('Error: ' + error.message); setSaving(false); return }
+    } else {
+      await savePendingQuickSale(saleData)
+    }
 
-    setSuccess({ type: 'walkin', total, received, credit, paymentMethod: walkInPayment, qty: walkInQty, rate: walkInRate })
+    setSuccess({
+      type: 'walkin', total, received, credit,
+      paymentMethod: walkInPayment, qty: walkInQty, rate: walkInRate,
+      savedOffline: !isOnline
+    })
     resetAll()
     setSaving(false)
   }
@@ -225,6 +286,15 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     <div>
       <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>👤 Customer & Sales</h2>
 
+      {/* Offline Notice */}
+      {!isOnline && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
+          <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>
+            📵 Offline — entries will sync when internet is available
+          </p>
+        </div>
+      )}
+
       {/* Success */}
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
@@ -234,20 +304,25 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
           {success.type === 'walkin' ? (
             <div>
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>19L × {success.qty} @ Rs. {success.rate} = Rs. {success.total.toLocaleString()}</p>
-              {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Cash Received: Rs. {success.received.toLocaleString()}</p>}
+              {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Cash: Rs. {success.received.toLocaleString()}</p>}
               {success.credit > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: 0 }}>Unpaid: Rs. {success.credit.toLocaleString()}</p>}
             </div>
           ) : success.type === 'sale' ? (
             <div>
-              <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Total: Rs. {success.total.toLocaleString()}</p>
+              <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Rs. {success.total.toLocaleString()}</p>
               {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Cash: Rs. {success.received.toLocaleString()}</p>}
-              {success.creditPortion > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: 0 }}>Credit Added: Rs. {success.creditPortion.toLocaleString()}</p>}
+              {success.creditPortion > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: 0 }}>Credit: Rs. {success.creditPortion.toLocaleString()}</p>}
             </div>
           ) : (
             <div>
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Rs. {success.amount.toLocaleString()} — {success.paymentMethod}</p>
               {success.note && <p style={{ fontSize: '12px', color: '#555', margin: 0 }}>{success.note}</p>}
             </div>
+          )}
+          {success.savedOffline && (
+            <p style={{ fontSize: '12px', color: '#ea580c', margin: '6px 0 0', fontWeight: '600' }}>
+              📵 Saved offline — will sync when internet returns
+            </p>
           )}
           <button onClick={() => setSuccess(null)}
             style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
@@ -256,7 +331,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* Mode Selection — only show if nothing selected */}
+      {/* Mode Selection */}
       {!mode && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <button onClick={() => setMode('search')}
@@ -278,15 +353,20 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* ── CUSTOMER SEARCH MODE ── */}
+      {/* Customer Search */}
       {mode === 'search' && !selectedCustomer && (
         <div>
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', color: '#555', marginBottom: '8px', fontWeight: '600' }}>Search Customer</p>
+            <p style={{ fontSize: '13px', color: '#555', marginBottom: '8px', fontWeight: '600' }}>
+              Search Customer {!isOnline ? '(Offline)' : ''}
+            </p>
             <input value={search} onChange={e => searchCustomer(e.target.value)}
               placeholder="Type name, mobile, or ID..."
               style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
             {searching && <p style={{ fontSize: '12px', color: '#888', marginTop: '8px' }}>Searching...</p>}
+            {!isOnline && search.length < 2 && (
+              <p style={{ fontSize: '11px', color: '#ea580c', marginTop: '6px' }}>📵 Searching from downloaded data — type at least 2 characters</p>
+            )}
             {customers.map(c => (
               <div key={c.id} onClick={() => selectCustomer(c)}
                 style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -294,11 +374,16 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                   <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{c.full_name}</p>
                   <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
                 </div>
-                <p style={{ fontSize: '13px', color: c.balance > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: 0 }}>
-                  Rs. {Number(c.balance).toLocaleString()}
+                <p style={{ fontSize: '13px', color: Number(c.balance) > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: 0 }}>
+                  Rs. {Math.abs(Number(c.balance)).toLocaleString()}
                 </p>
               </div>
             ))}
+            {search.length >= 2 && customers.length === 0 && !searching && (
+              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '12px 0' }}>
+                {isOnline ? 'No customers found' : 'Not found in offline data — try different spelling'}
+              </p>
+            )}
           </div>
           <button onClick={resetAll}
             style={{ width: '100%', padding: '12px', background: '#f5f5f5', color: '#888', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px' }}>
@@ -307,24 +392,24 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* ── CUSTOMER SELECTED ── */}
+      {/* Customer Selected */}
       {mode === 'search' && selectedCustomer && (
         <div>
-          {/* Customer Header */}
           <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
               <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 2px' }}>{selectedCustomer.full_name}</p>
               <p style={{ fontSize: '12px', opacity: 0.8, margin: 0 }}>{selectedCustomer.mobile} · {selectedCustomer.customer_code}</p>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 2px' }}>Outstanding</p>
-              <p style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: selectedCustomer.balance > 0 ? '#ffcdd2' : '#c8e6c9' }}>
-                Rs. {Number(selectedCustomer.balance).toLocaleString()}
+              <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 2px' }}>
+                {Number(selectedCustomer.balance) < 0 ? 'Advance Credit' : 'Outstanding'}
+              </p>
+              <p style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: Number(selectedCustomer.balance) > 0 ? '#ffcdd2' : '#c8e6c9' }}>
+                Rs. {Math.abs(Number(selectedCustomer.balance)).toLocaleString()}
               </p>
             </div>
           </div>
 
-          {/* Action Selection */}
           {!saleMode && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>What do you want to do?</p>
@@ -333,13 +418,11 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                   style={{ flex: 1, padding: '20px', border: '2px solid #e3f0ff', borderRadius: '12px', cursor: 'pointer', background: '#f0f7ff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '32px' }}>🍶</span>
                   <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>Deliver Bottles</span>
-                  <span style={{ fontSize: '11px', color: '#888' }}>New sale entry</span>
                 </button>
                 <button onClick={() => setSaleMode('payment')}
                   style={{ flex: 1, padding: '20px', border: '2px solid #e8f5e9', borderRadius: '12px', cursor: 'pointer', background: '#f0fff4', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
                   <span style={{ fontSize: '32px' }}>💵</span>
                   <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a' }}>Receive Payment</span>
-                  <span style={{ fontSize: '11px', color: '#888' }}>Collect balance</span>
                 </button>
               </div>
               <button onClick={resetAll}
@@ -349,7 +432,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             </div>
           )}
 
-          {/* SELL BOTTLES */}
+          {/* Sell Bottles */}
           {saleMode === 'sale' && (
             <div>
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -431,7 +514,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                           <span style={{ fontSize: '13px', color: '#c62828', fontWeight: '600' }}>Remaining on Credit</span>
                           <span style={{ fontSize: '14px', fontWeight: '700', color: '#c62828' }}>Rs. {(total - cashReceivedNum).toLocaleString()}</span>
                         </div>
-                        <p style={{ fontSize: '11px', color: '#e57373', margin: '4px 0 0' }}>Will be added to customer balance</p>
                       </div>
                     )}
                     {cashReceived && cashReceivedNum >= total && (
@@ -453,6 +535,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                   <p style={{ fontSize: '16px', color: '#555', margin: 0 }}>Total</p>
                   <p style={{ fontSize: '28px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {total.toLocaleString()}</p>
                 </div>
+                {!isOnline && <p style={{ fontSize: '11px', color: '#ea580c', textAlign: 'center', margin: '0 0 10px' }}>📵 Will save offline and sync later</p>}
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button onClick={() => setSaleMode(null)}
                     style={{ flex: 1, padding: '14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px' }}>
@@ -467,7 +550,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             </div>
           )}
 
-          {/* RECEIVE PAYMENT */}
+          {/* Receive Payment */}
           {saleMode === 'payment' && (
             <div>
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -475,7 +558,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                 <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
                   placeholder="0"
                   style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '28px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '8px' }} />
-                {selectedCustomer.balance > 0 && (
+                {Number(selectedCustomer.balance) > 0 && (
                   <button onClick={() => setPaymentAmount(String(selectedCustomer.balance))}
                     style={{ padding: '6px 12px', background: '#f0f4ff', border: '1px solid #d0d9ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
                     Full Balance: Rs. {Number(selectedCustomer.balance).toLocaleString()}
@@ -497,13 +580,9 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                     </button>
                   ))}
                 </div>
-                {paymentMethod === 'jazzcash' && (
-                  <div style={{ marginTop: '10px', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
-                    <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Balance reduces after admin confirms JazzCash.</p>
-                  </div>
-                )}
               </div>
 
+              {!isOnline && <p style={{ fontSize: '11px', color: '#ea580c', textAlign: 'center', margin: '0 0 10px' }}>📵 Will save offline and sync later</p>}
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => setSaleMode(null)}
                   style={{ flex: 1, padding: '14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px' }}>
@@ -519,7 +598,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* ── WALK-IN MODE ── */}
+      {/* Walk-in Mode */}
       {mode === 'walkin' && (
         <div>
           <div style={{ background: '#1a7a4a', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -533,7 +612,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             </button>
           </div>
 
-          {/* Rate */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Rate per 19L Bottle</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
@@ -546,7 +624,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             </div>
           </div>
 
-          {/* Quantity */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '14px' }}>Quantity — 19L Bottles</p>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
@@ -559,7 +636,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             )}
           </div>
 
-          {/* Payment */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
@@ -575,7 +651,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
               ))}
             </div>
 
-            {/* Partial cash for walk-in */}
             {walkInPayment === 'cash' && wTotal > 0 && (
               <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -591,12 +666,11 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                   Full: Rs. {wTotal.toLocaleString()}
                 </button>
                 {walkInCash && wCashNum < wTotal && wCashNum >= 0 && (
-                  <div style={{ marginTop: '10px', padding: '10px', background: '#ffebee', borderRadius: '8px', border: '1px solid #ffcdd2' }}>
+                  <div style={{ marginTop: '10px', padding: '10px', background: '#ffebee', borderRadius: '8px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: '13px', color: '#c62828', fontWeight: '600' }}>Unpaid Amount</span>
+                      <span style={{ fontSize: '13px', color: '#c62828', fontWeight: '600' }}>Unpaid</span>
                       <span style={{ fontSize: '14px', fontWeight: '700', color: '#c62828' }}>Rs. {(wTotal - wCashNum).toLocaleString()}</span>
                     </div>
-                    <p style={{ fontSize: '11px', color: '#e57373', margin: '4px 0 0' }}>This will be recorded but not linked to any customer</p>
                   </div>
                 )}
                 {walkInCash && wCashNum >= wTotal && (
@@ -606,7 +680,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                 )}
               </div>
             )}
-
             {walkInPayment === 'jazzcash' && (
               <div style={{ padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
                 <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ JazzCash goes directly to office. Admin confirms.</p>
@@ -614,6 +687,7 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             )}
           </div>
 
+          {!isOnline && <p style={{ fontSize: '11px', color: '#ea580c', textAlign: 'center', margin: '0 0 10px' }}>📵 Will save offline and sync later</p>}
           <button onClick={postWalkIn} disabled={saving}
             style={{ width: '100%', padding: '16px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
             {saving ? 'Saving...' : '✓ Post Walk-in Sale'}
