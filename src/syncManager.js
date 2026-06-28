@@ -1,9 +1,9 @@
 import { supabase } from './supabase'
 import {
-  getPendingDeliveries, markDeliverySynced,
-  getPendingExpenses, markExpenseSynced,
-  getPendingPayments, markPaymentSynced,
-  getPendingQuickSales, markQuickSaleSynced,
+  getPendingDeliveries, removePendingDelivery,
+  getPendingExpenses, removePendingExpense,
+  getPendingPayments, removePendingPayment,
+  getPendingQuickSales, removePendingQuickSale,
   saveOrdersOffline, saveCustomersOffline,
   saveRiderProfile, getPendingCount
 } from './offlineDB'
@@ -16,7 +16,7 @@ export function onSyncUpdate(callback) {
   return () => { syncListeners = syncListeners.filter(l => l !== callback) }
 }
 
-function notifyListeners(status) {
+function notify(status) {
   syncListeners.forEach(l => l(status))
 }
 
@@ -24,32 +24,26 @@ export async function downloadRiderData(rider) {
   try {
     const today = new Date().toISOString().split('T')[0]
 
-    const { data: orders, error: ordersError } = await supabase
+    const { data: orders } = await supabase
       .from('orders')
       .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, own_bottles, our_bottles_placed)')
       .eq('rider_id', rider.id)
       .eq('status', 'assigned')
       .lte('delivery_date', today)
 
-    if (ordersError) throw ordersError
     if (orders) await saveOrdersOffline(orders)
 
-    const { data: customers, error: customersError } = await supabase
+    const { data: customers } = await supabase
       .from('customers')
       .select('*')
       .eq('is_active', true)
       .order('full_name')
 
-    if (customersError) throw customersError
     if (customers) await saveCustomersOffline(customers)
-
     await saveRiderProfile(rider)
 
-    return {
-      success: true,
-      ordersCount: orders?.length || 0,
-      customersCount: customers?.length || 0
-    }
+    console.log('Downloaded orders:', orders?.length, 'customers:', customers?.length)
+    return { success: true, ordersCount: orders?.length || 0, customersCount: customers?.length || 0 }
   } catch (error) {
     console.error('Download failed:', error)
     return { success: false, error: error.message }
@@ -61,158 +55,120 @@ export async function syncToServer() {
   if (!navigator.onLine) return { success: false, message: 'No internet connection' }
 
   syncInProgress = true
-  notifyListeners({ syncing: true })
+  notify({ syncing: true })
 
   let totalSynced = 0
   let errors = []
 
   try {
-    // ── Sync Deliveries ──
-    const pendingDeliveries = await getPendingDeliveries()
-    console.log('Pending deliveries to sync:', pendingDeliveries.length)
+    // ── Deliveries ──
+    const deliveries = await getPendingDeliveries()
+    console.log('Syncing deliveries:', deliveries.length)
 
-    for (const delivery of pendingDeliveries) {
+    for (const record of deliveries) {
       try {
-        const { local_id, synced, ...deliveryData } = delivery
+        const { local_id, ...data } = record
+        console.log('Posting delivery:', data)
 
-        // Remove undefined fields
-        const cleanData = Object.fromEntries(
-          Object.entries(deliveryData).filter(([_, v]) => v !== undefined)
-        )
-
-        const { data: inserted, error } = await supabase
-          .from('deliveries')
-          .insert([cleanData])
-          .select()
-
+        const { error } = await supabase.from('deliveries').insert([data])
         if (error) {
           console.error('Delivery insert error:', error)
-          errors.push('Delivery: ' + error.message)
+          errors.push('Delivery error: ' + error.message)
           continue
         }
 
-        // Update order status if linked
-        if (cleanData.order_id) {
+        if (data.order_id) {
           await supabase.from('orders').update({
             status: 'completed',
-            completed_at: cleanData.delivered_at || new Date().toISOString()
-          }).eq('id', cleanData.order_id)
+            completed_at: data.delivered_at || new Date().toISOString()
+          }).eq('id', data.order_id)
         }
 
-        // Update customer balance
-        if (cleanData.customer_id && Number(cleanData.credit_amount) > 0) {
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('balance')
-            .eq('id', cleanData.customer_id)
-            .single()
-          if (customer) {
+        if (data.customer_id && Number(data.credit_amount) > 0) {
+          const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
+          if (cust) {
             await supabase.from('customers').update({
-              balance: Number(customer.balance) + Number(cleanData.credit_amount)
-            }).eq('id', cleanData.customer_id)
+              balance: Number(cust.balance) + Number(data.credit_amount)
+            }).eq('id', data.customer_id)
           }
         }
 
-        await markDeliverySynced(local_id)
+        await removePendingDelivery(local_id)
         totalSynced++
-        console.log('Delivery synced:', local_id)
+        console.log('Delivery synced and removed:', local_id)
       } catch (err) {
         console.error('Delivery sync error:', err)
-        errors.push('Delivery error: ' + err.message)
+        errors.push(err.message)
       }
     }
 
-    // ── Sync Expenses ──
-    const pendingExpenses = await getPendingExpenses()
-    console.log('Pending expenses to sync:', pendingExpenses.length)
+    // ── Expenses ──
+    const expenses = await getPendingExpenses()
+    console.log('Syncing expenses:', expenses.length)
 
-    for (const expense of pendingExpenses) {
+    for (const record of expenses) {
       try {
-        const { local_id, synced, ...expenseData } = expense
-        const cleanData = Object.fromEntries(
-          Object.entries(expenseData).filter(([_, v]) => v !== undefined)
-        )
-        const { error } = await supabase.from('expenses').insert([cleanData])
-        if (error) {
-          errors.push('Expense: ' + error.message)
-          continue
-        }
-        await markExpenseSynced(local_id)
+        const { local_id, ...data } = record
+        const { error } = await supabase.from('expenses').insert([data])
+        if (error) { errors.push('Expense: ' + error.message); continue }
+        await removePendingExpense(local_id)
         totalSynced++
       } catch (err) {
-        errors.push('Expense error: ' + err.message)
+        errors.push(err.message)
       }
     }
 
-    // ── Sync Payments ──
-    const pendingPayments = await getPendingPayments()
-    console.log('Pending payments to sync:', pendingPayments.length)
+    // ── Payments ──
+    const payments = await getPendingPayments()
+    console.log('Syncing payments:', payments.length)
 
-    for (const payment of pendingPayments) {
+    for (const record of payments) {
       try {
-        const { local_id, synced, ...paymentData } = payment
-        const cleanData = Object.fromEntries(
-          Object.entries(paymentData).filter(([_, v]) => v !== undefined)
-        )
-        const { error } = await supabase.from('payments').insert([cleanData])
-        if (error) {
-          errors.push('Payment: ' + error.message)
-          continue
-        }
+        const { local_id, ...data } = record
+        const { error } = await supabase.from('payments').insert([data])
+        if (error) { errors.push('Payment: ' + error.message); continue }
 
-        // Update customer balance for cash payments
-        if (cleanData.customer_id && cleanData.payment_method === 'cash') {
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('balance')
-            .eq('id', cleanData.customer_id)
-            .single()
-          if (customer) {
+        if (data.customer_id && data.payment_method === 'cash') {
+          const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
+          if (cust) {
             await supabase.from('customers').update({
-              balance: Number(customer.balance) - Number(cleanData.amount)
-            }).eq('id', cleanData.customer_id)
+              balance: Number(cust.balance) - Number(data.amount)
+            }).eq('id', data.customer_id)
           }
         }
 
-        await markPaymentSynced(local_id)
+        await removePendingPayment(local_id)
         totalSynced++
       } catch (err) {
-        errors.push('Payment error: ' + err.message)
+        errors.push(err.message)
       }
     }
 
-    // ── Sync Quick Sales ──
-    const pendingQuickSales = await getPendingQuickSales()
-    console.log('Pending quick sales to sync:', pendingQuickSales.length)
+    // ── Quick Sales ──
+    const quicksales = await getPendingQuickSales()
+    console.log('Syncing quick sales:', quicksales.length)
 
-    for (const sale of pendingQuickSales) {
+    for (const record of quicksales) {
       try {
-        const { local_id, synced, ...saleData } = sale
-        const cleanData = Object.fromEntries(
-          Object.entries(saleData).filter(([_, v]) => v !== undefined)
-        )
-        const { error } = await supabase.from('deliveries').insert([cleanData])
-        if (error) {
-          errors.push('Quick sale: ' + error.message)
-          continue
-        }
-        await markQuickSaleSynced(local_id)
+        const { local_id, ...data } = record
+        const { error } = await supabase.from('deliveries').insert([data])
+        if (error) { errors.push('QuickSale: ' + error.message); continue }
+        await removePendingQuickSale(local_id)
         totalSynced++
       } catch (err) {
-        errors.push('Quick sale error: ' + err.message)
+        errors.push(err.message)
       }
     }
 
     const pendingCount = await getPendingCount()
-    notifyListeners({ syncing: false, pendingCount, lastSync: new Date().toISOString(), totalSynced })
-
-    console.log('Sync complete. Synced:', totalSynced, 'Errors:', errors)
+    notify({ syncing: false, pendingCount, lastSync: new Date().toISOString(), totalSynced })
+    console.log('Sync done. Synced:', totalSynced, 'Remaining:', pendingCount, 'Errors:', errors)
 
     return { success: true, totalSynced, errors, pendingCount }
 
   } catch (error) {
     console.error('Sync failed:', error)
-    notifyListeners({ syncing: false, error: error.message })
+    notify({ syncing: false, error: error.message })
     return { success: false, error: error.message }
   } finally {
     syncInProgress = false
@@ -221,7 +177,7 @@ export async function syncToServer() {
 
 export function startAutoSync() {
   window.addEventListener('online', async () => {
-    console.log('Internet restored — auto syncing...')
+    console.log('Back online — auto syncing...')
     await syncToServer()
   })
 
@@ -229,7 +185,7 @@ export function startAutoSync() {
     if (navigator.onLine) {
       const count = await getPendingCount()
       if (count > 0) {
-        console.log('Auto sync — pending count:', count)
+        console.log('Auto sync interval — pending:', count)
         await syncToServer()
       }
     }

@@ -1,325 +1,196 @@
-// ─── OFFLINE DATABASE ───────────────────────────────────────────────
-// Uses IndexedDB to store data locally on rider's phone
-
 const DB_NAME = 'aquarun_offline'
-const DB_VERSION = 1
-
+const DB_VERSION = 2
 let db = null
 
 export async function initDB() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
-
     request.onupgradeneeded = (event) => {
       const db = event.target.result
-
-      // Store for today's orders
-      if (!db.objectStoreNames.contains('orders')) {
-        const ordersStore = db.createObjectStore('orders', { keyPath: 'id' })
-        ordersStore.createIndex('status', 'status', { unique: false })
-        ordersStore.createIndex('rider_id', 'rider_id', { unique: false })
-      }
-
-      // Store for customers
-      if (!db.objectStoreNames.contains('customers')) {
-        db.createObjectStore('customers', { keyPath: 'id' })
-      }
-
-      // Store for pending deliveries (not yet synced)
-      if (!db.objectStoreNames.contains('pending_deliveries')) {
-        const store = db.createObjectStore('pending_deliveries', { keyPath: 'local_id' })
-        store.createIndex('synced', 'synced', { unique: false })
-      }
-
-      // Store for pending expenses
-      if (!db.objectStoreNames.contains('pending_expenses')) {
-        db.createObjectStore('pending_expenses', { keyPath: 'local_id' })
-      }
-
-      // Store for pending payments
-      if (!db.objectStoreNames.contains('pending_payments')) {
-        db.createObjectStore('pending_payments', { keyPath: 'local_id' })
-      }
-
-      // Store for pending quick sales
-      if (!db.objectStoreNames.contains('pending_quicksales')) {
-        db.createObjectStore('pending_quicksales', { keyPath: 'local_id' })
-      }
-
-      // Store for rider profile
-      if (!db.objectStoreNames.contains('rider_profile')) {
-        db.createObjectStore('rider_profile', { keyPath: 'id' })
-      }
-
-      // Store for sync log
-      if (!db.objectStoreNames.contains('sync_log')) {
-        db.createObjectStore('sync_log', { keyPath: 'id', autoIncrement: true })
-      }
+      const stores = ['orders', 'customers', 'rider_profile', 'pending_deliveries', 'pending_expenses', 'pending_payments', 'pending_quicksales']
+      stores.forEach(name => {
+        if (!db.objectStoreNames.contains(name)) {
+          db.createObjectStore(name, { keyPath: name === 'orders' || name === 'customers' || name === 'rider_profile' ? 'id' : 'local_id' })
+        }
+      })
     }
-
-    request.onsuccess = (event) => {
-      db = event.target.result
-      resolve(db)
-    }
-
-    request.onerror = (event) => {
-      reject(event.target.error)
-    }
+    request.onsuccess = (event) => { db = event.target.result; resolve(db) }
+    request.onerror = (event) => reject(event.target.error)
   })
 }
 
-function getDB() {
-  if (!db) throw new Error('Database not initialized')
-  return db
-}
+function getDB() { return db }
 
-// ─── GENERIC HELPERS ───────────────────────────────────────────────
-
-function put(storeName, data) {
+function txPut(storeName, data) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction(storeName, 'readwrite')
     const store = tx.objectStore(storeName)
-    const request = store.put(data)
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    const req = store.put(data)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
   })
 }
 
-function getAll(storeName) {
+function txGetAll(storeName) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction(storeName, 'readonly')
     const store = tx.objectStore(storeName)
-    const request = store.getAll()
-    request.onsuccess = () => resolve(request.result)
-    request.onerror = () => reject(request.error)
+    const req = store.getAll()
+    req.onsuccess = () => resolve(req.result || [])
+    req.onerror = () => reject(req.error)
   })
 }
 
-function deleteRecord(storeName, key) {
+function txDelete(storeName, key) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction(storeName, 'readwrite')
     const store = tx.objectStore(storeName)
-    const request = store.delete(key)
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
+    const req = store.delete(key)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
   })
 }
 
-function clearStore(storeName) {
+function txClear(storeName) {
   return new Promise((resolve, reject) => {
     const tx = getDB().transaction(storeName, 'readwrite')
     const store = tx.objectStore(storeName)
-    const request = store.clear()
-    request.onsuccess = () => resolve()
-    request.onerror = () => reject(request.error)
+    const req = store.clear()
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
   })
 }
 
 // ─── ORDERS ────────────────────────────────────────────────────────
-
 export async function saveOrdersOffline(orders) {
-  await clearStore('orders')
-  for (const order of orders) {
-    await put('orders', order)
-  }
+  await txClear('orders')
+  for (const o of orders) await txPut('orders', o)
 }
 
 export async function getOrdersOffline() {
-  return await getAll('orders')
+  return await txGetAll('orders')
 }
 
 export async function updateOrderStatusOffline(orderId, status) {
-  const tx = getDB().transaction('orders', 'readwrite')
-  const store = tx.objectStore('orders')
-  return new Promise((resolve, reject) => {
-    const getReq = store.get(orderId)
-    getReq.onsuccess = () => {
-      const order = getReq.result
-      if (order) {
-        order.status = status
-        order.completed_at = new Date().toISOString()
-        store.put(order)
-      }
-      resolve()
-    }
-    getReq.onerror = () => reject(getReq.error)
-  })
-}
-
-// ─── CUSTOMERS ─────────────────────────────────────────────────────
-
-export async function saveCustomersOffline(customers) {
-  await clearStore('customers')
-  for (const customer of customers) {
-    await put('customers', customer)
+  const orders = await txGetAll('orders')
+  const order = orders.find(o => o.id === orderId)
+  if (order) {
+    order.status = status
+    order.completed_at = new Date().toISOString()
+    await txPut('orders', order)
   }
 }
 
+// ─── CUSTOMERS ─────────────────────────────────────────────────────
+export async function saveCustomersOffline(customers) {
+  await txClear('customers')
+  for (const c of customers) await txPut('customers', c)
+}
+
 export async function getCustomersOffline() {
-  return await getAll('customers')
+  return await txGetAll('customers')
 }
 
 export async function updateCustomerBalanceOffline(customerId, newBalance) {
-  const tx = getDB().transaction('customers', 'readwrite')
-  const store = tx.objectStore('customers')
-  return new Promise((resolve, reject) => {
-    const getReq = store.get(customerId)
-    getReq.onsuccess = () => {
-      const customer = getReq.result
-      if (customer) {
-        customer.balance = newBalance
-        store.put(customer)
-      }
-      resolve()
-    }
-    getReq.onerror = () => reject(getReq.error)
-  })
+  const customers = await txGetAll('customers')
+  const customer = customers.find(c => c.id === customerId)
+  if (customer) {
+    customer.balance = newBalance
+    await txPut('customers', customer)
+  }
+}
+
+// ─── RIDER PROFILE ─────────────────────────────────────────────────
+export async function saveRiderProfile(rider) {
+  await txPut('rider_profile', rider)
+}
+
+export async function getRiderProfile(riderId) {
+  const all = await txGetAll('rider_profile')
+  return all.find(r => r.id === riderId) || null
 }
 
 // ─── PENDING DELIVERIES ────────────────────────────────────────────
-
-export async function savePendingDelivery(delivery) {
-  const local_id = 'delivery_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  await put('pending_deliveries', { ...delivery, local_id, synced: false, created_at: new Date().toISOString() })
+export async function savePendingDelivery(data) {
+  const local_id = 'del_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)
+  const record = { local_id, ...data }
+  await txPut('pending_deliveries', record)
+  console.log('Saved pending delivery:', local_id, record)
   return local_id
 }
 
 export async function getPendingDeliveries() {
-  const all = await getAll('pending_deliveries')
-  console.log('All deliveries in IndexedDB:', all)
-  return all.filter(d => d.synced === false || d.synced === undefined || d.synced === null || d.synced === 0)
+  const all = await txGetAll('pending_deliveries')
+  console.log('getPendingDeliveries — all records:', all)
+  return all
 }
 
-export async function markDeliverySynced(local_id) {
-  const tx = getDB().transaction('pending_deliveries', 'readwrite')
-  const store = tx.objectStore('pending_deliveries')
-  return new Promise((resolve, reject) => {
-    const getReq = store.get(local_id)
-    getReq.onsuccess = () => {
-      const record = getReq.result
-      if (record) {
-        record.synced = true
-        store.put(record)
-      }
-      resolve()
-    }
-    getReq.onerror = () => reject(getReq.error)
-  })
+export async function removePendingDelivery(local_id) {
+  await txDelete('pending_deliveries', local_id)
 }
 
 // ─── PENDING EXPENSES ──────────────────────────────────────────────
-
-export async function savePendingExpense(expense) {
-  const local_id = 'expense_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  await put('pending_expenses', { ...expense, local_id, synced: false, created_at: new Date().toISOString() })
+export async function savePendingExpense(data) {
+  const local_id = 'exp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)
+  const record = { local_id, ...data }
+  await txPut('pending_expenses', record)
+  console.log('Saved pending expense:', local_id)
   return local_id
 }
 
 export async function getPendingExpenses() {
-  const all = await getAll('pending_expenses')
-  return all.filter(e => e.synced === false || e.synced === undefined || e.synced === null || e.synced === 0)
+  return await txGetAll('pending_expenses')
 }
 
-export async function markExpenseSynced(local_id) {
-  const tx = getDB().transaction('pending_expenses', 'readwrite')
-  const store = tx.objectStore('pending_expenses')
-  return new Promise((resolve, reject) => {
-    const getReq = store.get(local_id)
-    getReq.onsuccess = () => {
-      const record = getReq.result
-      if (record) {
-        record.synced = true
-        store.put(record)
-      }
-      resolve()
-    }
-    getReq.onerror = () => reject(getReq.error)
-  })
+export async function removePendingExpense(local_id) {
+  await txDelete('pending_expenses', local_id)
 }
 
 // ─── PENDING PAYMENTS ──────────────────────────────────────────────
-
-export async function savePendingPayment(payment) {
-  const local_id = 'payment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  await put('pending_payments', { ...payment, local_id, synced: false, created_at: new Date().toISOString() })
+export async function savePendingPayment(data) {
+  const local_id = 'pay_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)
+  const record = { local_id, ...data }
+  await txPut('pending_payments', record)
+  console.log('Saved pending payment:', local_id)
   return local_id
 }
 
 export async function getPendingPayments() {
-  const all = await getAll('pending_payments')
-  return all.filter(p => p.synced === false || p.synced === undefined || p.synced === null || p.synced === 0)
+  return await txGetAll('pending_payments')
 }
 
-export async function markPaymentSynced(local_id) {
-  const tx = getDB().transaction('pending_payments', 'readwrite')
-  const store = tx.objectStore('pending_payments')
-  return new Promise((resolve, reject) => {
-    const getReq = store.get(local_id)
-    getReq.onsuccess = () => {
-      const record = getReq.result
-      if (record) {
-        record.synced = true
-        store.put(record)
-      }
-      resolve()
-    }
-    getReq.onerror = () => reject(getReq.error)
-  })
+export async function removePendingPayment(local_id) {
+  await txDelete('pending_payments', local_id)
 }
 
 // ─── PENDING QUICK SALES ───────────────────────────────────────────
-
-export async function savePendingQuickSale(sale) {
-  const local_id = 'quicksale_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
-  await put('pending_quicksales', { ...sale, local_id, synced: false, created_at: new Date().toISOString() })
+export async function savePendingQuickSale(data) {
+  const local_id = 'qs_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)
+  const record = { local_id, ...data }
+  await txPut('pending_quicksales', record)
+  console.log('Saved pending quick sale:', local_id)
   return local_id
 }
 
 export async function getPendingQuickSales() {
-  const all = await getAll('pending_quicksales')
-  return all.filter(s => s.synced === false || s.synced === undefined || s.synced === null || s.synced === 0)
+  return await txGetAll('pending_quicksales')
 }
 
-export async function markQuickSaleSynced(local_id) {
-  const tx = getDB().transaction('pending_quicksales', 'readwrite')
-  const store = tx.objectStore('pending_quicksales')
-  return new Promise((resolve, reject) => {
-    const getReq = store.get(local_id)
-    getReq.onsuccess = () => {
-      const record = getReq.result
-      if (record) {
-        record.synced = true
-        store.put(record)
-      }
-      resolve()
-    }
-    getReq.onerror = () => reject(getReq.error)
-  })
+export async function removePendingQuickSale(local_id) {
+  await txDelete('pending_quicksales', local_id)
 }
 
-// ─── RIDER PROFILE ─────────────────────────────────────────────────
-
-export async function saveRiderProfile(rider) {
-  await put('rider_profile', rider)
-}
-
-export async function getRiderProfile(riderId) {
-  const all = await getAll('rider_profile')
-  return all.find(r => r.id === riderId) || null
-}
-
-// ─── SYNC STATUS ───────────────────────────────────────────────────
-
+// ─── PENDING COUNT ─────────────────────────────────────────────────
 export async function getPendingCount() {
   try {
-    const [deliveries, expenses, payments, quicksales] = await Promise.all([
+    const [d, e, p, q] = await Promise.all([
       getPendingDeliveries(),
       getPendingExpenses(),
       getPendingPayments(),
       getPendingQuickSales()
     ])
-    const total = deliveries.length + expenses.length + payments.length + quicksales.length
-    console.log('Pending count:', total, '— deliveries:', deliveries.length, 'expenses:', expenses.length, 'payments:', payments.length, 'quicksales:', quicksales.length)
+    const total = d.length + e.length + p.length + q.length
+    console.log('getPendingCount:', total, '— del:', d.length, 'exp:', e.length, 'pay:', p.length, 'qs:', q.length)
     return total
   } catch (err) {
     console.error('getPendingCount error:', err)
@@ -327,14 +198,11 @@ export async function getPendingCount() {
   }
 }
 
-export async function clearAllSynced() {
-  const stores = ['pending_deliveries', 'pending_expenses', 'pending_payments', 'pending_quicksales']
-  for (const store of stores) {
-    const all = await getAll(store)
-    for (const item of all) {
-      if (item.synced === true) {
-        await deleteRecord(store, item.local_id)
-      }
-    }
-  }
+// ─── CLEAR ALL ─────────────────────────────────────────────────────
+export async function clearAllPending() {
+  await txClear('pending_deliveries')
+  await txClear('pending_expenses')
+  await txClear('pending_payments')
+  await txClear('pending_quicksales')
+  console.log('Cleared all pending stores')
 }

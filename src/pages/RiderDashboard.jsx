@@ -74,29 +74,12 @@ export default function RiderDashboard({ user, onLogout }) {
     setDownloading(false)
   }
   async function handleClearStuck() {
-    if (!window.confirm('This will clear all pending offline entries. Only use if entries are stuck. Continue?')) return
+    if (!window.confirm('Clear all pending offline entries? Only use if entries are already posted or stuck. Continue?')) return
     try {
-      const DB_NAME = 'aquarun_offline'
-      const request = indexedDB.open(DB_NAME)
-      request.onsuccess = (event) => {
-        const db = event.target.result
-        const stores = ['pending_deliveries', 'pending_expenses', 'pending_payments', 'pending_quicksales']
-        stores.forEach(storeName => {
-          try {
-            const tx = db.transaction(storeName, 'readwrite')
-            const store = tx.objectStore(storeName)
-            store.clear()
-            console.log('Cleared store:', storeName)
-          } catch (e) {
-            console.log('Could not clear store:', storeName, e)
-          }
-        })
-        setPendingCount(0)
-        alert('✅ Cleared all stuck entries. Pending count reset to 0.')
-      }
-      request.onerror = () => {
-        alert('Error accessing offline database')
-      }
+      const { clearAllPending } = await import('../offlineDB')
+      await clearAllPending()
+      setPendingCount(0)
+      alert('✅ All pending entries cleared.')
     } catch (err) {
       alert('Error: ' + err.message)
     }
