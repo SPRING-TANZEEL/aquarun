@@ -11,6 +11,7 @@ import BusinessSettings from './BusinessSettings'
 import Inventory from './Inventory'
 import Reports from './Reports'
 import Transactions from './Transactions'
+import Accounts from './Accounts'
 
 const menuItems = [
   { key: 'dashboard', icon: '📊', label: 'Dashboard' },
@@ -23,6 +24,7 @@ const menuItems = [
   { key: 'cashposition', icon: '🏦', label: 'CEO Cash Position' },
   { key: 'inventory', icon: '🏭', label: 'Inventory' },
   { key: 'reports', icon: '📈', label: 'Reports' },
+  { key: 'accounts', label: 'Accounts', icon: '📊' },
   { key: 'transactions', icon: '🗂️', label: 'Transactions' },
   { key: 'settings', icon: '⚙️', label: 'Settings' },
 ]
@@ -613,6 +615,7 @@ export default function AdminDashboard({ user, onLogout }) {
           {activePage === 'inventory' && <Inventory />}
           {activePage === 'reports' && <Reports />}
           {activePage === 'transactions' && <Transactions />}
+          {activePage === 'accounts' && <Accounts />}
           {activePage === 'settings' && <BusinessSettings />}
         </div>
       </div>
