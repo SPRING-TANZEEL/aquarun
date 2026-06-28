@@ -124,10 +124,35 @@ export default function CustomerManagement() {
     console.log('Saving customer with data:', cleanForm)
 
     if (editCustomer) {
-      const { error } = await supabase.from('customers').update({
-        ...cleanForm,
-        updated_at: new Date().toISOString()
-      }).eq('id', editCustomer.id)
+      // Recalculate balance = opening_balance + (all credit deliveries) - (all payments)
+const { data: deliveryData } = await supabase.from('deliveries')
+  .select('credit_amount, total_amount, payment_method, jazzcash_confirmed')
+  .eq('customer_id', editCustomer.id)
+  .eq('is_voided', false)
+
+const { data: paymentData } = await supabase.from('payments')
+  .select('amount, payment_method, jazzcash_confirmed')
+  .eq('customer_id', editCustomer.id)
+  .eq('is_voided', false)
+
+let balance = cleanForm.opening_balance
+
+deliveryData?.forEach(d => {
+  if (d.payment_method === 'credit') balance += Number(d.total_amount)
+  else if (d.payment_method === 'cash') balance += Number(d.credit_amount || 0)
+  else if (d.payment_method === 'jazzcash' && !d.jazzcash_confirmed) balance += Number(d.total_amount)
+})
+
+paymentData?.forEach(p => {
+  if (p.payment_method === 'cash') balance -= Number(p.amount)
+  else if (p.payment_method === 'jazzcash' && p.jazzcash_confirmed) balance -= Number(p.amount)
+})
+
+const { error } = await supabase.from('customers').update({
+  ...cleanForm,
+  balance: balance,
+  updated_at: new Date().toISOString()
+}).eq('id', editCustomer.id)
       if (error) { 
         console.error('Update error:', error)
         alert('Error: ' + error.message)
