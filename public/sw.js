@@ -1,70 +1,61 @@
-const CACHE_NAME = 'aquarun-v1'
+const CACHE_NAME = 'aquarun-v2'
 
-const STATIC_ASSETS = [
-  '/',
-  '/index.html',
-]
-
-// Install — cache the app shell
+// Install
 self.addEventListener('install', event => {
-  console.log('Service Worker installing...')
+  console.log('SW installing')
+  self.skipWaiting()
   event.waitUntil(
     caches.open(CACHE_NAME).then(cache => {
-      return cache.addAll(STATIC_ASSETS)
+      return cache.add('/')
     })
   )
-  self.skipWaiting()
 })
 
-// Activate — clean old caches
+// Activate
 self.addEventListener('activate', event => {
-  console.log('Service Worker activating...')
+  console.log('SW activating')
   event.waitUntil(
     caches.keys().then(keys =>
-      Promise.all(
-        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
-      )
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   )
   self.clients.claim()
 })
 
-// Fetch — serve from cache when offline
+// Fetch
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url)
 
-  // Skip Supabase API calls — never cache these
+  // Never intercept Supabase calls
   if (url.hostname.includes('supabase.co')) return
 
-  // For navigation requests (page loads) — serve index.html from cache
+  // Never intercept Chrome extension calls
+  if (url.protocol === 'chrome-extension:') return
+
+  // For page navigation — network first, fall back to cache
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request)
         .then(response => {
-          // If online — update cache and return response
           const clone = response.clone()
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone))
+          caches.open(CACHE_NAME).then(cache => cache.put('/', clone))
           return response
         })
-        .catch(() => {
-          // If offline — serve from cache
-          return caches.match('/index.html')
-        })
+        .catch(() => caches.match('/'))
     )
     return
   }
 
-  // For JS/CSS/assets — cache first, then network
+  // For all other requests (JS, CSS, images) — network first, cache fallback
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached
-      return fetch(event.request).then(response => {
-        if (response.ok) {
+    fetch(event.request)
+      .then(response => {
+        if (response.ok && event.request.method === 'GET') {
           const clone = response.clone()
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone))
         }
         return response
-      }).catch(() => cached)
-    })
+      })
+      .catch(() => caches.match(event.request))
   )
 })
