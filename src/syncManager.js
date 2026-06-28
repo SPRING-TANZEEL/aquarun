@@ -77,6 +77,7 @@ export async function syncToServer() {
           continue
         }
 
+        // Update order status
         if (data.order_id) {
           await supabase.from('orders').update({
             status: 'completed',
@@ -84,12 +85,26 @@ export async function syncToServer() {
           }).eq('id', data.order_id)
         }
 
-        if (data.customer_id && Number(data.credit_amount) > 0) {
+        // Update customer balance correctly based on payment method
+        if (data.customer_id) {
           const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
           if (cust) {
-            await supabase.from('customers').update({
-              balance: Number(cust.balance) + Number(data.credit_amount)
-            }).eq('id', data.customer_id)
+            let newBalance = Number(cust.balance)
+
+            if (data.payment_method === 'credit') {
+              // Full amount added to balance — customer owes everything
+              newBalance += Number(data.total_amount)
+            } else if (data.payment_method === 'cash') {
+              // Only the credit portion (unpaid amount) adds to balance
+              const creditPortion = Number(data.credit_amount || 0)
+              newBalance += creditPortion
+            } else if (data.payment_method === 'jazzcash') {
+              // JazzCash — add to balance until admin confirms
+              // When admin confirms jazzcash — balance will be reduced then
+              newBalance += Number(data.total_amount)
+            }
+
+            await supabase.from('customers').update({ balance: newBalance }).eq('id', data.customer_id)
           }
         }
 
@@ -128,12 +143,21 @@ export async function syncToServer() {
         const { error } = await supabase.from('payments').insert([data])
         if (error) { errors.push('Payment: ' + error.message); continue }
 
-        if (data.customer_id && data.payment_method === 'cash') {
+        // Update customer balance based on payment method
+        if (data.customer_id) {
           const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
           if (cust) {
-            await supabase.from('customers').update({
-              balance: Number(cust.balance) - Number(data.amount)
-            }).eq('id', data.customer_id)
+            let newBalance = Number(cust.balance)
+
+            if (data.payment_method === 'cash') {
+              // Cash payment — immediately reduces balance
+              newBalance -= Number(data.amount)
+            } else if (data.payment_method === 'jazzcash') {
+              // JazzCash payment — only reduces balance when admin confirms
+              // Do not reduce balance here — admin will confirm later
+            }
+
+            await supabase.from('customers').update({ balance: newBalance }).eq('id', data.customer_id)
           }
         }
 
@@ -153,6 +177,23 @@ export async function syncToServer() {
         const { local_id, ...data } = record
         const { error } = await supabase.from('deliveries').insert([data])
         if (error) { errors.push('QuickSale: ' + error.message); continue }
+
+        // Update customer balance for quick sales too
+        if (data.customer_id) {
+          const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
+          if (cust) {
+            let newBalance = Number(cust.balance)
+            if (data.payment_method === 'credit') {
+              newBalance += Number(data.total_amount)
+            } else if (data.payment_method === 'cash') {
+              newBalance += Number(data.credit_amount || 0)
+            } else if (data.payment_method === 'jazzcash') {
+              newBalance += Number(data.total_amount)
+            }
+            await supabase.from('customers').update({ balance: newBalance }).eq('id', data.customer_id)
+          }
+        }
+
         await removePendingQuickSale(local_id)
         totalSynced++
       } catch (err) {
