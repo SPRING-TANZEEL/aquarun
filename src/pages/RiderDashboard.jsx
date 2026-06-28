@@ -73,7 +73,34 @@ export default function RiderDashboard({ user, onLogout }) {
     }
     setDownloading(false)
   }
-
+  async function handleClearStuck() {
+    if (!window.confirm('This will clear all pending offline entries. Only use if entries are stuck. Continue?')) return
+    try {
+      const DB_NAME = 'aquarun_offline'
+      const request = indexedDB.open(DB_NAME)
+      request.onsuccess = (event) => {
+        const db = event.target.result
+        const stores = ['pending_deliveries', 'pending_expenses', 'pending_payments', 'pending_quicksales']
+        stores.forEach(storeName => {
+          try {
+            const tx = db.transaction(storeName, 'readwrite')
+            const store = tx.objectStore(storeName)
+            store.clear()
+            console.log('Cleared store:', storeName)
+          } catch (e) {
+            console.log('Could not clear store:', storeName, e)
+          }
+        })
+        setPendingCount(0)
+        alert('✅ Cleared all stuck entries. Pending count reset to 0.')
+      }
+      request.onerror = () => {
+        alert('Error accessing offline database')
+      }
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+  }
   async function handleManualSync() {
     setSyncing(true)
     const result = await syncToServer()
@@ -267,20 +294,24 @@ export default function RiderDashboard({ user, onLogout }) {
                   <span style={{ fontSize: '13px', color: '#888' }}>{new Date(lastSync).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                {isOnline && (
-                  <button onClick={handleManualSync} disabled={syncing}
-                    style={{ flex: 1, padding: '10px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                    {syncing ? '🔄 Syncing...' : '🔄 Sync Now'}
-                  </button>
-                )}
-                {isOnline && (
-                  <button onClick={downloadData} disabled={downloading}
-                    style={{ flex: 1, padding: '10px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                    {downloading ? '⬇️ Downloading...' : '⬇️ Refresh Data'}
-                  </button>
-                )}
-              </div>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+  {isOnline && (
+    <button onClick={handleManualSync} disabled={syncing}
+      style={{ flex: 1, padding: '10px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+      {syncing ? '🔄 Syncing...' : '🔄 Sync Now'}
+    </button>
+  )}
+  {isOnline && (
+    <button onClick={downloadData} disabled={downloading}
+      style={{ flex: 1, padding: '10px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+      {downloading ? '⬇️ Downloading...' : '⬇️ Refresh Data'}
+    </button>
+  )}
+  <button onClick={handleClearStuck}
+    style={{ width: '100%', padding: '10px', background: '#f44336', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', marginTop: '4px' }}>
+    🗑️ Clear Stuck Entries
+  </button>
+</div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
