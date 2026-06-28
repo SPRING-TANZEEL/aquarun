@@ -187,27 +187,79 @@ export default function Transactions() {
       void_reason: voidReason
     }).eq('id', tx.id)
 
-    // Reverse effects
+    // Reverse effects based on transaction type
     if (tx.type === 'delivery' && tx.raw.customer_id) {
       // Reverse customer balance
-      const creditPortion = Number(tx.raw.credit_amount || 0)
-      if (creditPortion > 0) {
-        const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
-        if (customer) {
-          await supabase.from('customers').update({ balance: Number(customer.balance) - creditPortion }).eq('id', tx.raw.customer_id)
+      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
+      if (customer) {
+        // Delivery added credit_amount to balance — reverse it
+        const creditPortion = Number(tx.raw.credit_amount || 0)
+        if (creditPortion > 0) {
+          await supabase.from('customers').update({
+            balance: Number(customer.balance) - creditPortion
+          }).eq('id', tx.raw.customer_id)
+        }
+        // If jazzcash delivery was confirmed — reverse balance too
+        if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
+          await supabase.from('customers').update({
+            balance: Number(customer.balance) - Number(tx.raw.total_amount)
+          }).eq('id', tx.raw.customer_id)
         }
       }
       // Reverse order status if linked
       if (tx.raw.order_id) {
-        await supabase.from('orders').update({ status: 'assigned', completed_at: null }).eq('id', tx.raw.order_id)
+        await supabase.from('orders').update({
+          status: 'assigned', completed_at: null
+        }).eq('id', tx.raw.order_id)
       }
     }
 
-    if (tx.type === 'payment' && tx.raw.customer_id && tx.raw.jazzcash_confirmed) {
-      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
-      if (customer) {
-        await supabase.from('customers').update({ balance: Number(customer.balance) + Number(tx.raw.amount) }).eq('id', tx.raw.customer_id)
+    if (tx.type === 'payment') {
+      if (tx.raw.customer_id) {
+        const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
+        if (customer) {
+          // Cash payment reduced balance — reverse it
+          if (tx.raw.payment_method === 'cash') {
+            await supabase.from('customers').update({
+              balance: Number(customer.balance) + Number(tx.raw.amount)
+            }).eq('id', tx.raw.customer_id)
+          }
+          // Confirmed jazzcash payment reduced balance — reverse it
+          if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
+            await supabase.from('customers').update({
+              balance: Number(customer.balance) + Number(tx.raw.amount)
+            }).eq('id', tx.raw.customer_id)
+          }
+        }
       }
+    }
+
+    if (tx.type === 'expense') {
+      // Rider cash summary will auto update since is_voided filters it out
+    }
+
+    if (tx.type === 'office_expense') {
+      // CEO cash position will auto update since is_voided filters it out
+    }
+
+    if (tx.type === 'cash_transfer') {
+      // Reverse the cash transfer — update status back to pending
+      await supabase.from('cash_transfers').update({
+        is_voided: true,
+        voided_at: now,
+        voided_by: 'Admin',
+        void_reason: voidReason
+      }).eq('id', tx.id)
+    }
+
+    if (tx.type === 'salary_advance') {
+      // Reverse salary advance — update status back
+      await supabase.from('salary_advances').update({
+        is_voided: true,
+        voided_at: now,
+        voided_by: 'Admin',
+        void_reason: voidReason
+      }).eq('id', tx.id)
     }
 
     setShowVoidForm(false)
@@ -215,11 +267,11 @@ export default function Transactions() {
     setVoidReason('')
     setProcessing(false)
     fetchTransactions()
-    alert('Transaction voided successfully. Customer balance has been adjusted.')
+    alert('✅ Transaction voided. All balances have been reversed.')
   }
 
   async function restoreTransaction() {
-    if (!window.confirm('Restore this transaction? Customer balance will be re-applied.')) return
+    if (!window.confirm('Restore this transaction? All balances will be re-applied.')) return
     setProcessing(true)
 
     const tx = selectedTx
@@ -237,22 +289,38 @@ export default function Transactions() {
       if (creditPortion > 0) {
         const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
         if (customer) {
-          await supabase.from('customers').update({ balance: Number(customer.balance) + creditPortion }).eq('id', tx.raw.customer_id)
+          await supabase.from('customers').update({
+            balance: Number(customer.balance) + creditPortion
+          }).eq('id', tx.raw.customer_id)
         }
+      }
+      if (tx.raw.order_id) {
+        await supabase.from('orders').update({
+          status: 'completed', completed_at: tx.raw.delivered_at
+        }).eq('id', tx.raw.order_id)
       }
     }
 
-    if (tx.type === 'payment' && tx.raw.customer_id && tx.raw.jazzcash_confirmed) {
+    if (tx.type === 'payment' && tx.raw.customer_id) {
       const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
       if (customer) {
-        await supabase.from('customers').update({ balance: Number(customer.balance) - Number(tx.raw.amount) }).eq('id', tx.raw.customer_id)
+        if (tx.raw.payment_method === 'cash') {
+          await supabase.from('customers').update({
+            balance: Number(customer.balance) - Number(tx.raw.amount)
+          }).eq('id', tx.raw.customer_id)
+        }
+        if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
+          await supabase.from('customers').update({
+            balance: Number(customer.balance) - Number(tx.raw.amount)
+          }).eq('id', tx.raw.customer_id)
+        }
       }
     }
 
     setSelectedTx(null)
     setProcessing(false)
     fetchTransactions()
-    alert('Transaction restored successfully.')
+    alert('✅ Transaction restored. All balances have been re-applied.')
   }
 
   const filtered = transactions.filter(t =>
