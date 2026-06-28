@@ -10,6 +10,10 @@ export default function RiderCashSummary({ rider }) {
   useEffect(() => { fetchSummary() }, [selectedDate])
 
   async function fetchSummary() {
+    if (!navigator.onLine) {
+      setLoading(false)
+      return
+    }
     setLoading(true)
 
     const { data: deliveries } = await supabase.from('deliveries')
@@ -160,7 +164,20 @@ export default function RiderCashSummary({ rider }) {
     )
   }
 
-  if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
+  if (!navigator.onLine && !summary) return (
+    <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+      <p style={{ fontSize: '32px', marginBottom: '12px' }}>📵</p>
+      <p style={{ fontWeight: '700', color: '#333', marginBottom: '8px' }}>Cash Summary needs internet</p>
+      <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px' }}>
+        Your entries are saved on your phone. Connect to internet to see your full cash summary and reconciliation.
+      </p>
+      <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
+        All your deliveries and payments are safely stored and will sync when you are back online.
+      </p>
+    </div>
+  )
+
+if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
 
   return (
     <div>
