@@ -512,10 +512,9 @@ function CustomerLedger() {
                     <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700' }}>TOTAL</td>
                     <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalDebit.toLocaleString()}</td>
                     <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalCredit.toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right' }}>
-                      {Math.abs(Number(selectedCustomer.balance)).toLocaleString()}
-                      {Number(selectedCustomer.balance) < 0 ? ' (Adv)' : ''}
-                    </td>
+                    <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right', color: ledger.length > 0 ? (ledger[ledger.length-1].runningBalance > 0 ? '#ffcdd2' : '#c8e6c9') : 'white' }}>
+  {ledger.length > 0 ? Math.abs(ledger[ledger.length-1].runningBalance).toLocaleString() : Math.abs(Number(selectedCustomer.balance)).toLocaleString()}
+</td>
                   </tr>
                 </tfoot>
               </table>
