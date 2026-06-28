@@ -10,52 +10,50 @@ export default function RiderReceivables({ rider, onSelectCustomer, isOnline, db
   const [totalAdvance, setTotalAdvance] = useState(0)
   const [activeTab, setActiveTab] = useState('outstanding')
 
-  useEffect(() => { if (dbReady || isOnline) fetchReceivables() }, [isOnline, dbReady])
+  useEffect(() => { fetchReceivables() }, [isOnline])
 
   async function fetchReceivables() {
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
 
-    let customersData = []
+    try {
+      let customersData = []
+      let ordersCustomerIds = new Set()
 
-    if (isOnline) {
-      const { data } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('is_active', true)
-        .neq('balance', 0)
-        .order('full_name')
-      customersData = data || []
-    } else {
-      const offline = await getCustomersOffline()
-      customersData = offline.filter(c => c.is_active && Number(c.balance) !== 0)
+      if (isOnline) {
+        const [customersRes, ordersRes] = await Promise.all([
+          supabase.from('customers').select('*').eq('is_active', true).neq('balance', 0).order('full_name'),
+          supabase.from('orders').select('customer_id').eq('rider_id', rider.id).eq('status', 'assigned').lte('delivery_date', today)
+        ])
+        customersData = customersRes.data || []
+        ordersCustomerIds = new Set(ordersRes.data?.map(o => o.customer_id) || [])
+      } else {
+        try {
+          const offline = await getCustomersOffline()
+          customersData = offline.filter(c => c.is_active && Number(c.balance) !== 0)
+        } catch {
+          customersData = []
+        }
+      }
+
+      const sorted = customersData.sort((a, b) => {
+        const aHasOrder = ordersCustomerIds.has(a.id) ? 1 : 0
+        const bHasOrder = ordersCustomerIds.has(b.id) ? 1 : 0
+        if (bHasOrder !== aHasOrder) return bHasOrder - aHasOrder
+        return Number(b.balance) - Number(a.balance)
+      }).map(c => ({ ...c, hasActiveOrder: ordersCustomerIds.has(c.id) }))
+
+      const totalRec = sorted.filter(c => Number(c.balance) > 0).reduce((s, c) => s + Number(c.balance), 0)
+      const totalAdv = sorted.filter(c => Number(c.balance) < 0).reduce((s, c) => s + Math.abs(Number(c.balance)), 0)
+
+      setCustomers(sorted)
+      setTotalReceivable(totalRec)
+      setTotalAdvance(totalAdv)
+    } catch (err) {
+      console.error('Error fetching receivables:', err)
+      setCustomers([])
     }
 
-    // Get today's assigned orders for this rider
-    let ordersCustomerIds = new Set()
-    if (isOnline) {
-      const { data: ordersData } = await supabase
-        .from('orders')
-        .select('customer_id')
-        .eq('rider_id', rider.id)
-        .eq('status', 'assigned')
-        .lte('delivery_date', today)
-      ordersCustomerIds = new Set(ordersData?.map(o => o.customer_id) || [])
-    }
-
-    const sorted = customersData.sort((a, b) => {
-      const aHasOrder = ordersCustomerIds.has(a.id) ? 1 : 0
-      const bHasOrder = ordersCustomerIds.has(b.id) ? 1 : 0
-      if (bHasOrder !== aHasOrder) return bHasOrder - aHasOrder
-      return Number(b.balance) - Number(a.balance)
-    }).map(c => ({ ...c, hasActiveOrder: ordersCustomerIds.has(c.id) }))
-
-    const totalRec = sorted.filter(c => Number(c.balance) > 0).reduce((s, c) => s + Number(c.balance), 0)
-    const totalAdv = sorted.filter(c => Number(c.balance) < 0).reduce((s, c) => s + Math.abs(Number(c.balance)), 0)
-
-    setCustomers(sorted)
-    setTotalReceivable(totalRec)
-    setTotalAdvance(totalAdv)
     setLoading(false)
   }
 
