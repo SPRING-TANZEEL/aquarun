@@ -299,28 +299,13 @@ function CustomerLedger() {
 
     entries.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-    // Start with opening balance
+    // Opening balance is always the starting point
     let balance = Number(customer.opening_balance || 0)
 
     const ledgerWithBalance = entries.map(e => {
       if (e.type === 'delivery') {
-        if (e.payment_method === 'cash') {
-          // Debit full amount, credit cash received, difference goes to balance
-          balance = balance + e.debit - e.credit
-        } else if (e.payment_method === 'jazzcash') {
-          if (e.jazzcash_confirmed) {
-            // Confirmed jazz — no effect on balance (already paid)
-            balance = balance + e.debit - e.credit
-          } else {
-            // Pending jazz — adds to balance
-            balance = balance + e.debit
-          }
-        } else {
-          // Credit sale — full amount adds to balance
-          balance = balance + e.debit
-        }
+        balance = balance + e.debit - e.credit
       } else if (e.type === 'payment') {
-        // Payment reduces balance
         balance = balance - e.credit
       }
       return { ...e, runningBalance: balance }
@@ -441,7 +426,7 @@ function CustomerLedger() {
                 { label: 'Opening Balance', value: openingBal, color: openingBal > 0 ? '#f44336' : '#1a7a4a' },
                 { label: 'Total Sales / Debit', value: totalDebit, color: '#f44336' },
                 { label: 'Total Payments / Credit', value: totalCredit, color: '#1a7a4a' },
-                { label: 'Net Outstanding', value: Number(selectedCustomer.balance), color: Number(selectedCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' },
+                { label: 'Net Outstanding', value: ledger.length > 0 ? ledger[ledger.length-1].runningBalance : openingBal, color: (ledger.length > 0 ? ledger[ledger.length-1].runningBalance : openingBal) > 0 ? '#f44336' : '#1a7a4a' },
               ].map(card => (
                 <div key={card.label} style={{ background: 'white', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid #eee' }}>
                   <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{card.label}</p>
@@ -513,7 +498,10 @@ function CustomerLedger() {
                     <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalDebit.toLocaleString()}</td>
                     <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalCredit.toLocaleString()}</td>
                     <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right', color: ledger.length > 0 ? (ledger[ledger.length-1].runningBalance > 0 ? '#ffcdd2' : '#c8e6c9') : 'white' }}>
-  {ledger.length > 0 ? Math.abs(ledger[ledger.length-1].runningBalance).toLocaleString() : Math.abs(Number(selectedCustomer.balance)).toLocaleString()}
+                    <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right' }}>
+  {ledger.length > 0
+    ? Math.abs(ledger[ledger.length - 1].runningBalance).toLocaleString()
+    : Math.abs(openingBal).toLocaleString()}
 </td>
                   </tr>
                 </tfoot>
