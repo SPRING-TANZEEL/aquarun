@@ -29,13 +29,23 @@ export default function CustomerManagement() {
     setLoading(false)
   }
 
+  function generatePassword() {
+    return Math.random().toString(36).slice(-6).toUpperCase()
+  }
+
+  function cleanNumeric(val) {
+    const n = Number(val)
+    return isNaN(n) ? 0 : n
+  }
+
   function openAddForm() {
     setEditCustomer(null)
     setForm({
       full_name: '', mobile: '', address: '',
       rate_19l: 100, rate_half_litre: 0, rate_1_5l: 0,
       own_bottles: 0, our_bottles_placed: 0,
-      opening_balance: 0, customer_password: '',
+      opening_balance: 0,
+      customer_password: generatePassword(),
       google_maps_link: '', latitude: '', longitude: '',
       is_active: true
     })
@@ -45,14 +55,19 @@ export default function CustomerManagement() {
   function openEditForm(c) {
     setEditCustomer(c)
     setForm({
-      full_name: c.full_name, mobile: c.mobile, address: c.address || '',
-      rate_19l: c.rate_19l || 100, rate_half_litre: c.rate_half_litre || 0,
-      rate_1_5l: c.rate_1_5l || 0,
-      own_bottles: c.own_bottles || 0, our_bottles_placed: c.our_bottles_placed || 0,
-      opening_balance: c.opening_balance || 0,
+      full_name: c.full_name || '',
+      mobile: c.mobile || '',
+      address: c.address || '',
+      rate_19l: Number(c.rate_19l) || 100,
+      rate_half_litre: Number(c.rate_half_litre) || 0,
+      rate_1_5l: Number(c.rate_1_5l) || 0,
+      own_bottles: Number(c.own_bottles) || 0,
+      our_bottles_placed: Number(c.our_bottles_placed) || 0,
+      opening_balance: Number(c.opening_balance) || 0,
       customer_password: c.customer_password || c.password_plain || '',
       google_maps_link: c.google_maps_link || '',
-      latitude: c.latitude || '', longitude: c.longitude || '',
+      latitude: c.latitude || '',
+      longitude: c.longitude || '',
       is_active: c.is_active
     })
     setShowForm(true)
@@ -84,12 +99,30 @@ export default function CustomerManagement() {
 
   async function saveCustomer() {
     if (!form.full_name || !form.mobile) return alert('Name and mobile are required')
+    if (!form.customer_password) return alert('Password is required')
     setSaving(true)
+
+    const cleanForm = {
+      full_name: form.full_name,
+      mobile: form.mobile,
+      address: form.address,
+      rate_19l: cleanNumeric(form.rate_19l),
+      rate_half_litre: cleanNumeric(form.rate_half_litre),
+      rate_1_5l: cleanNumeric(form.rate_1_5l),
+      own_bottles: cleanNumeric(form.own_bottles),
+      our_bottles_placed: cleanNumeric(form.our_bottles_placed),
+      opening_balance: cleanNumeric(form.opening_balance),
+      customer_password: form.customer_password,
+      password_plain: form.customer_password,
+      google_maps_link: form.google_maps_link,
+      latitude: form.latitude,
+      longitude: form.longitude,
+      is_active: form.is_active,
+    }
 
     if (editCustomer) {
       const { error } = await supabase.from('customers').update({
-        ...form,
-        password_plain: form.customer_password,
+        ...cleanForm,
         updated_at: new Date().toISOString()
       }).eq('id', editCustomer.id)
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
@@ -97,13 +130,12 @@ export default function CustomerManagement() {
     } else {
       const customerCode = 'AQ-' + Math.floor(10000 + Math.random() * 90000)
       const { error } = await supabase.from('customers').insert([{
-        ...form,
+        ...cleanForm,
         customer_code: customerCode,
-        balance: Number(form.opening_balance) || 0,
-        password_plain: form.customer_password,
+        balance: cleanNumeric(form.opening_balance),
       }])
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
-      alert(`Customer added! Customer ID: ${customerCode}`)
+      alert(`Customer added!\n\nCustomer ID: ${customerCode}\nPassword: ${form.customer_password}\n\nShare these with the customer for app login.`)
     }
 
     setShowForm(false)
@@ -118,11 +150,11 @@ export default function CustomerManagement() {
   }
 
   async function resetPassword(c) {
-    const newPass = Math.random().toString(36).slice(-6).toUpperCase()
+    const newPass = generatePassword()
     await supabase.from('customers').update({
       customer_password: newPass, password_plain: newPass
     }).eq('id', c.id)
-    alert(`New password for ${c.full_name}: ${newPass}`)
+    alert(`New password for ${c.full_name}:\n\nPassword: ${newPass}\n\nShare this with the customer.`)
     fetchCustomers()
   }
 
@@ -218,19 +250,53 @@ export default function CustomerManagement() {
               style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}>✕</button>
           </div>
 
+          {/* Basic Info */}
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Basic Information</p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Full Name *</label>
-              <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Customer name" style={inp} />
+              <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
+                placeholder="Customer name" style={inp} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Mobile *</label>
-              <input value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} placeholder="03xx-xxxxxxx" style={inp} />
+              <input value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })}
+                placeholder="03xx-xxxxxxx" style={inp} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Address</label>
-              <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Customer address" style={inp} />
+              <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
+                placeholder="Customer address" style={inp} />
             </div>
+          </div>
+
+          {/* App Login */}
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>App Login Credentials</p>
+          <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '14px', marginBottom: '14px', border: '1px solid #c8d8ff' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' }}>
+              <div>
+                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Customer ID (Auto Generated)</label>
+                <div style={{ padding: '10px 12px', background: '#e3f0ff', borderRadius: '8px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
+                  {editCustomer ? editCustomer.customer_code : 'AQ-XXXXX (auto)'}
+                </div>
+              </div>
+              <div>
+                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>App Password *</label>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <input value={form.customer_password}
+                    onChange={e => setForm({ ...form, customer_password: e.target.value })}
+                    placeholder="Password"
+                    style={{ ...inp, flex: 1, fontWeight: '700', letterSpacing: '2px' }} />
+                  <button type="button" onClick={() => setForm({ ...form, customer_password: generatePassword() })}
+                    style={{ padding: '10px 10px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                    🔄
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>
+              💡 Customer uses their <strong>Customer ID</strong> and <strong>Password</strong> to login to the customer app. Share these after saving.
+            </p>
           </div>
 
           {/* Rates */}
@@ -243,7 +309,10 @@ export default function CustomerManagement() {
             ].map(f => (
               <div key={f.key}>
                 <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>{f.label}</label>
-                <input type="number" value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: Number(e.target.value) })} style={inp} />
+                <input type="number" value={form[f.key]}
+                  onChange={e => setForm({ ...form, [f.key]: e.target.value === '' ? '' : Number(e.target.value) })}
+                  onBlur={e => setForm({ ...form, [f.key]: cleanNumeric(e.target.value) })}
+                  style={inp} />
               </div>
             ))}
           </div>
@@ -253,42 +322,38 @@ export default function CustomerManagement() {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Customer Own Bottles</label>
-              <input type="number" value={form.own_bottles} onChange={e => setForm({ ...form, own_bottles: Number(e.target.value) })} style={inp} />
+              <input type="number" value={form.own_bottles}
+                onChange={e => setForm({ ...form, own_bottles: e.target.value === '' ? '' : Number(e.target.value) })}
+                onBlur={e => setForm({ ...form, own_bottles: cleanNumeric(e.target.value) })}
+                style={inp} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Our Bottles Placed</label>
-              <input type="number" value={form.our_bottles_placed} onChange={e => setForm({ ...form, our_bottles_placed: Number(e.target.value) })} style={inp} />
+              <input type="number" value={form.our_bottles_placed}
+                onChange={e => setForm({ ...form, our_bottles_placed: e.target.value === '' ? '' : Number(e.target.value) })}
+                onBlur={e => setForm({ ...form, our_bottles_placed: cleanNumeric(e.target.value) })}
+                style={inp} />
             </div>
           </div>
 
           {/* Opening Balance */}
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Opening Balance</p>
           <div style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>
-              Opening Balance (Rs.)
-            </label>
             <input type="number" value={form.opening_balance}
-              onChange={e => setForm({ ...form, opening_balance: Number(e.target.value) })}
+              onChange={e => setForm({ ...form, opening_balance: e.target.value === '' ? '' : Number(e.target.value) })}
+              onBlur={e => setForm({ ...form, opening_balance: cleanNumeric(e.target.value) })}
               placeholder="0" style={inp} />
             <div style={{ marginTop: '6px', background: '#f0f7ff', borderRadius: '6px', padding: '8px 12px' }}>
               <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>
                 💡 Positive = customer owes you · Negative = customer paid in advance
               </p>
-              <p style={{ fontSize: '11px', color: '#0f4c81', margin: '2px 0 0' }}>
-                Example: -500 means customer has Rs. 500 advance credit
-              </p>
             </div>
           </div>
 
-          {/* Password */}
-          <div style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>App Password</label>
-            <input value={form.customer_password} onChange={e => setForm({ ...form, customer_password: e.target.value })}
-              placeholder="Password for customer app login" style={inp} />
-          </div>
-
           {/* Google Maps */}
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location (optional)</p>
           <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Google Maps Link (optional)</label>
+            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Google Maps Link</label>
             <input value={form.google_maps_link} onChange={e => handleMapsLink(e.target.value)}
               placeholder="Paste Google Maps link..." style={inp} />
             {form.latitude && form.longitude && (
@@ -299,7 +364,7 @@ export default function CustomerManagement() {
           </div>
 
           <button onClick={saveCustomer} disabled={saving}
-            style={{ padding: '12px 28px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: '600' }}>
+            style={{ width: '100%', padding: '14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: '600' }}>
             {saving ? 'Saving...' : editCustomer ? '✓ Update Customer' : '✓ Save Customer'}
           </button>
         </div>
@@ -315,7 +380,7 @@ export default function CustomerManagement() {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
-                {['Customer', 'Mobile', 'Rate 19L', 'Bottles', 'Balance', 'Password', 'Status', 'Action'].map(h => (
+                {['Customer', 'Mobile', 'Rate 19L', 'Bottles', 'Balance', 'Login Details', 'Status', 'Action'].map(h => (
                   <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee' }}>{h}</th>
                 ))}
               </tr>
@@ -343,18 +408,20 @@ export default function CustomerManagement() {
                       </span>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#555' }}>
+                      <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>ID: <strong style={{ color: '#0f4c81' }}>{c.customer_code}</strong></p>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Pass: </p>
+                        <span style={{ fontSize: '12px', fontFamily: 'monospace', color: '#555', fontWeight: '700' }}>
                           {showPassword[c.id] ? (c.customer_password || c.password_plain || '—') : '••••••'}
                         </span>
                         <button onClick={() => setShowPassword(p => ({ ...p, [c.id]: !p[c.id] }))}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: '#888' }}>
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px', color: '#888', padding: '0 2px' }}>
                           {showPassword[c.id] ? '🙈' : '👁️'}
                         </button>
                       </div>
                       <button onClick={() => resetPassword(c)}
-                        style={{ fontSize: '10px', color: '#0f4c81', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: '2px' }}>
-                        Reset
+                        style={{ fontSize: '10px', color: '#f44336', background: 'none', border: 'none', cursor: 'pointer', padding: 0, marginTop: '2px' }}>
+                        🔄 Reset Password
                       </button>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
