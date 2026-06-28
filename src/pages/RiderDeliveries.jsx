@@ -21,32 +21,39 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
   const [success, setSuccess] = useState(null)
   const [filter, setFilter] = useState('today')
 
-  useEffect(() => { if (dbReady) fetchOrders() }, [filter, isOnline, dbReady])
+  useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady])
 
   async function fetchOrders() {
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
 
-    if (isOnline) {
-      // Fetch from server
-      let query = supabase
-        .from('orders')
-        .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l)')
-        .eq('rider_id', rider.id)
-        .eq('status', 'assigned')
-        .order('delivery_date', { ascending: true })
+    try {
+      if (isOnline) {
+        let query = supabase
+          .from('orders')
+          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l)')
+          .eq('rider_id', rider.id)
+          .eq('status', 'assigned')
+          .order('delivery_date', { ascending: true })
 
-      if (filter === 'today') query = query.lte('delivery_date', today)
-      const { data } = await query
-      setOrders(data || [])
-    } else {
-      // Fetch from offline storage
-      const offlineOrders = await getOrdersOffline()
-      let filtered = offlineOrders.filter(o => o.rider_id === rider.id && o.status === 'assigned')
-      if (filter === 'today') {
-        filtered = filtered.filter(o => !o.delivery_date || o.delivery_date <= today)
+        if (filter === 'today') query = query.lte('delivery_date', today)
+        const { data } = await query
+        setOrders(data || [])
+      } else {
+        if (dbReady) {
+          const offlineOrders = await getOrdersOffline()
+          let filtered = offlineOrders.filter(o => o.rider_id === rider.id && o.status === 'assigned')
+          if (filter === 'today') {
+            filtered = filtered.filter(o => !o.delivery_date || o.delivery_date <= today)
+          }
+          setOrders(filtered)
+        } else {
+          setOrders([])
+        }
       }
-      setOrders(filtered)
+    } catch (err) {
+      console.error('Error fetching orders:', err)
+      setOrders([])
     }
 
     setLoading(false)
