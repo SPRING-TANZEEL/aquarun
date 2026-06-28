@@ -240,8 +240,15 @@ function PurchaseEntry({ products, onRefresh }) {
   const [purchasePrice, setPurchasePrice] = useState('')
   const [supplier, setSupplier] = useState('')
   const [notes, setNotes] = useState('')
+  const [paymentMethod, setPaymentMethod] = useState('cash')
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
+
+  const PAYMENT_METHODS = [
+    { key: 'cash', label: 'Cash', icon: '💵' },
+    { key: 'jazzcash', label: 'JazzCash', icon: '📱' },
+    { key: 'bank', label: 'Bank', icon: '🏦' },
+  ]
 
   const purchasableProducts = products.filter(p => p.product_type === 'raw_material' || p.product_type === 'trading')
   const product = products.find(p => p.id === selectedProduct)
@@ -271,6 +278,7 @@ function PurchaseEntry({ products, onRefresh }) {
       purchase_price: Number(purchasePrice),
       total_cost: isShrinkingPaper ? Number(quantityKg) * Number(purchasePrice) : totalPieces * Number(purchasePrice),
       supplier, notes,
+      payment_method: paymentMethod,
       purchase_date: new Date().toISOString().split('T')[0]
     }])
 
@@ -288,6 +296,7 @@ function PurchaseEntry({ products, onRefresh }) {
     setPurchasePrice('')
     setSupplier('')
     setNotes('')
+    setPaymentMethod('cash')
     onRefresh()
     setSaving(false)
     setTimeout(() => setSuccess(false), 3000)
@@ -357,6 +366,26 @@ function PurchaseEntry({ products, onRefresh }) {
           </div>
         </div>
 
+        {/* Payment Method */}
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Paid From</p>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          {PAYMENT_METHODS.map(m => (
+            <button key={m.key} onClick={() => setPaymentMethod(m.key)}
+              style={{
+                flex: 1, padding: '12px 6px', border: '2px solid',
+                borderColor: paymentMethod === m.key ? (m.key === 'cash' ? '#0f4c81' : m.key === 'jazzcash' ? '#9c27b0' : '#1a7a4a') : '#eee',
+                borderRadius: '10px', cursor: 'pointer',
+                background: paymentMethod === m.key ? (m.key === 'cash' ? '#e3f0ff' : m.key === 'jazzcash' ? '#fdf4ff' : '#e8f5e9') : '#f8f9fa',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px'
+              }}>
+              <span style={{ fontSize: '20px' }}>{m.icon}</span>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: paymentMethod === m.key ? (m.key === 'cash' ? '#0f4c81' : m.key === 'jazzcash' ? '#9c27b0' : '#1a7a4a') : '#555' }}>
+                {m.label}
+              </span>
+            </button>
+          ))}
+        </div>
+
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Notes (optional)</label>
           <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any additional notes..." style={inp} />
@@ -364,10 +393,13 @@ function PurchaseEntry({ products, onRefresh }) {
 
         {totalCost > 0 && (
           <div style={{ background: '#e8f5e9', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: '14px', color: '#333' }}>Total Purchase Cost</span>
               <span style={{ fontSize: '18px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {totalCost.toLocaleString()}</span>
             </div>
+            <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>
+              Will be deducted from {paymentMethod === 'cash' ? '💵 Cash in Hand' : paymentMethod === 'jazzcash' ? '📱 JazzCash' : '🏦 Bank'} balance
+            </p>
           </div>
         )}
 
@@ -808,7 +840,7 @@ function StockHistory({ products }) {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8f9fa' }}>
-                  {['Date', 'Product', 'Quantity', 'Price/Unit', 'Total Cost', 'Supplier'].map(h => (
+                  {['Date', 'Product', 'Quantity', 'Price/Unit', 'Total Cost', 'Paid From', 'Supplier'].map(h => (
                     <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee' }}>{h}</th>
                   ))}
                 </tr>
@@ -824,7 +856,12 @@ function StockHistory({ products }) {
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: '13px' }}>Rs. {Number(p.purchase_price).toLocaleString()}</td>
                     <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>Rs. {Number(p.total_cost).toLocaleString()}</td>
-                    <td style={{ padding: '10px 14px', fontSize: '12px', color: '#888' }}>{p.supplier || '—'}</td>
+                    <td style={{ padding: '10px 14px', fontSize: '12px' }}>
+  <span style={{ fontSize: '11px', background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: '6px' }}>
+    {p.payment_method === 'jazzcash' ? '📱 JazzCash' : p.payment_method === 'bank' ? '🏦 Bank' : '💵 Cash'}
+  </span>
+</td>
+<td style={{ padding: '10px 14px', fontSize: '12px', color: '#888' }}>{p.supplier || '—'}</td>
                   </tr>
                 ))}
               </tbody>
