@@ -186,7 +186,8 @@ export async function savePendingDelivery(delivery) {
 
 export async function getPendingDeliveries() {
   const all = await getAll('pending_deliveries')
-  return all.filter(d => !d.synced)
+  console.log('All deliveries in IndexedDB:', all)
+  return all.filter(d => d.synced === false || d.synced === undefined || d.synced === null || d.synced === 0)
 }
 
 export async function markDeliverySynced(local_id) {
@@ -216,7 +217,7 @@ export async function savePendingExpense(expense) {
 
 export async function getPendingExpenses() {
   const all = await getAll('pending_expenses')
-  return all.filter(e => !e.synced)
+  return all.filter(e => e.synced === false || e.synced === undefined || e.synced === null || e.synced === 0)
 }
 
 export async function markExpenseSynced(local_id) {
@@ -246,7 +247,7 @@ export async function savePendingPayment(payment) {
 
 export async function getPendingPayments() {
   const all = await getAll('pending_payments')
-  return all.filter(p => !p.synced)
+  return all.filter(p => p.synced === false || p.synced === undefined || p.synced === null || p.synced === 0)
 }
 
 export async function markPaymentSynced(local_id) {
@@ -276,7 +277,7 @@ export async function savePendingQuickSale(sale) {
 
 export async function getPendingQuickSales() {
   const all = await getAll('pending_quicksales')
-  return all.filter(s => !s.synced)
+  return all.filter(s => s.synced === false || s.synced === undefined || s.synced === null || s.synced === 0)
 }
 
 export async function markQuickSaleSynced(local_id) {
@@ -310,11 +311,30 @@ export async function getRiderProfile(riderId) {
 // ─── SYNC STATUS ───────────────────────────────────────────────────
 
 export async function getPendingCount() {
-  const [deliveries, expenses, payments, quicksales] = await Promise.all([
-    getPendingDeliveries(),
-    getPendingExpenses(),
-    getPendingPayments(),
-    getPendingQuickSales()
-  ])
-  return deliveries.length + expenses.length + payments.length + quicksales.length
+  try {
+    const [deliveries, expenses, payments, quicksales] = await Promise.all([
+      getPendingDeliveries(),
+      getPendingExpenses(),
+      getPendingPayments(),
+      getPendingQuickSales()
+    ])
+    const total = deliveries.length + expenses.length + payments.length + quicksales.length
+    console.log('Pending count:', total, '— deliveries:', deliveries.length, 'expenses:', expenses.length, 'payments:', payments.length, 'quicksales:', quicksales.length)
+    return total
+  } catch (err) {
+    console.error('getPendingCount error:', err)
+    return 0
+  }
+}
+
+export async function clearAllSynced() {
+  const stores = ['pending_deliveries', 'pending_expenses', 'pending_payments', 'pending_quicksales']
+  for (const store of stores) {
+    const all = await getAll(store)
+    for (const item of all) {
+      if (item.synced === true) {
+        await deleteRecord(store, item.local_id)
+      }
+    }
+  }
 }
