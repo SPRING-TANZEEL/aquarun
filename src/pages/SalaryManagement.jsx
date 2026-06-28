@@ -83,10 +83,18 @@ export default function SalaryManagement({ adminUser }) {
 
   async function approveRequest(request) {
     setProcessing(request.id)
-    const { error } = await supabase.from('salary_advances')
+    const { data: approved, error } = await supabase.from('salary_advances')
       .update({ status: 'approved', approved_by: 'Admin/CEO', approved_at: new Date().toISOString() })
       .eq('id', request.id)
-    if (error) { alert('Error: ' + error.message) }
+      .select().single()
+    if (error) { alert('Error: ' + error.message); setProcessing(null); return }
+
+    // Auto-post journal entry
+    try {
+      const { postSalaryAdvanceJournal } = await import('../accountingEngine')
+      await postSalaryAdvanceJournal(approved)
+    } catch (err) { console.error('Journal post error:', err) }
+
     fetchData()
     setProcessing(null)
   }
@@ -102,7 +110,7 @@ export default function SalaryManagement({ adminUser }) {
     if (!payAmount || Number(payAmount) <= 0) return alert('Please enter amount')
     setSaving(true)
     const summary = riderSummaries.find(r => r.id === rider.id)
-    const { error } = await supabase.from('salary_payments').insert([{
+    const { data: savedPayment, error } = await supabase.from('salary_payments').insert([{
       rider_id: rider.id,
       paid_by: 'ceo',
       month_year: selectedMonth,
@@ -111,8 +119,14 @@ export default function SalaryManagement({ adminUser }) {
       amount_paid: Number(payAmount),
       payment_method: payMethod,
       notes: payNote
-    }])
+    }]).select().single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
+    // Auto-post journal entry
+    try {
+      const { postSalaryPaymentJournal } = await import('../accountingEngine')
+      await postSalaryPaymentJournal(savedPayment)
+    } catch (err) { console.error('Journal post error:', err) }
     alert(`Salary paid to ${rider.full_name}!\nAmount: Rs. ${Number(payAmount).toLocaleString()}\nPaid via: ${payMethod}`)
     setPayingRider(null)
     setPayAmount('')

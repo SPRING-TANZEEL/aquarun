@@ -26,7 +26,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
   async function fetchOrders() {
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
-
     try {
       if (isOnline) {
         let query = supabase
@@ -35,7 +34,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
           .order('delivery_date', { ascending: true })
-
         if (filter === 'today') query = query.lte('delivery_date', today)
         const { data } = await query
         setOrders(data || [])
@@ -55,7 +53,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
       console.error('Error fetching orders:', err)
       setOrders([])
     }
-
     setLoading(false)
   }
 
@@ -114,8 +111,8 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
     }
 
     if (isOnline) {
-      // Post directly to server
-      const { error } = await supabase.from('deliveries').insert([deliveryData])
+      const { data: savedDelivery, error } = await supabase
+        .from('deliveries').insert([deliveryData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
       await supabase.from('orders').update({
@@ -126,11 +123,16 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
         const newBalance = Number(selectedOrder.customers.balance) + creditPortion
         await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedOrder.customer_id)
       }
+
+      // Auto-post journal entry
+      try {
+        const { postDeliveryJournal } = await import('../accountingEngine')
+        await postDeliveryJournal(savedDelivery)
+      } catch (err) { console.error('Journal post error:', err) }
+
     } else {
-      // Save offline
       await savePendingDelivery(deliveryData)
       await updateOrderStatusOffline(selectedOrder.id, 'completed')
-
       if (creditPortion > 0) {
         const newBalance = Number(selectedOrder.customers?.balance || 0) + creditPortion
         await updateCustomerBalanceOffline(selectedOrder.customer_id, newBalance)
@@ -173,7 +175,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
         </p>
       )}
 
-      {/* Success */}
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Delivery Completed!</p>
@@ -194,7 +195,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
         </div>
       )}
 
-      {/* Delivery Form */}
       {selectedOrder ? (
         <div>
           <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -211,7 +211,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
             </div>
           </div>
 
-          {/* Bottles */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '14px' }}>Bottles to Deliver</p>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -241,7 +240,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
             )}
           </div>
 
-          {/* Rate */}
           {qty19l > 0 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Rate — 19L</p>
@@ -256,7 +254,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
             </div>
           )}
 
-          {/* Payment */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -311,7 +308,6 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
             )}
           </div>
 
-          {/* Total & Submit */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <p style={{ fontSize: '16px', color: '#555', margin: 0 }}>Total Amount</p>

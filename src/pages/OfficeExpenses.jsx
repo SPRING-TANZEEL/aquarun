@@ -52,7 +52,8 @@ export default function OfficeExpenses({ rider, isCEO }) {
     if (!amount || Number(amount) <= 0) return alert('Please enter amount')
     setSaving(true)
     const paidBy = isCEO ? 'ceo' : 'main_rider'
-    const { error } = await supabase.from('office_expenses').insert([{
+
+    const { data: saved, error } = await supabase.from('office_expenses').insert([{
       paid_by: paidBy,
       paid_by_rider_id: rider.id,
       category,
@@ -60,8 +61,16 @@ export default function OfficeExpenses({ rider, isCEO }) {
       description,
       payment_method: paymentMethod,
       expense_date: new Date().toISOString().split('T')[0]
-    }])
+    }]).select().single()
+
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
+    // Auto-post journal entry
+    try {
+      const { postOfficeExpenseJournal } = await import('../accountingEngine')
+      await postOfficeExpenseJournal(saved)
+    } catch (err) { console.error('Journal post error:', err) }
+
     setSuccess(true)
     setCategory(null)
     setAmount('')

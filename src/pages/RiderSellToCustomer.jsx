@@ -11,21 +11,17 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
   const [searching, setSearching] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [saleMode, setSaleMode] = useState(null)
-
   const [qty19l, setQty19l] = useState(1)
   const [qtyHalf, setQtyHalf] = useState(0)
   const [qty15l, setQty15l] = useState(0)
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
   const [cashReceived, setCashReceived] = useState('')
-
   const [paymentAmount, setPaymentAmount] = useState('')
-
   const [walkInRate, setWalkInRate] = useState(null)
   const [walkInQty, setWalkInQty] = useState(1)
   const [walkInPayment, setWalkInPayment] = useState(null)
   const [walkInCash, setWalkInCash] = useState('')
-
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
 
@@ -40,7 +36,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     setSearch(val)
     if (val.length < 2) { setCustomers([]); return }
     setSearching(true)
-
     try {
       if (isOnline) {
         const { data } = await supabase.from('customers')
@@ -49,7 +44,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
           .limit(6)
         setCustomers(data || [])
       } else {
-        // Search from offline storage
         const offlineCustomers = await getCustomersOffline()
         const filtered = offlineCustomers.filter(c =>
           c.is_active && (
@@ -64,7 +58,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
       console.error('Search error:', err)
       setCustomers([])
     }
-
     setSearching(false)
   }
 
@@ -146,12 +139,20 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     }
 
     if (isOnline) {
-      const { error } = await supabase.from('deliveries').insert([deliveryData])
+      const { data: savedDelivery, error } = await supabase.from('deliveries').insert([deliveryData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
       if (creditPortion > 0) {
         const newBalance = Number(selectedCustomer.balance) + creditPortion
         await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id)
       }
+
+      // Auto-post journal entry
+      try {
+        const { postDeliveryJournal } = await import('../accountingEngine')
+        await postDeliveryJournal(savedDelivery)
+      } catch (err) { console.error('Journal post error:', err) }
+
     } else {
       await savePendingDelivery(deliveryData)
       if (creditPortion > 0) {
@@ -189,13 +190,24 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     }
 
     if (isOnline) {
-      const { error } = await supabase.from('payments').insert([paymentData])
+      const { data: savedPayment, error } = await supabase.from('payments').insert([paymentData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
       if (!isJazz) {
         await supabase.from('customers').update({
           balance: Number(selectedCustomer.balance) - amount
         }).eq('id', selectedCustomer.id)
       }
+
+      // Auto-post journal entry for cash payments only
+      // JazzCash journal posts when admin confirms
+      if (!isJazz) {
+        try {
+          const { postPaymentJournal } = await import('../accountingEngine')
+          await postPaymentJournal(savedPayment)
+        } catch (err) { console.error('Journal post error:', err) }
+      }
+
     } else {
       await savePendingPayment(paymentData)
       if (!isJazz) {
@@ -250,8 +262,15 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     }
 
     if (isOnline) {
-      const { error } = await supabase.from('deliveries').insert([saleData])
+      const { data: savedSale, error } = await supabase.from('deliveries').insert([saleData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
+      // Auto-post journal entry
+      try {
+        const { postDeliveryJournal } = await import('../accountingEngine')
+        await postDeliveryJournal(savedSale)
+      } catch (err) { console.error('Journal post error:', err) }
+
     } else {
       await savePendingQuickSale(saleData)
     }
@@ -286,7 +305,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
     <div>
       <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>👤 Customer & Sales</h2>
 
-      {/* Offline Notice */}
       {!isOnline && (
         <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
           <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>
@@ -295,7 +313,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* Success */}
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>
@@ -331,7 +348,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* Mode Selection */}
       {!mode && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <button onClick={() => setMode('search')}
@@ -353,7 +369,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* Customer Search */}
       {mode === 'search' && !selectedCustomer && (
         <div>
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -392,7 +407,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* Customer Selected */}
       {mode === 'search' && selectedCustomer && (
         <div>
           <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -432,7 +446,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             </div>
           )}
 
-          {/* Sell Bottles */}
           {saleMode === 'sale' && (
             <div>
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -493,7 +506,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                     </button>
                   ))}
                 </div>
-
                 {paymentMethod === 'cash' && total > 0 && (
                   <div style={{ marginTop: '14px', background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
@@ -550,7 +562,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
             </div>
           )}
 
-          {/* Receive Payment */}
           {saleMode === 'payment' && (
             <div>
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -598,7 +609,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
         </div>
       )}
 
-      {/* Walk-in Mode */}
       {mode === 'walkin' && (
         <div>
           <div style={{ background: '#1a7a4a', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -650,7 +660,6 @@ export default function RiderSellToCustomer({ rider, preSelectedCustomer, onClea
                 </button>
               ))}
             </div>
-
             {walkInPayment === 'cash' && wTotal > 0 && (
               <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>

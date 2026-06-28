@@ -207,11 +207,17 @@ export default function CEOCashPosition() {
     if (!transferAmount || Number(transferAmount) <= 0) return alert('Please enter amount')
     if (transferFrom === transferTo) return alert('From and To cannot be the same')
     setSavingTransfer(true)
-    const { error } = await supabase.from('ceo_account_transfers').insert([{
+    const { data: savedTransfer, error } = await supabase.from('ceo_account_transfers').insert([{
       from_account: transferFrom, to_account: transferTo,
       amount: Number(transferAmount), transfer_date: transferDate, notes: transferNotes
-    }])
+    }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingTransfer(false); return }
+
+    // Auto-post journal entry
+    try {
+      const { postAccountTransferJournal } = await import('../accountingEngine')
+      await postAccountTransferJournal(savedTransfer)
+    } catch (err) { console.error('Journal post error:', err) }
     setTransferAmount(''); setTransferNotes('')
     setTransferSuccess(true)
     setTimeout(() => setTransferSuccess(false), 3000)
@@ -222,11 +228,17 @@ export default function CEOCashPosition() {
   async function postOwnerTransaction() {
     if (!ownerAmount || Number(ownerAmount) <= 0) return alert('Please enter amount')
     setSavingOwner(true)
-    const { error } = await supabase.from('owner_transactions').insert([{
+    const { data: savedTx, error } = await supabase.from('owner_transactions').insert([{
       transaction_type: ownerType, account: ownerAccount,
       amount: Number(ownerAmount), transaction_date: ownerDate, notes: ownerNotes
-    }])
+    }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingOwner(false); return }
+
+    // Auto-post journal entry
+    try {
+      const { postOwnerTransactionJournal } = await import('../accountingEngine')
+      await postOwnerTransactionJournal(savedTx)
+    } catch (err) { console.error('Journal post error:', err) }
     setOwnerAmount(''); setOwnerNotes('')
     setOwnerSuccess(true)
     setTimeout(() => setOwnerSuccess(false), 3000)

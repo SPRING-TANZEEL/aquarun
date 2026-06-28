@@ -270,7 +270,7 @@ function PurchaseEntry({ products, onRefresh }) {
     setSaving(true)
     const totalPieces = isShrinkingPaper ? Number(quantityKg) * Number(piecesPerKg) : Number(quantity)
 
-    const { error } = await supabase.from('stock_purchases').insert([{
+    const { data: savedPurchase, error } = await supabase.from('stock_purchases').insert([{
       product_id: selectedProduct,
       quantity: totalPieces,
       quantity_kg: isShrinkingPaper ? Number(quantityKg) : 0,
@@ -280,9 +280,15 @@ function PurchaseEntry({ products, onRefresh }) {
       supplier, notes,
       payment_method: paymentMethod,
       purchase_date: new Date().toISOString().split('T')[0]
-    }])
+    }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
+    // Auto-post journal entry
+    try {
+      const { postStockPurchaseJournal } = await import('../accountingEngine')
+      await postStockPurchaseJournal(savedPurchase)
+    } catch (err) { console.error('Journal post error:', err) }
 
     const updateData = { current_stock: (product.current_stock || 0) + totalPieces }
     if (isShrinkingPaper) updateData.current_stock_kg = (product.current_stock_kg || 0) + Number(quantityKg)
