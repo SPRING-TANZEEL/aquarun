@@ -102,39 +102,52 @@ export default function CustomerManagement() {
     if (!form.customer_password) return alert('Password is required')
     setSaving(true)
 
+    // Force clean ALL fields — no empty strings allowed
     const cleanForm = {
-      full_name: form.full_name,
-      mobile: form.mobile,
-      address: form.address,
-      rate_19l: cleanNumeric(form.rate_19l),
-      rate_half_litre: cleanNumeric(form.rate_half_litre),
-      rate_1_5l: cleanNumeric(form.rate_1_5l),
-      own_bottles: cleanNumeric(form.own_bottles),
-      our_bottles_placed: cleanNumeric(form.our_bottles_placed),
-      opening_balance: cleanNumeric(form.opening_balance),
-      customer_password: form.customer_password,
-      password_plain: form.customer_password,
-      google_maps_link: form.google_maps_link,
-      latitude: form.latitude,
-      longitude: form.longitude,
-      is_active: form.is_active,
+      full_name: String(form.full_name || '').trim(),
+      mobile: String(form.mobile || '').trim(),
+      address: String(form.address || '').trim(),
+      rate_19l: Number(form.rate_19l) || 0,
+      rate_half_litre: Number(form.rate_half_litre) || 0,
+      rate_1_5l: Number(form.rate_1_5l) || 0,
+      own_bottles: Number(form.own_bottles) || 0,
+      our_bottles_placed: Number(form.our_bottles_placed) || 0,
+      opening_balance: Number(form.opening_balance) || 0,
+      customer_password: String(form.customer_password || '').trim(),
+      password_plain: String(form.customer_password || '').trim(),
+      google_maps_link: String(form.google_maps_link || '').trim(),
+      latitude: String(form.latitude || '').trim(),
+      longitude: String(form.longitude || '').trim(),
+      is_active: form.is_active === false ? false : true,
     }
+
+    console.log('Saving customer with data:', cleanForm)
 
     if (editCustomer) {
       const { error } = await supabase.from('customers').update({
         ...cleanForm,
         updated_at: new Date().toISOString()
       }).eq('id', editCustomer.id)
-      if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      if (error) { 
+        console.error('Update error:', error)
+        alert('Error: ' + error.message)
+        setSaving(false)
+        return
+      }
       alert('Customer updated!')
     } else {
       const customerCode = 'AQ-' + Math.floor(10000 + Math.random() * 90000)
       const { error } = await supabase.from('customers').insert([{
         ...cleanForm,
         customer_code: customerCode,
-        balance: cleanNumeric(form.opening_balance),
+        balance: Number(form.opening_balance) || 0,
       }])
-      if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      if (error) { 
+        console.error('Insert error:', error)
+        alert('Error: ' + error.message)
+        setSaving(false)
+        return
+      }
       alert(`Customer added!\n\nCustomer ID: ${customerCode}\nPassword: ${form.customer_password}\n\nShare these with the customer for app login.`)
     }
 
