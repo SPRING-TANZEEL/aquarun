@@ -209,10 +209,29 @@ export default function CustomerDashboard({ user, onLogout }) {
         {activePage === 'home' && (
           <div>
             {/* Balance Card */}
-            <div style={{
-              background: user.balance > 0
-                ? 'linear-gradient(135deg, #c62828, #e65100)'
-                : 'linear-gradient(135deg, #0f4c81, #1a7a4a)',
+<div style={{
+  background: user.balance > 0
+    ? 'linear-gradient(135deg, #c62828, #e65100)'
+    : user.balance < 0
+    ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)'
+    : 'linear-gradient(135deg, #1a7a4a, #0f4c81)',
+  color: 'white', borderRadius: '16px', padding: '24px',
+  marginBottom: '16px', textAlign: 'center'
+}}>
+  <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>
+    {user.balance > 0 ? 'Outstanding Balance' : user.balance < 0 ? '💚 Advance Credit' : 'Account Balance'}
+  </p>
+  <p style={{ fontSize: '42px', fontWeight: '700', margin: '0 0 6px' }}>
+    Rs. {Math.abs(Number(user.balance || 0)).toLocaleString()}
+  </p>
+  <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>
+    {user.balance > 0
+      ? 'Please clear your outstanding amount'
+      : user.balance < 0
+      ? `You have Rs. ${Math.abs(Number(user.balance)).toLocaleString()} advance credit for future deliveries`
+      : 'Your account is clear ✅'}
+  </p>
+</div>
               color: 'white', borderRadius: '16px', padding: '24px',
               marginBottom: '16px', textAlign: 'center'
             }}>
@@ -578,17 +597,27 @@ export default function CustomerDashboard({ user, onLogout }) {
             <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>💰 My Account</h2>
 
             <div style={{
-              background: user.balance > 0
-                ? 'linear-gradient(135deg, #c62828, #e65100)'
-                : 'linear-gradient(135deg, #0f4c81, #1a7a4a)',
-              color: 'white', borderRadius: '14px', padding: '20px', marginBottom: '16px', textAlign: 'center'
-            }}>
-              <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>Outstanding Balance</p>
-              <p style={{ fontSize: '38px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {Number(user.balance || 0).toLocaleString()}</p>
-              <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>
-                {user.balance > 0 ? 'Amount due to ' + (settings.business_name || 'Spring Water Kamoke') : 'No outstanding amount ✅'}
-              </p>
-            </div>
+  background: user.balance > 0
+    ? 'linear-gradient(135deg, #c62828, #e65100)'
+    : user.balance < 0
+    ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)'
+    : 'linear-gradient(135deg, #1a7a4a, #0f4c81)',
+  color: 'white', borderRadius: '14px', padding: '20px', marginBottom: '16px', textAlign: 'center'
+}}>
+  <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>
+    {user.balance > 0 ? 'Outstanding Balance' : user.balance < 0 ? '💚 Advance Credit' : 'Account Balance'}
+  </p>
+  <p style={{ fontSize: '38px', fontWeight: '700', margin: '0 0 4px' }}>
+    Rs. {Math.abs(Number(user.balance || 0)).toLocaleString()}
+  </p>
+  <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>
+    {user.balance > 0
+      ? 'Amount due to ' + (settings.business_name || 'Spring Water Kamoke')
+      : user.balance < 0
+      ? 'Advance credit — will be used for future deliveries'
+      : 'No outstanding amount ✅'}
+  </p>
+</div>
 
             {pendingJazzPayments.length > 0 && (
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #ffe082' }}>
