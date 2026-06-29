@@ -191,11 +191,9 @@ function CustomerLedger() {
     const { data: payments } = await supabase.from('payments').select('*').eq('customer_id', customer.id).eq('is_voided', false).order('created_at', { ascending: true })
 
     const entries = []
-
     deliveries?.forEach(d => {
       entries.push({
-        date: d.delivered_at,
-        type: 'delivery',
+        date: d.delivered_at, type: 'delivery',
         description: 'Delivery — 19L×' + (d.qty_19l || 0) + ' Half×' + (d.qty_half_litre || 0) + ' 1.5L×' + (d.qty_1_5l || 0),
         debit: Number(d.total_amount),
         credit: d.payment_method === 'cash' ? Number(d.amount_received || 0) : (d.payment_method === 'jazzcash' && d.jazzcash_confirmed ? Number(d.total_amount) : 0),
@@ -210,8 +208,7 @@ function CustomerLedger() {
       const isConfirmedJazz = p.payment_method === 'jazzcash' && p.jazzcash_confirmed
       const isPendingJazz = p.payment_method === 'jazzcash' && !p.jazzcash_confirmed
       entries.push({
-        date: p.created_at,
-        type: 'payment',
+        date: p.created_at, type: 'payment',
         description: 'Payment — ' + p.payment_method + (isPendingJazz ? ' (Pending)' : ''),
         debit: 0,
         credit: isCash || isConfirmedJazz ? Number(p.amount) : 0,
@@ -221,10 +218,7 @@ function CustomerLedger() {
     })
 
     entries.sort((a, b) => new Date(a.date) - new Date(b.date))
-
-    // Opening balance is the starting point — always carried forward
     let balance = Number(customer.opening_balance || 0)
-
     const ledgerWithBalance = entries.map(e => {
       balance = balance + e.debit - e.credit
       return { ...e, runningBalance: balance }
@@ -263,145 +257,225 @@ function CustomerLedger() {
       {!selectedCustomer ? (
         <div className="no-print" style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '13px', color: '#555', marginBottom: '8px', fontWeight: '600' }}>Search Customer</p>
-          <input value={search} onChange={e => searchCustomer(e.target.value)} placeholder="Type name, mobile, or customer ID..." style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
+          <input value={search} onChange={e => searchCustomer(e.target.value)}
+            placeholder="Type name, mobile, or customer ID..."
+            style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
           {customers.map(c => (
-            <div key={c.id} onClick={() => loadLedger(c)} style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div key={c.id} onClick={() => loadLedger(c)}
+              style={{ padding: '12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{c.full_name}</p>
                 <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
               </div>
-              <p style={{ fontSize: '13px', color: Number(c.balance) > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: 0 }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
+              <p style={{ fontSize: '13px', color: Number(c.balance) > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: 0 }}>
+                Rs. {Math.abs(Number(c.balance)).toLocaleString()}
+              </p>
             </div>
           ))}
         </div>
       ) : (
         <div>
           <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-            <button onClick={() => { setSelectedCustomer(null); setLedger([]) }} style={{ padding: '8px 16px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>← Back</button>
-            <button onClick={handlePrint} style={{ padding: '10px 24px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>🖨️ Print / Save PDF</button>
+            <button onClick={() => { setSelectedCustomer(null); setLedger([]) }}
+              style={{ padding: '8px 16px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+              ← Back
+            </button>
+            <button onClick={handlePrint}
+              style={{ padding: '10px 24px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
+              🖨️ Print / Save PDF
+            </button>
           </div>
 
           <div id="ledger-print-area">
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '20px', paddingBottom: '16px', borderBottom: '2px solid #0f4c81' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginBottom: '8px' }}>
-                {businessSettings.business_logo && <img src={businessSettings.business_logo} alt="logo" style={{ width: '60px', height: '60px', objectFit: 'contain', borderRadius: '8px' }} />}
-                <div>
-                  <h1 style={{ fontSize: '22px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>{businessSettings.business_name || 'Spring Water Kamoke'}</h1>
-                  <p style={{ fontSize: '13px', color: '#555', margin: '0 0 2px' }}>{businessSettings.business_tagline || 'Pure Water Delivery'}</p>
-                  {businessSettings.business_address && <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px' }}>📍 {businessSettings.business_address}</p>}
-                  {businessSettings.complaint_number && <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>📞 {businessSettings.complaint_number}</p>}
+
+            {/* ── PROFESSIONAL HEADER ── */}
+            <div style={{ borderBottom: '3px solid #0f4c81', paddingBottom: '12px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {businessSettings.business_logo && (
+                    <img src={businessSettings.business_logo} alt="logo"
+                      style={{ width: '52px', height: '52px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #eee' }} />
+                  )}
+                  <div>
+                    <p style={{ fontSize: '18px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>
+                      {businessSettings.business_name || 'Spring Water Kamoke'}
+                    </p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: '0 0 1px' }}>
+                      {businessSettings.business_tagline || 'Pure Water Delivery'}
+                    </p>
+                    {businessSettings.business_address && (
+                      <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
+                        📍 {businessSettings.business_address}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div style={{ marginTop: '10px', padding: '6px 16px', background: '#f0f4ff', borderRadius: '6px', display: 'inline-block' }}>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>CUSTOMER ACCOUNT LEDGER</p>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ background: '#0f4c81', color: 'white', padding: '6px 16px', borderRadius: '6px', marginBottom: '6px', display: 'inline-block' }}>
+                    <p style={{ fontSize: '13px', fontWeight: '700', margin: 0, letterSpacing: '0.05em' }}>CUSTOMER ACCOUNT STATEMENT</p>
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                    📞 {businessSettings.complaint_number || '—'}
+                  </p>
+                  <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>Printed: {printDate}</p>
+                </div>
               </div>
             </div>
 
-            {/* Customer Info */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px', background: '#f8f9fa', borderRadius: '10px', padding: '14px 16px' }}>
-              <div>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Customer Name</p>
-                <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 8px' }}>{selectedCustomer.full_name}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Customer ID</p>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: '0 0 8px' }}>{selectedCustomer.customer_code}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Mobile</p>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: 0 }}>{selectedCustomer.mobile}</p>
+            {/* ── CUSTOMER INFO BAR ── */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '10px 16px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', gap: '32px' }}>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer Name</p>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{selectedCustomer.full_name}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer ID</p>
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: 0 }}>{selectedCustomer.customer_code}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mobile</p>
+                  <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: 0 }}>{selectedCustomer.mobile || '—'}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rate / 19L</p>
+                  <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: 0 }}>Rs. {selectedCustomer.rate_19l || 100}</p>
+                </div>
               </div>
-              <div style={{ textAlign: 'right' }}>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Print Date</p>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: '0 0 8px' }}>{printDate}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Rate — 19L</p>
-                <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: '0 0 8px' }}>Rs. {selectedCustomer.rate_19l || 100} per bottle</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Outstanding Balance</p>
+              <div style={{ textAlign: 'right', background: closingBalance > 0 ? '#ffebee' : '#e8f5e9', border: `2px solid ${closingBalance > 0 ? '#f44336' : '#4caf50'}`, borderRadius: '8px', padding: '8px 16px' }}>
+                <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Balance</p>
                 <p style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: closingBalance > 0 ? '#f44336' : '#1a7a4a' }}>
                   Rs. {Math.abs(closingBalance).toLocaleString()}
-                  {closingBalance < 0 ? ' (Advance)' : ''}
+                  {closingBalance < 0 ? ' CR' : ''}
                 </p>
               </div>
             </div>
 
-            {/* Summary Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '16px' }}>
+            {/* ── SUMMARY STRIP ── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
               {[
-                { label: 'Opening Balance', value: openingBal, color: openingBal > 0 ? '#f44336' : openingBal < 0 ? '#1a7a4a' : '#888' },
-                { label: 'Total Sales / Debit', value: totalDebit, color: '#f44336' },
-                { label: 'Total Payments / Credit', value: totalCredit, color: '#1a7a4a' },
-                { label: 'Closing Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' : closingBalance < 0 ? '#1a7a4a' : '#888' },
+                { label: 'Opening Balance', value: openingBal, color: '#0f4c81', bg: '#e3f0ff' },
+                { label: 'Total Sales (Dr)', value: totalDebit, color: '#f44336', bg: '#ffebee' },
+                { label: 'Total Payments (Cr)', value: totalCredit, color: '#1a7a4a', bg: '#e8f5e9' },
+                { label: 'Closing Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' : '#1a7a4a', bg: closingBalance > 0 ? '#ffebee' : '#e8f5e9' },
               ].map(card => (
-                <div key={card.label} style={{ background: 'white', borderRadius: '8px', padding: '12px', textAlign: 'center', border: '1px solid #eee' }}>
-                  <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{card.label}</p>
-                  <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {Math.abs(Number(card.value)).toLocaleString()}</p>
+                <div key={card.label} style={{ background: card.bg, borderRadius: '8px', padding: '10px 12px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '10px', color: '#666', margin: '0 0 4px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{card.label}</p>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>
+                    Rs. {Math.abs(Number(card.value)).toLocaleString()}
+                  </p>
                 </div>
               ))}
             </div>
 
-            {/* Ledger Table */}
+            {/* ── LEDGER TABLE ── */}
             {loading ? (
               <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                 <thead>
                   <tr style={{ background: '#0f4c81', color: 'white' }}>
-                    {['#', 'Date', 'Description', 'Debit (Rs.)', 'Credit (Rs.)', 'Balance (Rs.)'].map(h => (
-                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11px', fontWeight: '600' }}>{h}</th>
+                    {['#', 'Date', 'Description', 'Debit (Rs.)', 'Credit (Rs.)', 'Balance (Rs.)'].map((h, i) => (
+                      <th key={h} style={{ padding: '10px 12px', textAlign: i >= 3 ? 'right' : 'left', fontSize: '11px', fontWeight: '700', letterSpacing: '0.04em' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  <tr style={{ background: '#e3f0ff' }}>
-                    <td style={{ padding: '8px 12px', fontSize: '11px', color: '#555' }}>—</td>
-                    <td style={{ padding: '8px 12px', fontSize: '11px', color: '#555' }}>—</td>
-                    <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>Opening Balance</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: '12px', color: '#888' }}>—</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: '12px', color: '#888' }}>—</td>
-                    <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', textAlign: 'right', color: openingBal > 0 ? '#f44336' : '#1a7a4a' }}>
+                  <tr style={{ background: '#e3f0ff', borderBottom: '1px solid #c8d8ff' }}>
+                    <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
+                    <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
+                    <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>★ Opening Balance</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: '13px', fontWeight: '700', color: openingBal > 0 ? '#f44336' : '#1a7a4a' }}>
                       {openingBal.toLocaleString()}
                     </td>
                   </tr>
                   {ledger.length === 0 ? (
                     <tr>
-                      <td colSpan={6} style={{ padding: '20px', textAlign: 'center', color: '#888', fontSize: '13px' }}>No transactions found</td>
+                      <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: '13px' }}>No transactions found</td>
                     </tr>
                   ) : ledger.map((e, idx) => (
-                    <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#fafafa', borderBottom: '1px solid #eee' }}>
-                      <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>{idx + 1}</td>
+                    <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#fafbff', borderBottom: '1px solid #eef0f5' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '11px', color: '#aaa', fontWeight: '600' }}>{idx + 1}</td>
                       <td style={{ padding: '8px 12px', fontSize: '11px', color: '#555', whiteSpace: 'nowrap' }}>
                         {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </td>
                       <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>
-                        {e.description}
-                        {e.credit_amount > 0 && <span style={{ fontSize: '10px', color: '#f44336', display: 'block' }}>Credit portion: Rs. {e.credit_amount.toLocaleString()}</span>}
-                        {e.pendingAmount > 0 && <span style={{ fontSize: '10px', color: '#e65100', display: 'block' }}>Pending: Rs. {e.pendingAmount.toLocaleString()}</span>}
+                        <span style={{ fontWeight: '600' }}>{e.description}</span>
+                        {e.credit_amount > 0 && (
+                          <span style={{ fontSize: '10px', color: '#f44336', display: 'block', marginTop: '2px' }}>
+                            ↳ Credit portion: Rs. {e.credit_amount.toLocaleString()}
+                          </span>
+                        )}
+                        {e.pendingAmount > 0 && (
+                          <span style={{ fontSize: '10px', color: '#e65100', display: 'block', marginTop: '2px' }}>
+                            ↳ Pending confirmation: Rs. {e.pendingAmount.toLocaleString()}
+                          </span>
+                        )}
                       </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: e.debit > 0 ? '#f44336' : '#aaa', textAlign: 'right' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.debit > 0 ? '#f44336' : '#ddd', textAlign: 'right' }}>
                         {e.debit > 0 ? e.debit.toLocaleString() : '—'}
                       </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '600', color: e.credit > 0 ? '#1a7a4a' : '#aaa', textAlign: 'right' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.credit > 0 ? '#1a7a4a' : '#ddd', textAlign: 'right' }}>
                         {e.credit > 0 ? e.credit.toLocaleString() : '—'}
                       </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', textAlign: 'right', color: e.runningBalance > 0 ? '#f44336' : '#1a7a4a' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right', color: e.runningBalance > 0 ? '#f44336' : '#1a7a4a' }}>
                         {e.runningBalance.toLocaleString()}
+                        {e.runningBalance < 0 && <span style={{ fontSize: '9px', marginLeft: '2px' }}>CR</span>}
                       </td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr style={{ background: '#0f4c81', color: 'white' }}>
-                    <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700' }}>TOTAL</td>
+                    <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', letterSpacing: '0.05em' }}>TOTAL</td>
                     <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalDebit.toLocaleString()}</td>
                     <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalCredit.toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right' }}>{Math.abs(closingBalance).toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right' }}>
+                      {Math.abs(closingBalance).toLocaleString()}
+                      {closingBalance < 0 && <span style={{ fontSize: '10px', marginLeft: '2px' }}>CR</span>}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
             )}
 
-            {/* Footer */}
-            <div style={{ marginTop: '30px', paddingTop: '16px', borderTop: '1px solid #ddd', textAlign: 'center' }}>
-              <p style={{ fontSize: '12px', color: '#555', margin: '0 0 6px', fontStyle: 'italic' }}>This is a computer generated report and does not require any signature or stamp.</p>
-              <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>Generated by AquaRun — {businessSettings.business_name || 'Spring Water Kamoke'} — {printDate}</p>
+            {/* ── OUTSTANDING BOX ── */}
+            {closingBalance > 0 && (
+              <div style={{ marginTop: '16px', border: '2px solid #f44336', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff5f5' }}>
+                <div>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#c62828', margin: '0 0 2px' }}>⚠️ Amount Due</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Please settle your outstanding balance at your earliest convenience.</p>
+                </div>
+                <p style={{ fontSize: '22px', fontWeight: '700', color: '#f44336', margin: 0 }}>Rs. {closingBalance.toLocaleString()}</p>
+              </div>
+            )}
+            {closingBalance <= 0 && (
+              <div style={{ marginTop: '16px', border: '2px solid #4caf50', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0fff4' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Account Clear — No outstanding balance. Thank you!</p>
+                {closingBalance < 0 && (
+                  <p style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Advance: Rs. {Math.abs(closingBalance).toLocaleString()}</p>
+                )}
+              </div>
+            )}
+
+            {/* ── FOOTER ── */}
+            <div style={{ marginTop: '24px', paddingTop: '12px', borderTop: '2px solid #0f4c81', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', fontStyle: 'italic' }}>
+                  This is a system generated report and does not require any signature or stamp.
+                </p>
+                <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
+                  Generated by AquaRun • {businessSettings.business_name} • {printDate}
+                </p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ fontSize: '10px', color: '#0f4c81', fontWeight: '700', margin: 0 }}>Powered by AquaRun</p>
+                <p style={{ fontSize: '9px', color: '#aaa', margin: '2px 0 0' }}>Water Delivery Management System</p>
+              </div>
             </div>
+
           </div>
         </div>
       )}
@@ -485,7 +559,8 @@ function ReceivablesAgeing() {
               </div>
             ))}
           </div>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customer..." style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search customer..."
+            style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
           <BucketSection title="🟢 0-30 Days" items={bucket0_30} color="#1a7a4a" />
           <BucketSection title="🟡 31-60 Days" items={bucket31_60} color="#e65100" />
           <BucketSection title="🔴 60+ Days" items={bucket60plus} color="#c62828" />
