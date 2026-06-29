@@ -17,8 +17,6 @@ export default function CEOCashPosition() {
   const [savingOpening, setSavingOpening] = useState(false)
   const [accountTransfers, setAccountTransfers] = useState([])
   const [ownerTransactions, setOwnerTransactions] = useState([])
-
-  // Transfer form
   const [transferFrom, setTransferFrom] = useState('cash')
   const [transferTo, setTransferTo] = useState('jazzcash')
   const [transferAmount, setTransferAmount] = useState('')
@@ -26,8 +24,6 @@ export default function CEOCashPosition() {
   const [transferDate, setTransferDate] = useState(new Date().toISOString().split('T')[0])
   const [savingTransfer, setSavingTransfer] = useState(false)
   const [transferSuccess, setTransferSuccess] = useState(false)
-
-  // Owner equity form
   const [ownerType, setOwnerType] = useState('injection')
   const [ownerAccount, setOwnerAccount] = useState('cash')
   const [ownerAmount, setOwnerAmount] = useState('')
@@ -35,8 +31,6 @@ export default function CEOCashPosition() {
   const [ownerNotes, setOwnerNotes] = useState('')
   const [savingOwner, setSavingOwner] = useState(false)
   const [ownerSuccess, setOwnerSuccess] = useState(false)
-
-  // Date filter
   const [dateFrom, setDateFrom] = useState('2024-01-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
@@ -48,27 +42,57 @@ export default function CEOCashPosition() {
     setLoading(false)
   }
 
+  // ── Read opening balances from Chart of Accounts ──
   async function fetchOpeningBalances() {
-    const { data } = await supabase.from('business_settings').select('*')
-      .in('setting_key', ['opening_cash_balance', 'opening_jazzcash_balance', 'opening_bank_balance'])
+    const { data } = await supabase.from('chart_of_accounts')
+      .select('account_code, opening_balance')
+      .in('account_code', ['1001', '1002', '1003'])
     const map = {}
-    data?.forEach(s => { map[s.setting_key] = Number(s.setting_value || 0) })
+    data?.forEach(a => { map[a.account_code] = Number(a.opening_balance || 0) })
     const balances = {
-      cash: map['opening_cash_balance'] || 0,
-      jazzcash: map['opening_jazzcash_balance'] || 0,
-      bank: map['opening_bank_balance'] || 0
+      cash: map['1001'] || 0,
+      jazzcash: map['1002'] || 0,
+      bank: map['1003'] || 0
     }
     setOpeningBalances(balances)
     setTempOpening({ cash: String(balances.cash), jazzcash: String(balances.jazzcash), bank: String(balances.bank) })
   }
 
+  // ── Save opening balances to Chart of Accounts + auto-calculate receivables ──
   async function saveOpeningBalances() {
     setSavingOpening(true)
+
+    // Save cash/jazz/bank to COA
+    for (const [code, key] of [['1001', 'cash'], ['1002', 'jazzcash'], ['1003', 'bank']]) {
+      await supabase.from('chart_of_accounts')
+        .update({ opening_balance: Number(tempOpening[key]) || 0 })
+        .eq('account_code', code)
+    }
+
+    // Auto-calculate receivables from customer opening balances
+    const { data: customers } = await supabase.from('customers')
+      .select('opening_balance').eq('is_active', true)
+    const totalReceivable = customers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
+    await supabase.from('chart_of_accounts')
+      .update({ opening_balance: totalReceivable })
+      .eq('account_code', '1100')
+
+    // Auto-calculate owner capital = total assets
+    const totalAssets = (Number(tempOpening.cash) || 0) +
+      (Number(tempOpening.jazzcash) || 0) +
+      (Number(tempOpening.bank) || 0) +
+      totalReceivable
+    await supabase.from('chart_of_accounts')
+      .update({ opening_balance: totalAssets })
+      .eq('account_code', '3001')
+
+    // Keep business_settings in sync for backward compatibility
     await supabase.from('business_settings').upsert([
       { setting_key: 'opening_cash_balance', setting_value: String(Number(tempOpening.cash) || 0) },
       { setting_key: 'opening_jazzcash_balance', setting_value: String(Number(tempOpening.jazzcash) || 0) },
       { setting_key: 'opening_bank_balance', setting_value: String(Number(tempOpening.bank) || 0) },
     ], { onConflict: 'setting_key' })
+
     setEditingOpening(false)
     setSavingOpening(false)
     fetchAll()
@@ -137,15 +161,9 @@ export default function CEOCashPosition() {
         .reduce((s, i) => s + Number(i[field] || 0), 0) || 0
     }
 
-    function byTransferType(arr, type) {
-      return arr?.filter(i => (i.transfer_type || 'cash') === type)
-        .reduce((s, i) => s + Number(i.amount || 0), 0) || 0
-    }
-
-    // Cash account
-    const cashFromRiders = byTransferType(cashTransfers, 'cash') +
-      cashTransfers?.filter(t => !t.transfer_type || t.transfer_type === 'cash').reduce((s, t) => s + Number(t.amount), 0) * 0 || 0
     const allCashRiders = cashTransfers?.filter(t => !t.transfer_type || t.transfer_type === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
+    const jazzFromRiders = cashTransfers?.filter(t => t.transfer_type === 'jazzcash').reduce((s, t) => s + Number(t.amount), 0) || 0
+
     const cashTransfersOut = ceoTransfers?.filter(t => t.from_account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
     const cashTransfersIn = ceoTransfers?.filter(t => t.to_account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
     const cashOwnerIn = ownerTx?.filter(t => t.transaction_type === 'injection' && t.account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -154,10 +172,7 @@ export default function CEOCashPosition() {
     const cashPurchases = byMethod(stockPurchases, 'cash', 'total_cost')
     const cashSalaries = byMethod(salaryPayments, 'cash', 'amount_paid')
     const cashAdvances = byMethod(advances, 'cash')
-    const cashOut = cashExpenses + cashPurchases + cashSalaries + cashAdvances + cashTransfersOut + cashOwnerOut
 
-    // JazzCash account
-    const jazzFromRiders = byTransferType(cashTransfers, 'jazzcash')
     const jazzFromCustomers = (jazzSales?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
       (jazzPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0)
     const jazzTransfersOut = ceoTransfers?.filter(t => t.from_account === 'jazzcash').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -168,9 +183,7 @@ export default function CEOCashPosition() {
     const jazzPurchases = byMethod(stockPurchases, 'jazzcash', 'total_cost')
     const jazzSalaries = byMethod(salaryPayments, 'jazzcash', 'amount_paid')
     const jazzAdvancesOut = byMethod(advances, 'jazzcash')
-    const jazzOut = jazzExpenses + jazzPurchases + jazzSalaries + jazzAdvancesOut + jazzTransfersOut + jazzOwnerOut
 
-    // Bank account
     const bankTransfersIn = ceoTransfers?.filter(t => t.to_account === 'bank').reduce((s, t) => s + Number(t.amount), 0) || 0
     const bankTransfersOut = ceoTransfers?.filter(t => t.from_account === 'bank').reduce((s, t) => s + Number(t.amount), 0) || 0
     const bankOwnerIn = ownerTx?.filter(t => t.transaction_type === 'injection' && t.account === 'bank').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -179,9 +192,7 @@ export default function CEOCashPosition() {
     const bankPurchases = byMethod(stockPurchases, 'bank', 'total_cost')
     const bankSalaries = byMethod(salaryPayments, 'bank', 'amount_paid')
     const bankAdvances = byMethod(advances, 'bank')
-    const bankOut = bankExpenses + bankPurchases + bankSalaries + bankAdvances + bankTransfersOut + bankOwnerOut
 
-    // Owner equity totals
     const totalInjections = ownerTx?.filter(t => t.transaction_type === 'injection').reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalDrawings = ownerTx?.filter(t => t.transaction_type === 'drawing').reduce((s, t) => s + Number(t.amount), 0) || 0
 
@@ -191,15 +202,8 @@ export default function CEOCashPosition() {
       jazzFromRiders, jazzFromCustomers, jazzTransfersOut, jazzTransfersIn,
       jazzOwnerIn, jazzOwnerOut, jazzExpenses, jazzPurchases, jazzSalaries, jazzAdvancesOut,
       bankTransfersIn, bankTransfersOut, bankOwnerIn, bankOwnerOut,
-      bankExpenses, bankPurchases, bankSalaries, bankAdvances, bankOut,
+      bankExpenses, bankPurchases, bankSalaries, bankAdvances,
       jazzPending, totalInjections, totalDrawings,
-      cashTransfersList: cashTransfers || [],
-      officeExpenses: officeExpenses || [],
-      stockPurchases: stockPurchases || [],
-      salaryPayments: salaryPayments || [],
-      advances: advances || [],
-      ceoTransfers: ceoTransfers || [],
-      ownerTxList: ownerTx || [],
     })
   }
 
@@ -212,8 +216,6 @@ export default function CEOCashPosition() {
       amount: Number(transferAmount), transfer_date: transferDate, notes: transferNotes
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingTransfer(false); return }
-
-    // Auto-post journal entry
     try {
       const { postAccountTransferJournal } = await import('../accountingEngine')
       await postAccountTransferJournal(savedTransfer)
@@ -233,8 +235,6 @@ export default function CEOCashPosition() {
       amount: Number(ownerAmount), transaction_date: ownerDate, notes: ownerNotes
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingOwner(false); return }
-
-    // Auto-post journal entry
     try {
       const { postOwnerTransactionJournal } = await import('../accountingEngine')
       await postOwnerTransactionJournal(savedTx)
@@ -264,7 +264,6 @@ export default function CEOCashPosition() {
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Complete wallet — Cash, JazzCash, Bank and Owner Equity</p>
       </div>
 
-      {/* Tabs */}
       <div style={{ display: 'flex', gap: '6px', background: 'white', padding: '5px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '16px', flexWrap: 'wrap' }}>
         {[
           { key: 'position', label: '📊 Position' },
@@ -273,22 +272,21 @@ export default function CEOCashPosition() {
           { key: 'history', label: '📋 History' },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
-            style={{
-              flex: 1, padding: '8px 4px', border: 'none', borderRadius: '7px', cursor: 'pointer',
-              background: activeTab === t.key ? '#0f4c81' : 'transparent',
-              color: activeTab === t.key ? 'white' : '#555',
-              fontWeight: activeTab === t.key ? '700' : '400', fontSize: '12px'
-            }}>{t.label}</button>
+            style={{ flex: 1, padding: '8px 4px', border: 'none', borderRadius: '7px', cursor: 'pointer', background: activeTab === t.key ? '#0f4c81' : 'transparent', color: activeTab === t.key ? 'white' : '#555', fontWeight: activeTab === t.key ? '700' : '400', fontSize: '12px' }}>
+            {t.label}
+          </button>
         ))}
       </div>
 
-      {/* ── POSITION TAB ── */}
       {activeTab === 'position' && (
         <div>
-          {/* Opening Balances */}
+          {/* Opening Balances from COA */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>📋 Opening Balances</p>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>📋 Opening Balances</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Sourced from Chart of Accounts</p>
+              </div>
               <button onClick={() => setEditingOpening(!editingOpening)}
                 style={{ padding: '4px 12px', background: editingOpening ? '#ffebee' : '#e3f0ff', color: editingOpening ? '#c62828' : '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
                 {editingOpening ? '✕ Cancel' : '✏️ Edit'}
@@ -296,6 +294,10 @@ export default function CEOCashPosition() {
             </div>
             {editingOpening ? (
               <div>
+                <div style={{ background: '#f0f7ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '12px', color: '#0f4c81', margin: '0 0 2px', fontWeight: '600' }}>💡 Enter balances from the day you started using AquaRun</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0' }}>Customer receivables and owner capital are auto-calculated</p>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   {ACCOUNTS.map(acc => (
                     <div key={acc.key}>
@@ -369,10 +371,7 @@ export default function CEOCashPosition() {
           </div>
 
           {/* Total Banner */}
-          <div style={{
-            background: totalPosition >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)',
-            color: 'white', borderRadius: '14px', padding: '20px', marginBottom: '16px', textAlign: 'center'
-          }}>
+          <div style={{ background: totalPosition >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '14px', padding: '20px', marginBottom: '16px', textAlign: 'center' }}>
             <p style={{ fontSize: '12px', opacity: 0.7, margin: '0 0 6px', textTransform: 'uppercase' }}>Total Business Position</p>
             <p style={{ fontSize: '40px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {totalPosition.toLocaleString()}</p>
             <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>
@@ -380,7 +379,6 @@ export default function CEOCashPosition() {
             </p>
           </div>
 
-          {/* JazzCash Pending */}
           {data?.jazzPending > 0 && (
             <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>⏳ JazzCash Pending</p>
@@ -403,8 +401,7 @@ export default function CEOCashPosition() {
                 { label: 'Inventory Purchases', value: data?.cashPurchases || 0, plus: false },
                 { label: 'Salaries', value: data?.cashSalaries || 0, plus: false },
                 { label: 'Advances', value: data?.cashAdvances || 0, plus: false },
-              ],
-              net: netCash
+              ], net: netCash
             },
             {
               key: 'jazz', label: '📱 JazzCash Account', color: '#9c27b0',
@@ -420,8 +417,7 @@ export default function CEOCashPosition() {
                 { label: 'Inventory Purchases', value: data?.jazzPurchases || 0, plus: false },
                 { label: 'Salaries', value: data?.jazzSalaries || 0, plus: false },
                 { label: 'Advances', value: data?.jazzAdvancesOut || 0, plus: false },
-              ],
-              net: netJazz
+              ], net: netJazz
             },
             {
               key: 'bank', label: '🏦 Bank Account', color: '#1a7a4a',
@@ -435,8 +431,7 @@ export default function CEOCashPosition() {
                 { label: 'Inventory Purchases', value: data?.bankPurchases || 0, plus: false },
                 { label: 'Salaries', value: data?.bankSalaries || 0, plus: false },
                 { label: 'Advances', value: data?.bankAdvances || 0, plus: false },
-              ],
-              net: netBank
+              ], net: netBank
             }
           ].map(account => (
             <div key={account.key} style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${account.color}` }}>
@@ -444,46 +439,34 @@ export default function CEOCashPosition() {
               {account.rows.filter(r => r.value !== 0).map(r => (
                 <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
                   <span style={{ fontSize: '12px', color: '#555' }}>{r.plus ? '+' : '−'} {r.label}</span>
-                  <span style={{ fontSize: '12px', fontWeight: '700', color: r.plus ? '#1a7a4a' : '#f44336' }}>
-                    Rs. {r.value.toLocaleString()}
-                  </span>
+                  <span style={{ fontSize: '12px', fontWeight: '700', color: r.plus ? '#1a7a4a' : '#f44336' }}>Rs. {r.value.toLocaleString()}</span>
                 </div>
               ))}
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: '4px', borderTop: `2px solid ${account.color}` }}>
                 <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Balance</span>
-                <span style={{ fontSize: '18px', fontWeight: '700', color: account.net >= 0 ? account.color : '#f44336' }}>
-                  Rs. {account.net.toLocaleString()}
-                </span>
+                <span style={{ fontSize: '18px', fontWeight: '700', color: account.net >= 0 ? account.color : '#f44336' }}>Rs. {account.net.toLocaleString()}</span>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* ── MOVE MONEY TAB ── */}
       {activeTab === 'transfer' && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>🔄 Move Money Between Accounts</h3>
-
           {transferSuccess && (
             <div style={{ background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px' }}>
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Transfer recorded!</p>
             </div>
           )}
-
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-            {[
-              { label: '💵 Cash', value: netCash, color: '#0f4c81' },
-              { label: '📱 JazzCash', value: netJazz, color: '#9c27b0' },
-              { label: '🏦 Bank', value: netBank, color: '#1a7a4a' },
-            ].map(b => (
+            {[{ label: '💵 Cash', value: netCash, color: '#0f4c81' }, { label: '📱 JazzCash', value: netJazz, color: '#9c27b0' }, { label: '🏦 Bank', value: netBank, color: '#1a7a4a' }].map(b => (
               <div key={b.label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{b.label}</p>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: b.color, margin: 0 }}>Rs. {b.value.toLocaleString()}</p>
               </div>
             ))}
           </div>
-
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>FROM</p>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
             {ACCOUNTS.map(acc => (
@@ -494,7 +477,6 @@ export default function CEOCashPosition() {
               </button>
             ))}
           </div>
-
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>TO</p>
           <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
             {ACCOUNTS.filter(a => a.key !== transferFrom).map(acc => (
@@ -505,7 +487,6 @@ export default function CEOCashPosition() {
               </button>
             ))}
           </div>
-
           <div style={{ background: '#f0f7ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <span>{ACCOUNTS.find(a => a.key === transferFrom)?.icon}</span>
             <span style={{ fontSize: '13px', color: '#555' }}>{ACCOUNTS.find(a => a.key === transferFrom)?.label}</span>
@@ -513,19 +494,15 @@ export default function CEOCashPosition() {
             <span>{ACCOUNTS.find(a => a.key === transferTo)?.icon}</span>
             <span style={{ fontSize: '13px', color: '#555' }}>{ACCOUNTS.find(a => a.key === transferTo)?.label}</span>
           </div>
-
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Amount (Rs.)</p>
           <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="0"
             style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px' }} />
-
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Date</p>
           <input type="date" value={transferDate} onChange={e => setTransferDate(e.target.value)}
             style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px' }} />
-
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Notes (optional)</p>
           <input value={transferNotes} onChange={e => setTransferNotes(e.target.value)} placeholder="e.g. Cash deposited to JazzCash"
             style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
-
           <button onClick={postAccountTransfer} disabled={savingTransfer}
             style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
             {savingTransfer ? 'Recording...' : '✓ Record Transfer'}
@@ -533,10 +510,8 @@ export default function CEOCashPosition() {
         </div>
       )}
 
-      {/* ── OWNER EQUITY TAB ── */}
       {activeTab === 'owner' && (
         <div>
-          {/* Owner Summary */}
           <div style={{ background: 'linear-gradient(135deg, #e65100, #f57c00)', color: 'white', borderRadius: '14px', padding: '20px', marginBottom: '16px', textAlign: 'center' }}>
             <p style={{ fontSize: '12px', opacity: 0.7, margin: '0 0 6px', textTransform: 'uppercase' }}>👤 Net Owner Equity</p>
             <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 6px' }}>Rs. {netOwnerEquity.toLocaleString()}</p>
@@ -545,17 +520,13 @@ export default function CEOCashPosition() {
               <span style={{ fontSize: '12px' }}>📤 Withdrawn: Rs. {(data?.totalDrawings || 0).toLocaleString()}</span>
             </div>
           </div>
-
-          {/* Add Transaction */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '14px' }}>Record Owner Transaction</h3>
-
             {ownerSuccess && (
               <div style={{ background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px' }}>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Recorded successfully!</p>
               </div>
             )}
-
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Transaction Type</p>
             <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
               <button onClick={() => setOwnerType('injection')}
@@ -569,7 +540,6 @@ export default function CEOCashPosition() {
                 <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', fontWeight: '400' }}>Owner takes money out</p>
               </button>
             </div>
-
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Account</p>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
               {ACCOUNTS.map(acc => (
@@ -580,35 +550,27 @@ export default function CEOCashPosition() {
                 </button>
               ))}
             </div>
-
             <div style={{ background: '#f0f7ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px' }}>
               <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>
                 {ownerType === 'injection'
-                  ? `Owner is adding money to ${ACCOUNTS.find(a => a.key === ownerAccount)?.label} — balance will increase`
-                  : `Owner is withdrawing from ${ACCOUNTS.find(a => a.key === ownerAccount)?.label} — balance will decrease`}
+                  ? `Owner is adding money to ${ACCOUNTS.find(a => a.key === ownerAccount)?.label}`
+                  : `Owner is withdrawing from ${ACCOUNTS.find(a => a.key === ownerAccount)?.label}`}
               </p>
             </div>
-
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Amount (Rs.)</p>
             <input type="number" value={ownerAmount} onChange={e => setOwnerAmount(e.target.value)} placeholder="0"
               style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px' }} />
-
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Date</p>
             <input type="date" value={ownerDate} onChange={e => setOwnerDate(e.target.value)}
               style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px' }} />
-
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Notes (optional)</p>
-            <input value={ownerNotes} onChange={e => setOwnerNotes(e.target.value)}
-              placeholder="e.g. Added personal savings to business"
+            <input value={ownerNotes} onChange={e => setOwnerNotes(e.target.value)} placeholder="e.g. Added personal savings"
               style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
-
             <button onClick={postOwnerTransaction} disabled={savingOwner}
               style={{ width: '100%', padding: '14px', background: ownerType === 'injection' ? '#1a7a4a' : '#f44336', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
               {savingOwner ? 'Recording...' : ownerType === 'injection' ? '✓ Record Capital Injection' : '✓ Record Drawing'}
             </button>
           </div>
-
-          {/* Owner Transaction History */}
           <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '12px' }}>Transaction History</h3>
           {ownerTransactions.length === 0 ? (
             <div style={{ background: 'white', borderRadius: '12px', padding: '30px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -645,7 +607,6 @@ export default function CEOCashPosition() {
         </div>
       )}
 
-      {/* ── HISTORY TAB ── */}
       {activeTab === 'history' && (
         <div>
           <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '12px' }}>🔄 Account Transfer History</h3>
@@ -664,18 +625,14 @@ export default function CEOCashPosition() {
                     <span style={{ fontSize: '16px', color: '#888' }}>→</span>
                     <span style={{ fontSize: '20px' }}>{toAcc?.icon}</span>
                     <div>
-                      <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: 0 }}>
-                        {fromAcc?.label} → {toAcc?.label}
-                      </p>
+                      <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: 0 }}>{fromAcc?.label} → {toAcc?.label}</p>
                       {t.notes && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{t.notes}</p>}
                       <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>
                         {new Date(t.transfer_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
                   </div>
-                  <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>
-                    Rs. {Number(t.amount).toLocaleString()}
-                  </p>
+                  <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
                 </div>
               </div>
             )
