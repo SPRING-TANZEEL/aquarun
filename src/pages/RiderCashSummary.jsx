@@ -6,60 +6,95 @@ export default function RiderCashSummary({ rider }) {
   const [loading, setLoading] = useState(true)
   const [expandedSection, setExpandedSection] = useState(null)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
+  const [lastTransferDate, setLastTransferDate] = useState(null)
+  const [mode, setMode] = useState('since_transfer') // 'since_transfer' or 'single_day'
 
-  useEffect(() => { fetchSummary() }, [selectedDate])
+  useEffect(() => { fetchSummary() }, [selectedDate, mode])
 
   async function fetchSummary() {
-    if (!navigator.onLine) {
-      setLoading(false)
-      return
-    }
     setLoading(true)
 
+    // Find last confirmed transfer to office by this rider
+    const { data: lastTransfer } = await supabase
+      .from('cash_transfers')
+      .select('transfer_date, confirmed_at, amount')
+      .eq('from_rider_id', rider.id)
+      .eq('to_office', true)
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    const lastTransferDt = lastTransfer?.confirmed_at || lastTransfer?.transfer_date
+    setLastTransferDate(lastTransferDt)
+
+    // Determine date range based on mode
+    let fromDate, toDate
+    const today = new Date().toISOString().split('T')[0]
+
+    if (mode === 'since_transfer') {
+      // From day after last transfer (or beginning if no transfer) to today
+      if (lastTransferDt) {
+        const afterTransfer = new Date(lastTransferDt)
+        afterTransfer.setDate(afterTransfer.getDate() + 1)
+        fromDate = afterTransfer.toISOString().split('T')[0]
+      } else {
+        fromDate = '2024-01-01' // beginning of time
+      }
+      toDate = today
+    } else {
+      // Single day mode
+      fromDate = selectedDate
+      toDate = selectedDate
+    }
+
+    // Fetch all data in date range
     const { data: deliveries } = await supabase.from('deliveries')
       .select('*, customers(full_name, customer_code)')
       .eq('rider_id', rider.id)
-      .gte('delivered_at', selectedDate + 'T00:00:00')
-      .lte('delivered_at', selectedDate + 'T23:59:59')
+      .gte('delivered_at', fromDate + 'T00:00:00')
+      .lte('delivered_at', toDate + 'T23:59:59')
       .eq('is_voided', false)
 
     const { data: cashPayments } = await supabase.from('payments')
       .select('*, customers(full_name, customer_code)')
       .eq('rider_id', rider.id)
       .eq('payment_method', 'cash')
-      .eq('payment_date', selectedDate)
+      .gte('payment_date', fromDate)
+      .lte('payment_date', toDate)
       .eq('is_voided', false)
 
     const { data: expenses } = await supabase.from('expenses')
       .select('*')
       .eq('rider_id', rider.id)
-      .eq('expense_date', selectedDate)
+      .gte('expense_date', fromDate)
+      .lte('expense_date', toDate)
       .eq('is_voided', false)
 
     const { data: sentTransfers } = await supabase.from('cash_transfers')
       .select('*')
       .eq('from_rider_id', rider.id)
       .eq('status', 'confirmed')
-      .eq('transfer_date', selectedDate)
+      .gte('transfer_date', fromDate)
+      .lte('transfer_date', toDate)
 
     const { data: receivedTransfers } = await supabase.from('cash_transfers')
       .select('*')
       .eq('to_rider_id', rider.id)
       .eq('status', 'confirmed')
-      .eq('transfer_date', selectedDate)
+      .gte('transfer_date', fromDate)
+      .lte('transfer_date', toDate)
 
     const { data: advancesGiven } = await supabase.from('salary_advances')
       .select('*, riders(full_name)')
       .eq('requested_from', rider.is_main_rider ? 'main_rider' : 'ceo')
       .eq('status', 'approved')
-      .gte('approved_at', selectedDate + 'T00:00:00')
-      .lte('approved_at', selectedDate + 'T23:59:59')
+      .gte('approved_at', fromDate + 'T00:00:00')
+      .lte('approved_at', toDate + 'T23:59:59')
 
     // Process deliveries
     let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0
-    const cashDeliveries = []
-    const jazzDeliveries = []
-    const creditDeliveries = []
+    const cashDeliveries = [], jazzDeliveries = [], creditDeliveries = []
 
     deliveries?.forEach(d => {
       if (d.payment_method === 'cash') {
@@ -93,7 +128,7 @@ export default function RiderCashSummary({ rider }) {
       creditSales, totalCashIn,
       totalExpenses, totalSent, totalAdvancesGiven, totalCashOut,
       cashToReturn,
-      // Detail arrays
+      fromDate, toDate,
       cashDeliveries, jazzDeliveries, creditDeliveries,
       cashPayments: cashPayments || [],
       expenses: expenses || [],
@@ -144,48 +179,75 @@ export default function RiderCashSummary({ rider }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {isCash && cashPortion > 0 && (
-              <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Cash: Rs. {cashPortion.toLocaleString()}</span>
-            )}
-            {creditPortion > 0 && (
-              <span style={{ fontSize: '11px', color: '#f44336', fontWeight: '600' }}>📋 Credit: Rs. {creditPortion.toLocaleString()}</span>
-            )}
-            {d.payment_method === 'jazzcash' && (
-              <span style={{ fontSize: '11px', color: '#9c27b0', fontWeight: '600' }}>
-                📱 JazzCash {d.jazzcash_confirmed ? '✅' : '⏳'}
-              </span>
-            )}
+            {isCash && cashPortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Cash: Rs. {cashPortion.toLocaleString()}</span>}
+            {creditPortion > 0 && <span style={{ fontSize: '11px', color: '#f44336', fontWeight: '600' }}>📋 Credit: Rs. {creditPortion.toLocaleString()}</span>}
+            {d.payment_method === 'jazzcash' && <span style={{ fontSize: '11px', color: '#9c27b0', fontWeight: '600' }}>📱 JazzCash {d.jazzcash_confirmed ? '✅' : '⏳'}</span>}
           </div>
           <span style={{ fontSize: '10px', color: '#aaa' }}>
-            {new Date(d.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
+            {new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(d.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       </div>
     )
   }
 
-  if (!navigator.onLine && !summary) return (
-    <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-      <p style={{ fontSize: '32px', marginBottom: '12px' }}>📵</p>
-      <p style={{ fontWeight: '700', color: '#333', marginBottom: '8px' }}>Cash Summary needs internet</p>
-      <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px' }}>
-        Your entries are saved on your phone. Connect to internet to see your full cash summary and reconciliation.
-      </p>
-      <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
-        All your deliveries and payments are safely stored and will sync when you are back online.
-      </p>
-    </div>
-  )
+  if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
 
-if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
+  const dateRangeLabel = mode === 'since_transfer'
+    ? lastTransferDate
+      ? `Since last transfer (${new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })})`
+      : 'All time (no transfer recorded)'
+    : new Date(selectedDate).toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long' })
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💰 Cash Summary</h2>
-        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-          style={{ padding: '6px 10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
       </div>
+
+      {/* Mode Selector */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <button onClick={() => setMode('since_transfer')}
+          style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: mode === 'since_transfer' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'since_transfer' ? '#0f4c81' : 'white', color: mode === 'since_transfer' ? 'white' : '#555', fontWeight: mode === 'since_transfer' ? '700' : '400', fontSize: '13px' }}>
+          📊 Since Last Transfer
+        </button>
+        <button onClick={() => setMode('single_day')}
+          style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: mode === 'single_day' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'single_day' ? '#0f4c81' : 'white', color: mode === 'single_day' ? 'white' : '#555', fontWeight: mode === 'single_day' ? '700' : '400', fontSize: '13px' }}>
+          📅 Single Day
+        </button>
+      </div>
+
+      {/* Date selector for single day mode */}
+      {mode === 'single_day' && (
+        <div style={{ marginBottom: '12px' }}>
+          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+        </div>
+      )}
+
+      {/* Date Range Info */}
+      <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ fontSize: '14px' }}>📅</span>
+        <div>
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{dateRangeLabel}</p>
+          {mode === 'since_transfer' && summary && (
+            <p style={{ fontSize: '11px', color: '#888', margin: '2px 0 0' }}>
+              {summary.fromDate} → {summary.toDate}
+              {lastTransferDate
+                ? ` · Last transfer: Rs. ${(summary.sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0).toLocaleString()}`
+                : ' · No transfer recorded yet'}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Last Transfer Alert */}
+      {mode === 'since_transfer' && !lastTransferDate && (
+        <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>⚠️ No transfer recorded yet</p>
+          <p style={{ fontSize: '11px', color: '#795548', margin: 0 }}>Showing all cash since you started. Transfer cash to office to reset this balance.</p>
+        </div>
+      )}
 
       {/* Closing Cash Banner */}
       <div style={{
@@ -195,7 +257,7 @@ if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40
         boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
       }}>
         <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>
-          {summary.cashToReturn <= 0 ? '✅ All Cash Transferred' : 'Cash to Return to Office'}
+          {summary.cashToReturn <= 0 ? '✅ All Cash Transferred' : '💵 Cash in Hand'}
         </p>
         <p style={{ fontSize: '42px', fontWeight: '700', margin: '0 0 6px' }}>
           Rs. {Math.max(0, summary.cashToReturn).toLocaleString()}
@@ -204,71 +266,52 @@ if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40
           <span style={{ fontSize: '12px' }}>In: Rs. {summary.totalCashIn.toLocaleString()}</span>
           <span style={{ fontSize: '12px' }}>Out: Rs. {summary.totalCashOut.toLocaleString()}</span>
         </div>
+        {mode === 'since_transfer' && summary.cashToReturn > 0 && (
+          <p style={{ fontSize: '11px', opacity: 0.6, margin: '8px 0 0' }}>
+            This is the total cash you owe the office since your last transfer
+          </p>
+        )}
       </div>
 
-      {/* CASH IN SECTION */}
+      {/* CASH IN */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', marginBottom: '4px' }}>📥 CASH IN</p>
         <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>Tap any row to see details</p>
 
-        {/* Cash from deliveries */}
-        <SectionHeader
-          sectionKey="cashDeliveries"
-          title="Cash from Deliveries"
-          amount={summary.cashFromSales}
-          color="#1a7a4a"
-          count={summary.cashDeliveries.length}
-        />
+        <SectionHeader sectionKey="cashDeliveries" title="Cash from Deliveries" amount={summary.cashFromSales} color="#1a7a4a" count={summary.cashDeliveries.length} />
         {expandedSection === 'cashDeliveries' && (
           <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.cashDeliveries.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No cash deliveries</p>
-            ) : summary.cashDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
+            {summary.cashDeliveries.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No cash deliveries</p>
+              : summary.cashDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
           </div>
         )}
 
-        {/* Cash from balance collections */}
-        <SectionHeader
-          sectionKey="cashPayments"
-          title="Cash from Balance Collections"
-          amount={summary.cashFromPayments}
-          color="#1a7a4a"
-          count={summary.cashPayments.length}
-        />
+        <SectionHeader sectionKey="cashPayments" title="Cash from Balance Collections" amount={summary.cashFromPayments} color="#1a7a4a" count={summary.cashPayments.length} />
         {expandedSection === 'cashPayments' && (
           <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.cashPayments.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No cash collections</p>
-            ) : summary.cashPayments.map(p => (
-              <div key={p.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #1a7a4a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{p.customers?.full_name}</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{p.customers?.customer_code} · Balance payment</p>
-                </div>
-                <div style={{ textAlign: 'right' }}>
+            {summary.cashPayments.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No cash collections</p>
+              : summary.cashPayments.map(p => (
+                <div key={p.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #1a7a4a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{p.customers?.full_name}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{p.customers?.customer_code} · {new Date(p.payment_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
+                  </div>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {Number(p.amount).toLocaleString()}</p>
-                  <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>{new Date(p.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
 
-        {/* Received from other riders */}
         {summary.totalReceived > 0 && (
           <>
-            <SectionHeader
-              sectionKey="receivedTransfers"
-              title="Received from Other Riders"
-              amount={summary.totalReceived}
-              color="#1a7a4a"
-              count={summary.receivedTransfers.length}
-            />
+            <SectionHeader sectionKey="receivedTransfers" title="Received from Other Riders" amount={summary.totalReceived} color="#1a7a4a" count={summary.receivedTransfers.length} />
             {expandedSection === 'receivedTransfers' && (
               <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
                 {summary.receivedTransfers.map(t => (
                   <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #1a7a4a', display: 'flex', justifyContent: 'space-between' }}>
-                    <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Transfer received</p>
+                    <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Transfer received · {new Date(t.transfer_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
                     <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
                   </div>
                 ))}
@@ -277,78 +320,54 @@ if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40
           </>
         )}
 
-        {/* Total Cash In */}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', marginTop: '4px', borderTop: '2px solid #e8f5e9' }}>
           <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Cash In</span>
           <span style={{ fontSize: '18px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {summary.totalCashIn.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* CASH OUT SECTION */}
+      {/* CASH OUT */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#f44336', marginBottom: '12px' }}>📤 CASH OUT</p>
 
-        {/* Expenses */}
-        <SectionHeader
-          sectionKey="expenses"
-          title="Field Expenses"
-          amount={summary.totalExpenses}
-          color="#e65100"
-          count={summary.expenses.length}
-        />
+        <SectionHeader sectionKey="expenses" title="Field Expenses" amount={summary.totalExpenses} color="#e65100" count={summary.expenses.length} />
         {expandedSection === 'expenses' && (
           <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.expenses.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No expenses today</p>
-            ) : summary.expenses.map(e => (
-              <div key={e.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px', textTransform: 'capitalize' }}>{e.expense_type}</p>
-                  {e.description && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{e.description}</p>}
-                </div>
-                <div style={{ textAlign: 'right' }}>
+            {summary.expenses.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No expenses</p>
+              : summary.expenses.map(e => (
+                <div key={e.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px', textTransform: 'capitalize' }}>{e.expense_type}</p>
+                    {e.description && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{e.description}</p>}
+                    <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{new Date(e.expense_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
+                  </div>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(e.amount).toLocaleString()}</p>
-                  <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>{new Date(e.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
-              </div>
-            ))}
+              ))}
           </div>
         )}
 
-        {/* Cash Transferred */}
-        <SectionHeader
-          sectionKey="sentTransfers"
-          title="Cash Transferred Out"
-          amount={summary.totalSent}
-          color="#e65100"
-          count={summary.sentTransfers.length}
-        />
+        <SectionHeader sectionKey="sentTransfers" title="Cash Transferred Out" amount={summary.totalSent} color="#e65100" count={summary.sentTransfers.length} />
         {expandedSection === 'sentTransfers' && (
           <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.sentTransfers.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No transfers made today</p>
-            ) : summary.sentTransfers.map(t => (
-              <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{t.to_office ? '🏢 To Office' : '⭐ To Main Rider'}</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{new Date(t.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
+            {summary.sentTransfers.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No transfers made</p>
+              : summary.sentTransfers.map(t => (
+                <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{t.to_office ? '🏢 To Office' : '⭐ To Main Rider'}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{new Date(t.transfer_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
+                  </div>
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
                 </div>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
-              </div>
-            ))}
+              ))}
           </div>
         )}
 
-        {/* Advances Given */}
         {summary.totalAdvancesGiven > 0 && (
           <>
-            <SectionHeader
-              sectionKey="advances"
-              title="Salary Advances Given"
-              amount={summary.totalAdvancesGiven}
-              color="#e65100"
-              count={summary.advancesGiven.length}
-            />
+            <SectionHeader sectionKey="advances" title="Salary Advances Given" amount={summary.totalAdvancesGiven} color="#e65100" count={summary.advancesGiven.length} />
             {expandedSection === 'advances' && (
               <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
                 {summary.advancesGiven.map(a => (
@@ -362,46 +381,31 @@ if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40
           </>
         )}
 
-        {/* Total Cash Out */}
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', marginTop: '4px', borderTop: '2px solid #ffebee' }}>
           <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Cash Out</span>
           <span style={{ fontSize: '18px', fontWeight: '700', color: '#f44336' }}>Rs. {summary.totalCashOut.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* NON-CASH SECTION */}
+      {/* NON-CASH */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#9c27b0', marginBottom: '12px' }}>📱 NON-CASH (Informational)</p>
 
-        {/* JazzCash */}
-        <SectionHeader
-          sectionKey="jazz"
-          title="JazzCash Sales"
-          amount={summary.jazzFromSales + summary.jazzFromSalesPending}
-          color="#9c27b0"
-          count={summary.jazzDeliveries.length}
-        />
+        <SectionHeader sectionKey="jazz" title="JazzCash Sales" amount={summary.jazzFromSales + summary.jazzFromSalesPending} color="#9c27b0" count={summary.jazzDeliveries.length} />
         {expandedSection === 'jazz' && (
           <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.jazzDeliveries.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No JazzCash entries</p>
-            ) : summary.jazzDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
+            {summary.jazzDeliveries.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No JazzCash entries</p>
+              : summary.jazzDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
           </div>
         )}
 
-        {/* Credit Sales */}
-        <SectionHeader
-          sectionKey="credit"
-          title="Credit Sales (ادھار)"
-          amount={summary.creditSales}
-          color="#f44336"
-          count={summary.creditDeliveries.length}
-        />
+        <SectionHeader sectionKey="credit" title="Credit Sales (ادھار)" amount={summary.creditSales} color="#f44336" count={summary.creditDeliveries.length} />
         {expandedSection === 'credit' && (
           <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.creditDeliveries.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No credit sales</p>
-            ) : summary.creditDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
+            {summary.creditDeliveries.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No credit sales</p>
+              : summary.creditDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
           </div>
         )}
       </div>
@@ -435,20 +439,14 @@ if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40
         </p>
       </div>
 
-      {/* All Deliveries for the day */}
+      {/* All Deliveries */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <SectionHeader
-          sectionKey="allDeliveries"
-          title="All Deliveries Today"
-          amount={summary.allDeliveries.reduce((s, d) => s + Number(d.total_amount), 0)}
-          color="#0f4c81"
-          count={summary.allDeliveries.length}
-        />
+        <SectionHeader sectionKey="allDeliveries" title="All Deliveries" amount={summary.allDeliveries.reduce((s, d) => s + Number(d.total_amount), 0)} color="#0f4c81" count={summary.allDeliveries.length} />
         {expandedSection === 'allDeliveries' && (
           <div style={{ paddingTop: '10px' }}>
-            {summary.allDeliveries.length === 0 ? (
-              <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No deliveries today</p>
-            ) : summary.allDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
+            {summary.allDeliveries.length === 0
+              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No deliveries</p>
+              : summary.allDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
           </div>
         )}
       </div>
