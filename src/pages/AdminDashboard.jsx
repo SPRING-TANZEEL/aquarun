@@ -1,3 +1,4 @@
+import SetupWizard from '../components/SetupWizard'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import CustomerManagement from './CustomerManagement'
@@ -91,6 +92,7 @@ export default function AdminDashboard({ user, onLogout }) {
     totalReceivable: 0, totalCustomers: 0
   })
   const [businessName, setBusinessName] = useState('AquaRun')
+  const [showSetupWizard, setShowSetupWizard] = useState(false)
   const [businessLogo, setBusinessLogo] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -110,6 +112,7 @@ export default function AdminDashboard({ user, onLogout }) {
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     if (map.business_name) setBusinessName(map.business_name)
     if (map.business_logo) setBusinessLogo(map.business_logo)
+    if (map.setup_completed !== 'true') setShowSetupWizard(true)
   }
 
   async function fetchPeriodStats(from, to) {
@@ -340,6 +343,13 @@ export default function AdminDashboard({ user, onLogout }) {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: "'Segoe UI', sans-serif", background: '#f0f2f5' }}>
+      {showSetupWizard && (
+        <SetupWizard onComplete={() => {
+          setShowSetupWizard(false)
+          fetchBusiness()
+          fetchDashboard()
+        }} />
+      )}
 
       {/* Mobile Overlay */}
       {isMobile && sidebarOpen && (
