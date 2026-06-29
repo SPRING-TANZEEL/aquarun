@@ -296,7 +296,7 @@ export default function CEOCashPosition() {
               <div>
                 <div style={{ background: '#f0f7ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
                   <p style={{ fontSize: '12px', color: '#0f4c81', margin: '0 0 2px', fontWeight: '600' }}>💡 Enter balances from the day you started using AquaRun</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0' }}>Customer receivables and owner capital are auto-calculated</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Customer receivables and owner capital are auto-calculated</p>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   {ACCOUNTS.map(acc => (
