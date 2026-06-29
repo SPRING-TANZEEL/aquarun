@@ -7,11 +7,12 @@ export default function RiderCashTransfer({ rider }) {
   const [cashBalance, setCashBalance] = useState(0)
   const [amount, setAmount] = useState('')
   const [transferTo, setTransferTo] = useState(null)
-  const [transferType, setTransferType] = useState('cash') // 'cash' or 'jazzcash'
+  const [transferType, setTransferType] = useState('cash')
   const [saving, setSaving] = useState(false)
   const [confirming, setConfirming] = useState(null)
   const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [lastTransferDate, setLastTransferDate] = useState(null)
 
   useEffect(() => { fetchData() }, [])
 
@@ -24,24 +25,51 @@ export default function RiderCashTransfer({ rider }) {
 
     const today = new Date().toISOString().split('T')[0]
 
+    // Find last confirmed transfer to office by this rider
+    const { data: lastTransfer } = await supabase
+      .from('cash_transfers')
+      .select('confirmed_at, transfer_date, amount')
+      .eq('from_rider_id', rider.id)
+      .eq('to_office', true)
+      .eq('status', 'confirmed')
+      .order('confirmed_at', { ascending: false })
+      .limit(1)
+      .single()
+
+    const lastTransferDt = lastTransfer?.confirmed_at || lastTransfer?.transfer_date
+    setLastTransferDate(lastTransferDt)
+
+    // Calculate from day after last transfer — carry forward
+    let fromDate = '2024-01-01'
+    if (lastTransferDt) {
+      const afterTransfer = new Date(lastTransferDt)
+      afterTransfer.setDate(afterTransfer.getDate() + 1)
+      fromDate = afterTransfer.toISOString().split('T')[0]
+    }
+
     const { data: deliveries } = await supabase.from('deliveries')
       .select('*').eq('rider_id', rider.id).eq('is_voided', false)
-      .gte('delivered_at', today + 'T00:00:00')
+      .gte('delivered_at', fromDate + 'T00:00:00')
+      .lte('delivered_at', today + 'T23:59:59')
 
     const { data: cashPayments } = await supabase.from('payments')
       .select('*').eq('rider_id', rider.id)
-      .eq('payment_method', 'cash').eq('payment_date', today).eq('is_voided', false)
+      .eq('payment_method', 'cash').eq('is_voided', false)
+      .gte('payment_date', fromDate).lte('payment_date', today)
 
     const { data: expenses } = await supabase.from('expenses')
-      .select('*').eq('rider_id', rider.id).eq('expense_date', today).eq('is_voided', false)
+      .select('*').eq('rider_id', rider.id).eq('is_voided', false)
+      .gte('expense_date', fromDate).lte('expense_date', today)
 
     const { data: receivedTransfers } = await supabase.from('cash_transfers')
       .select('*').eq('to_rider_id', rider.id)
-      .eq('status', 'confirmed').eq('transfer_date', today)
+      .eq('status', 'confirmed')
+      .gte('transfer_date', fromDate).lte('transfer_date', today)
 
     const { data: sentTransfers } = await supabase.from('cash_transfers')
       .select('*').eq('from_rider_id', rider.id)
-      .eq('status', 'confirmed').eq('transfer_date', today)
+      .eq('status', 'confirmed')
+      .gte('transfer_date', fromDate).lte('transfer_date', today)
 
     let cashFromSales = 0
     deliveries?.forEach(d => {
@@ -52,7 +80,8 @@ export default function RiderCashTransfer({ rider }) {
     const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
 
-    setCashBalance(cashFromSales + cashFromPayments + totalReceived - totalExpenses - totalSent)
+    const balance = cashFromSales + cashFromPayments + totalReceived - totalExpenses - totalSent
+    setCashBalance(balance)
 
     const { data: pending } = await supabase.from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name)')
@@ -68,7 +97,6 @@ export default function RiderCashTransfer({ rider }) {
     if (transferType === 'cash' && Number(amount) > cashBalance) return alert('Amount cannot be more than your cash balance: Rs. ' + cashBalance.toLocaleString())
 
     setSaving(true)
-
     const isOffice = transferTo === 'office'
     const toRiderId = isOffice ? null : mainRider?.id
 
@@ -78,7 +106,7 @@ export default function RiderCashTransfer({ rider }) {
       to_office: isOffice,
       amount: Number(amount),
       transfer_date: new Date().toISOString().split('T')[0],
-      transfer_type: transferType, // 'cash' or 'jazzcash'
+      transfer_type: transferType,
       status: 'pending'
     }])
 
@@ -122,7 +150,6 @@ export default function RiderCashTransfer({ rider }) {
         {isMainRider ? 'You are the Main Rider — confirm incoming cash and return to office' : 'Return your cash to Main Rider or Office'}
       </p>
 
-      {/* Success */}
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Transfer Submitted!</p>
@@ -136,12 +163,30 @@ export default function RiderCashTransfer({ rider }) {
         </div>
       )}
 
-      {/* Current Balance */}
-      <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '18px', marginBottom: '12px', textAlign: 'center' }}>
-        <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 4px' }}>Your Current Cash Balance</p>
-        <p style={{ fontSize: '36px', fontWeight: '700', margin: 0 }}>Rs. {cashBalance.toLocaleString()}</p>
-        {isMainRider && <p style={{ fontSize: '11px', opacity: 0.7, margin: '6px 0 0' }}>Includes cash received from other riders</p>}
+      {/* Current Balance — Carry Forward */}
+      <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '18px', marginBottom: '8px', textAlign: 'center' }}>
+        <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 4px' }}>
+          {cashBalance > 0 ? 'Cash Owed to Office' : 'All Cash Transferred ✅'}
+        </p>
+        <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {Math.max(0, cashBalance).toLocaleString()}</p>
+        <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>
+          {lastTransferDate
+            ? 'Since last transfer: ' + new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+            : 'All time — no transfer recorded yet'}
+        </p>
       </div>
+
+      {/* Carry forward info */}
+      {cashBalance > 0 && (
+        <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
+          <p style={{ fontSize: '12px', color: '#e65100', margin: 0, fontWeight: '600' }}>
+            ⚠️ You have Rs. {cashBalance.toLocaleString()} pending to transfer to office
+            {lastTransferDate
+              ? ' since ' + new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })
+              : ' (no transfer ever recorded)'}
+          </p>
+        </div>
+      )}
 
       {/* Pending Confirmations */}
       {pendingTransfers.length > 0 && (
@@ -178,11 +223,10 @@ export default function RiderCashTransfer({ rider }) {
         </div>
       )}
 
-      {/* Return Cash Form */}
-      {(cashBalance > 0 || transferType === 'jazzcash') && (
+      {/* Transfer Form */}
+      {cashBalance > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
 
-          {/* Transfer Type */}
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>How are you sending?</p>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
             <button onClick={() => setTransferType('cash')}
@@ -199,7 +243,6 @@ export default function RiderCashTransfer({ rider }) {
             </button>
           </div>
 
-          {/* Transfer To */}
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Return Cash To</p>
           <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
             {!isMainRider && mainRider && (
@@ -218,34 +261,26 @@ export default function RiderCashTransfer({ rider }) {
             </button>
           </div>
 
-          {/* Info box */}
           {transferType === 'jazzcash' && (
             <div style={{ background: '#fdf4ff', border: '1px solid #e9d5ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px' }}>
-              <p style={{ fontSize: '12px', color: '#6b21a8', margin: 0 }}>
-                📱 You are sending via JazzCash — this will add to CEO JazzCash account balance. Make sure you have already sent the JazzCash payment before submitting.
-              </p>
+              <p style={{ fontSize: '12px', color: '#6b21a8', margin: 0 }}>📱 Make sure you have already sent JazzCash payment before submitting.</p>
             </div>
           )}
           {transferType === 'cash' && (
             <div style={{ background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '14px' }}>
-              <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>
-                💵 You are handing physical cash — this will add to CEO Cash in Hand balance.
-              </p>
+              <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>💵 You are handing physical cash to office.</p>
             </div>
           )}
 
-          {/* Amount */}
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Amount (Rs.)</p>
           <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
             placeholder="0"
             style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '8px' }} />
 
-          {transferType === 'cash' && (
-            <button onClick={() => setAmount(String(cashBalance))}
-              style={{ padding: '6px 14px', background: '#f0f4ff', border: '1px solid #d0d9ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600', marginBottom: '16px' }}>
-              Full Balance: Rs. {cashBalance.toLocaleString()}
-            </button>
-          )}
+          <button onClick={() => setAmount(String(cashBalance))}
+            style={{ padding: '6px 14px', background: '#f0f4ff', border: '1px solid #d0d9ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600', marginBottom: '16px' }}>
+            Full Balance: Rs. {cashBalance.toLocaleString()}
+          </button>
 
           <button onClick={submitTransfer} disabled={saving}
             style={{ width: '100%', padding: '14px', background: transferType === 'jazzcash' ? '#9c27b0' : '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700', marginTop: '8px' }}>
@@ -258,7 +293,7 @@ export default function RiderCashTransfer({ rider }) {
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>✅</p>
           <p style={{ color: '#1a7a4a', fontWeight: '700', marginBottom: '4px' }}>All Clear!</p>
-          <p style={{ color: '#888', fontSize: '13px' }}>No cash balance to return today.</p>
+          <p style={{ color: '#888', fontSize: '13px' }}>No cash balance to return.</p>
         </div>
       )}
 
