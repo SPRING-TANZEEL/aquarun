@@ -13,23 +13,22 @@ export default function CashTransferManagement({ onUpdate }) {
     d.setDate(d.getDate() - 7)
     return d.toISOString().split('T')[0]
   })
-const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
+  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
   useEffect(() => { fetchData() }, [filter, dateFrom, dateTo])
 
   async function fetchData() {
     setLoading(true)
+    const today = new Date().toISOString().split('T')[0]
+    const fromTimestamp = today + 'T00:00:00'
+    const toTimestamp = today + 'T23:59:59'
 
-    // Fetch all riders
+    // Fetch all active riders
     const { data: riders } = await supabase.from('riders').select('*').eq('is_active', true)
 
-    // For each rider calculate carry-forward cash balance (since last transfer)
+    // For each rider calculate TODAY's cash balance only
     const balances = []
     for (const r of riders || []) {
-      // Today only — simple and correct
-      const fromTimestamp = today + 'T00:00:00'
-      const toTimestamp = today + 'T23:59:59'
-
       const { data: deliveries } = await supabase.from('deliveries')
         .select('*').eq('rider_id', r.id).eq('is_voided', false)
         .gte('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
@@ -102,7 +101,6 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
-    // Auto-post journal entry
     try {
       const { postCashTransferJournal } = await import('../accountingEngine')
       await postCashTransferJournal(confirmed)
@@ -131,11 +129,11 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Track rider cash balances and confirm transfers to office.</p>
       </div>
 
-      {/* Rider Carry-Forward Balances */}
+      {/* Today's Rider Balances */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: 0 }}>Today's Cash in Hand</p>
-        <span style={{ fontSize: '11px', color: '#888', background: '#f0f0f0', padding: '3px 8px', borderRadius: '6px' }}>Today Only</span>
+          <span style={{ fontSize: '11px', color: '#888', background: '#f0f0f0', padding: '3px 8px', borderRadius: '6px' }}>Today Only</span>
         </div>
         {riderBalances.length === 0 ? (
           <p style={{ color: '#888', fontSize: '13px' }}>No riders found.</p>
@@ -161,7 +159,7 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
           </div>
         )}
         <div style={{ marginTop: '12px', padding: '10px 14px', background: '#0f4c81', borderRadius: '8px', display: 'flex', justifyContent: 'space-between' }}>
-          <span style={{ fontSize: '13px', color: 'white', fontWeight: '600' }}>Total Cash Owed to Office</span>
+          <span style={{ fontSize: '13px', color: 'white', fontWeight: '600' }}>Total Cash Owed to Office Today</span>
           <span style={{ fontSize: '15px', fontWeight: '700', color: 'white' }}>Rs. {totalOutstanding.toLocaleString()}</span>
         </div>
       </div>
