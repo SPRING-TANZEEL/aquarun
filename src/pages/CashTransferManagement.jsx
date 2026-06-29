@@ -8,8 +8,12 @@ export default function CashTransferManagement({ onUpdate }) {
   const [loading, setLoading] = useState(true)
   const [confirming, setConfirming] = useState(null)
   const [filter, setFilter] = useState('pending')
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 7)
+    return d.toISOString().split('T')[0]
+  })
+const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
   useEffect(() => { fetchData() }, [filter, dateFrom, dateTo])
 
@@ -83,17 +87,32 @@ export default function CashTransferManagement({ onUpdate }) {
     setRiderBalances(balances)
 
     // Fetch transfers to office
-    let query = supabase.from('cash_transfers')
+    // Pending transfers — NO date filter, show ALL pending
+    const { data: pendingData } = await supabase.from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name, is_main_rider)')
       .eq('to_office', true)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+
+    // Confirmed transfers — apply date filter
+    const { data: confirmedData } = await supabase.from('cash_transfers')
+      .select('*, from_rider:from_rider_id(full_name, is_main_rider)')
+      .eq('to_office', true)
+      .eq('status', 'confirmed')
       .gte('transfer_date', dateFrom)
       .lte('transfer_date', dateTo)
       .order('created_at', { ascending: false })
 
-    if (filter === 'pending') query = query.eq('status', 'pending')
-    if (filter === 'confirmed') query = query.eq('status', 'confirmed')
-
-    const { data: transfers } = await query
+    if (filter === 'pending') {
+      setPendingTransfers(pendingData || [])
+      setConfirmedTransfers([])
+    } else if (filter === 'confirmed') {
+      setPendingTransfers([])
+      setConfirmedTransfers(confirmedData || [])
+    } else {
+      setPendingTransfers(pendingData || [])
+      setConfirmedTransfers(confirmedData || [])
+    }
 
     if (filter === 'pending') {
       setPendingTransfers(transfers || [])
