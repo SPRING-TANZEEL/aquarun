@@ -18,7 +18,7 @@ export default function RiderCashSummary({ rider }) {
     // Find last confirmed transfer to office
     const { data: lastTransfer } = await supabase
       .from('cash_transfers')
-      .select('confirmed_at, transfer_date, amount')
+      .select('confirmed_at, amount')
       .eq('from_rider_id', rider.id)
       .eq('to_office', true)
       .eq('status', 'confirmed')
@@ -35,33 +35,37 @@ export default function RiderCashSummary({ rider }) {
       fromTimestamp = selectedDate + 'T00:00:00'
       toTimestamp = selectedDate + 'T23:59:59'
     } else {
-      // Since last transfer — use exact timestamp
+      // Since last transfer — exact timestamp
       fromTimestamp = lastTransferTimestamp || '2024-01-01T00:00:00'
       toTimestamp = today + 'T23:59:59'
     }
 
+    // Deliveries
     const { data: deliveries } = await supabase.from('deliveries')
       .select('*, customers(full_name, customer_code)')
       .eq('rider_id', rider.id)
+      .eq('is_voided', false)
       .gt('delivered_at', fromTimestamp)
       .lte('delivered_at', toTimestamp)
-      .eq('is_voided', false)
 
+    // Cash payments collected
     const { data: cashPayments } = await supabase.from('payments')
       .select('*, customers(full_name, customer_code)')
       .eq('rider_id', rider.id)
       .eq('payment_method', 'cash')
+      .eq('is_voided', false)
       .gt('created_at', fromTimestamp)
       .lte('created_at', toTimestamp)
-      .eq('is_voided', false)
 
+    // Expenses
     const { data: expenses } = await supabase.from('expenses')
       .select('*')
       .eq('rider_id', rider.id)
+      .eq('is_voided', false)
       .gt('created_at', fromTimestamp)
       .lte('created_at', toTimestamp)
-      .eq('is_voided', false)
 
+    // Transfers — informational only, NOT used in balance calculation
     const { data: sentTransfers } = await supabase.from('cash_transfers')
       .select('*')
       .eq('from_rider_id', rider.id)
@@ -76,13 +80,7 @@ export default function RiderCashSummary({ rider }) {
       .gt('confirmed_at', fromTimestamp)
       .lte('confirmed_at', toTimestamp)
 
-    const { data: advancesGiven } = await supabase.from('salary_advances')
-      .select('*, riders(full_name)')
-      .eq('requested_from', rider.is_main_rider ? 'main_rider' : 'ceo')
-      .eq('status', 'approved')
-      .gt('approved_at', fromTimestamp)
-      .lte('approved_at', toTimestamp)
-
+    // Categorize deliveries
     let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0
     const cashDeliveries = [], jazzDeliveries = [], creditDeliveries = []
 
@@ -90,39 +88,37 @@ export default function RiderCashSummary({ rider }) {
       if (d.payment_method === 'cash') {
         cashFromSales += Number(d.amount_received)
         cashDeliveries.push(d)
-      }
-      if (d.payment_method === 'jazzcash') {
+      } else if (d.payment_method === 'jazzcash') {
         if (d.jazzcash_confirmed) jazzFromSales += Number(d.total_amount)
         else jazzFromSalesPending += Number(d.total_amount)
         jazzDeliveries.push(d)
-      }
-      if (d.payment_method === 'credit') {
+      } else if (d.payment_method === 'credit') {
         creditSales += Number(d.total_amount)
         creditDeliveries.push(d)
       }
     })
 
     const cashFromPayments = cashPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
-    const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalExpenses = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
     const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    const totalAdvancesGiven = advancesGiven?.reduce((s, a) => s + Number(a.amount), 0) || 0
+    const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
 
-    const totalCashIn = cashFromSales + cashFromPayments + totalReceived
-    const totalCashOut = totalExpenses + totalSent + totalAdvancesGiven
-    const cashToReturn = totalCashIn - totalCashOut
+    // Cash in Hand = Cash Collected − Expenses ONLY
+    // Transfers are NOT deducted — they are a separate action shown informational
+    const totalCashIn = cashFromSales + cashFromPayments
+    const totalCashOut = totalExpenses
+    const cashInHand = totalCashIn - totalCashOut
 
     setSummary({
-      cashFromSales, cashFromPayments, totalReceived,
+      cashFromSales, cashFromPayments,
       jazzFromSales, jazzFromSalesPending, creditSales,
-      totalCashIn, totalExpenses, totalSent, totalAdvancesGiven,
-      totalCashOut, cashToReturn,
+      totalCashIn, totalExpenses, totalCashOut, cashInHand,
+      totalSent, totalReceived,
       cashDeliveries, jazzDeliveries, creditDeliveries,
       cashPayments: cashPayments || [],
       expenses: expenses || [],
       sentTransfers: sentTransfers || [],
       receivedTransfers: receivedTransfers || [],
-      allDeliveries: deliveries || []
     })
     setLoading(false)
   }
@@ -141,7 +137,7 @@ export default function RiderCashSummary({ rider }) {
           <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>{title}</span>
           {count > 0 && <span style={{ fontSize: '10px', background: '#f0f0f0', color: '#888', padding: '2px 6px', borderRadius: '10px' }}>{count}</span>}
         </div>
-        <span style={{ fontSize: '14px', fontWeight: '700', color }}>{amount >= 0 ? '' : '− '}Rs. {Math.abs(amount).toLocaleString()}</span>
+        <span style={{ fontSize: '14px', fontWeight: '700', color }}>Rs. {Math.abs(amount).toLocaleString()}</span>
       </div>
     )
   }
@@ -153,9 +149,7 @@ export default function RiderCashSummary({ rider }) {
     return (
       <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid ' + (isCash ? '#1a7a4a' : d.payment_method === 'jazzcash' ? '#9c27b0' : '#f44336') }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-          <p style={{ fontSize: '13px', fontWeight: '600', margin: 0, color: '#333' }}>
-            {d.customers?.full_name || 'Walk-in'}
-          </p>
+          <p style={{ fontSize: '13px', fontWeight: '600', margin: 0 }}>{d.customers?.full_name || 'Walk-in'}</p>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(d.total_amount).toLocaleString()}</p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
@@ -163,7 +157,7 @@ export default function RiderCashSummary({ rider }) {
           {d.qty_half_litre > 0 && <span style={{ fontSize: '11px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 6px', borderRadius: '6px' }}>Half×{d.qty_half_litre}</span>}
           {d.qty_1_5l > 0 && <span style={{ fontSize: '11px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 6px', borderRadius: '6px' }}>1.5L×{d.qty_1_5l}</span>}
         </div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
             {isCash && cashPortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Rs. {cashPortion.toLocaleString()}</span>}
             {creditPortion > 0 && <span style={{ fontSize: '11px', color: '#f44336', fontWeight: '600' }}>📋 Rs. {creditPortion.toLocaleString()}</span>}
@@ -182,14 +176,16 @@ export default function RiderCashSummary({ rider }) {
   const dateLabel = mode === 'today'
     ? new Date(selectedDate).toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long' })
     : lastTransferDate
-      ? `Since ${new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
-      : 'All time — no transfer yet'
+      ? `Since last transfer (${new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })})`
+      : 'All time — no transfer recorded yet'
+
+  const bannerColor = summary.cashInHand > 0
+    ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)'
+    : '#1a7a4a'
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💰 Cash Summary</h2>
-      </div>
+      <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: '0 0 12px' }}>💰 Cash Summary</h2>
 
       {/* Mode Selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
@@ -203,42 +199,44 @@ export default function RiderCashSummary({ rider }) {
         </button>
       </div>
 
-      {/* Date picker for today mode */}
+      {/* Date picker — today mode only */}
       {mode === 'today' && (
-        <div style={{ marginBottom: '12px' }}>
-          <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
-            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-        </div>
+        <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+          style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px' }} />
       )}
 
-      {/* Date range info */}
+      {/* Date info */}
       <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
         <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>📅 {dateLabel}</p>
         {mode === 'since_transfer' && !lastTransferDate && (
           <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0' }}>⚠️ No transfer recorded yet — showing all cash since start</p>
         )}
         {mode === 'since_transfer' && lastTransferDate && (
-          <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>Showing all cash collected after your last transfer to office</p>
+          <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>All cash collected after your last office transfer</p>
         )}
       </div>
 
-      {/* Cash Banner */}
+      {/* Main Cash Banner */}
       <div style={{
-        background: summary.cashToReturn <= 0 ? '#1a7a4a' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)',
-        color: 'white', borderRadius: '14px', padding: '20px',
-        marginBottom: '16px', textAlign: 'center',
-        boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
+        background: bannerColor, color: 'white',
+        borderRadius: '14px', padding: '20px', marginBottom: '16px',
+        textAlign: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.15)'
       }}>
         <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>
-          {summary.cashToReturn <= 0 ? '✅ All Cash Transferred' : '💵 Cash in Hand'}
+          {summary.cashInHand > 0 ? '💵 Cash in Hand' : '✅ No Cash to Transfer'}
         </p>
         <p style={{ fontSize: '42px', fontWeight: '700', margin: '0 0 6px' }}>
-          Rs. {Math.max(0, summary.cashToReturn).toLocaleString()}
+          Rs. {Math.max(0, summary.cashInHand).toLocaleString()}
         </p>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', opacity: 0.7 }}>
-          <span style={{ fontSize: '12px' }}>In: Rs. {summary.totalCashIn.toLocaleString()}</span>
-          <span style={{ fontSize: '12px' }}>Out: Rs. {summary.totalCashOut.toLocaleString()}</span>
+          <span style={{ fontSize: '12px' }}>Collected: Rs. {summary.totalCashIn.toLocaleString()}</span>
+          <span style={{ fontSize: '12px' }}>Expenses: Rs. {summary.totalExpenses.toLocaleString()}</span>
         </div>
+        {summary.totalSent > 0 && (
+          <p style={{ fontSize: '11px', opacity: 0.6, margin: '6px 0 0' }}>
+            ℹ️ Rs. {summary.totalSent.toLocaleString()} transferred to office (not deducted)
+          </p>
+        )}
       </div>
 
       {/* CASH IN */}
@@ -272,29 +270,13 @@ export default function RiderCashSummary({ rider }) {
           </div>
         )}
 
-        {summary.totalReceived > 0 && (
-          <>
-            <SectionHeader sectionKey="receivedTransfers" title="Received from Other Riders" amount={summary.totalReceived} color="#1a7a4a" count={summary.receivedTransfers.length} />
-            {expandedSection === 'receivedTransfers' && (
-              <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-                {summary.receivedTransfers.map(t => (
-                  <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #1a7a4a', display: 'flex', justifyContent: 'space-between' }}>
-                    <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Transfer received</p>
-                    <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', marginTop: '4px', borderTop: '2px solid #e8f5e9' }}>
           <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Cash In</span>
           <span style={{ fontSize: '18px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {summary.totalCashIn.toLocaleString()}</span>
         </div>
       </div>
 
-      {/* CASH OUT */}
+      {/* CASH OUT — Expenses only */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#f44336', marginBottom: '12px' }}>📤 CASH OUT</p>
 
@@ -315,25 +297,54 @@ export default function RiderCashSummary({ rider }) {
           </div>
         )}
 
-        <SectionHeader sectionKey="sentTransfers" title="Cash Transferred Out" amount={summary.totalSent} color="#e65100" count={summary.sentTransfers.length} />
-        {expandedSection === 'sentTransfers' && (
-          <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-            {summary.sentTransfers.length === 0
-              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No transfers made</p>
-              : summary.sentTransfers.map(t => (
-                <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <p style={{ fontSize: '13px', fontWeight: '600', margin: 0 }}>{t.to_office ? '🏢 To Office' : '⭐ To Main Rider'}</p>
-                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
-                </div>
-              ))}
-          </div>
-        )}
-
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', marginTop: '4px', borderTop: '2px solid #ffebee' }}>
-          <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Cash Out</span>
-          <span style={{ fontSize: '18px', fontWeight: '700', color: '#f44336' }}>Rs. {summary.totalCashOut.toLocaleString()}</span>
+          <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Expenses</span>
+          <span style={{ fontSize: '18px', fontWeight: '700', color: '#f44336' }}>Rs. {summary.totalExpenses.toLocaleString()}</span>
         </div>
       </div>
+
+      {/* TRANSFERS — Informational only */}
+      {(summary.totalSent > 0 || summary.totalReceived > 0) && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', marginBottom: '4px' }}>🔄 Transfers (Informational)</p>
+          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>These are not deducted from cash in hand</p>
+
+          {summary.totalSent > 0 && (
+            <>
+              <SectionHeader sectionKey="sentTransfers" title="Sent to Office" amount={summary.totalSent} color="#0f4c81" count={summary.sentTransfers.length} />
+              {expandedSection === 'sentTransfers' && (
+                <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
+                  {summary.sentTransfers.map(t => (
+                    <div key={t.id} style={{ padding: '10px 12px', background: '#f0f7ff', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #0f4c81', display: 'flex', justifyContent: 'space-between' }}>
+                      <div>
+                        <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{t.to_office ? '🏢 To Office' : '⭐ To Main Rider'}</p>
+                        <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{new Date(t.confirmed_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {summary.totalReceived > 0 && (
+            <>
+              <SectionHeader sectionKey="receivedTransfers" title="Received from Riders" amount={summary.totalReceived} color="#0f4c81" count={summary.receivedTransfers.length} />
+              {expandedSection === 'receivedTransfers' && (
+                <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
+                  {summary.receivedTransfers.map(t => (
+                    <div key={t.id} style={{ padding: '10px 12px', background: '#f0f7ff', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #0f4c81', display: 'flex', justifyContent: 'space-between' }}>
+                      <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Transfer received</p>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* NON-CASH */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -362,26 +373,22 @@ export default function RiderCashSummary({ rider }) {
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #e3f0ff' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', marginBottom: '12px' }}>🔍 RECONCILIATION</p>
         {[
-          { label: 'Cash from Deliveries', value: summary.cashFromSales, color: '#1a7a4a' },
-          { label: 'Cash from Collections', value: summary.cashFromPayments, color: '#1a7a4a' },
-          { label: 'Received from Riders', value: summary.totalReceived, color: '#1a7a4a' },
-          { label: '− Field Expenses', value: -summary.totalExpenses, color: '#f44336' },
-          { label: '− Cash Transferred Out', value: -summary.totalSent, color: '#f44336' },
+          { label: '+ Cash from Deliveries', value: summary.cashFromSales, color: '#1a7a4a' },
+          { label: '+ Cash from Collections', value: summary.cashFromPayments, color: '#1a7a4a' },
+          { label: '− Field Expenses', value: summary.totalExpenses, color: '#f44336' },
         ].filter(r => r.value !== 0).map(r => (
           <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f0f0f0' }}>
             <span style={{ fontSize: '13px', color: '#555' }}>{r.label}</span>
-            <span style={{ fontSize: '13px', fontWeight: '700', color: r.color }}>
-              {r.value < 0 ? '− ' : '+ '}Rs. {Math.abs(r.value).toLocaleString()}
-            </span>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: r.color }}>Rs. {r.value.toLocaleString()}</span>
           </div>
         ))}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', marginTop: '4px', borderTop: '2px solid #0f4c81' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 4px', borderTop: '2px solid #0f4c81', marginTop: '4px' }}>
           <span style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81' }}>Cash in Hand</span>
-          <span style={{ fontSize: '22px', fontWeight: '700', color: summary.cashToReturn >= 0 ? '#0f4c81' : '#f44336' }}>
-            Rs. {summary.cashToReturn.toLocaleString()}
+          <span style={{ fontSize: '22px', fontWeight: '700', color: summary.cashInHand >= 0 ? '#0f4c81' : '#f44336' }}>
+            Rs. {summary.cashInHand.toLocaleString()}
           </span>
         </div>
-        <p style={{ fontSize: '11px', color: '#888', margin: '8px 0 0', textAlign: 'center' }}>
+        <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0', textAlign: 'center' }}>
           Count your physical cash and match with above
         </p>
       </div>
