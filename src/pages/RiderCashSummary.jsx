@@ -7,17 +7,18 @@ export default function RiderCashSummary({ rider }) {
   const [expandedSection, setExpandedSection] = useState(null)
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [lastTransferDate, setLastTransferDate] = useState(null)
-  const [mode, setMode] = useState('since_transfer') // 'since_transfer' or 'single_day'
+  const [mode, setMode] = useState('today')
 
   useEffect(() => { fetchSummary() }, [selectedDate, mode])
 
   async function fetchSummary() {
     setLoading(true)
+    const today = new Date().toISOString().split('T')[0]
 
-    // Find last confirmed transfer to office by this rider
+    // Find last confirmed transfer to office
     const { data: lastTransfer } = await supabase
       .from('cash_transfers')
-      .select('transfer_date, confirmed_at, amount')
+      .select('confirmed_at, transfer_date, amount')
       .eq('from_rider_id', rider.id)
       .eq('to_office', true)
       .eq('status', 'confirmed')
@@ -25,74 +26,63 @@ export default function RiderCashSummary({ rider }) {
       .limit(1)
       .single()
 
-    const lastTransferDt = lastTransfer?.confirmed_at || lastTransfer?.transfer_date
-    setLastTransferDate(lastTransferDt)
+    const lastTransferTimestamp = lastTransfer?.confirmed_at || null
+    setLastTransferDate(lastTransferTimestamp)
 
-    // Determine date range based on mode
-    let fromDate, toDate
-    const today = new Date().toISOString().split('T')[0]
+    let fromTimestamp, toTimestamp
 
-    if (mode === 'since_transfer') {
-      // From day after last transfer (or beginning if no transfer) to today
-      if (lastTransferDt) {
-        const afterTransfer = new Date(lastTransferDt)
-        afterTransfer.setDate(afterTransfer.getDate() + 1)
-        fromDate = afterTransfer.toISOString().split('T')[0]
-      } else {
-        fromDate = '2024-01-01' // beginning of time
-      }
-      toDate = today
+    if (mode === 'today') {
+      fromTimestamp = selectedDate + 'T00:00:00'
+      toTimestamp = selectedDate + 'T23:59:59'
     } else {
-      // Single day mode
-      fromDate = selectedDate
-      toDate = selectedDate
+      // Since last transfer — use exact timestamp
+      fromTimestamp = lastTransferTimestamp || '2024-01-01T00:00:00'
+      toTimestamp = today + 'T23:59:59'
     }
 
-    // Fetch all data in date range
     const { data: deliveries } = await supabase.from('deliveries')
       .select('*, customers(full_name, customer_code)')
       .eq('rider_id', rider.id)
-      .gte('delivered_at', fromDate + 'T00:00:00')
-      .lte('delivered_at', toDate + 'T23:59:59')
+      .gt('delivered_at', fromTimestamp)
+      .lte('delivered_at', toTimestamp)
       .eq('is_voided', false)
 
     const { data: cashPayments } = await supabase.from('payments')
       .select('*, customers(full_name, customer_code)')
       .eq('rider_id', rider.id)
       .eq('payment_method', 'cash')
-      .gte('payment_date', fromDate)
-      .lte('payment_date', toDate)
+      .gt('created_at', fromTimestamp)
+      .lte('created_at', toTimestamp)
       .eq('is_voided', false)
 
     const { data: expenses } = await supabase.from('expenses')
       .select('*')
       .eq('rider_id', rider.id)
-      .gte('expense_date', fromDate)
-      .lte('expense_date', toDate)
+      .gt('created_at', fromTimestamp)
+      .lte('created_at', toTimestamp)
       .eq('is_voided', false)
 
     const { data: sentTransfers } = await supabase.from('cash_transfers')
       .select('*')
       .eq('from_rider_id', rider.id)
       .eq('status', 'confirmed')
-      .gte('transfer_date', fromDate)
-      .lte('transfer_date', toDate)
+      .gt('confirmed_at', fromTimestamp)
+      .lte('confirmed_at', toTimestamp)
 
     const { data: receivedTransfers } = await supabase.from('cash_transfers')
       .select('*')
       .eq('to_rider_id', rider.id)
       .eq('status', 'confirmed')
-      .gte('transfer_date', fromDate)
-      .lte('transfer_date', toDate)
+      .gt('confirmed_at', fromTimestamp)
+      .lte('confirmed_at', toTimestamp)
 
     const { data: advancesGiven } = await supabase.from('salary_advances')
       .select('*, riders(full_name)')
       .eq('requested_from', rider.is_main_rider ? 'main_rider' : 'ceo')
       .eq('status', 'approved')
-      .gte('approved_at', fromDate + 'T00:00:00')
-      .lte('approved_at', toDate + 'T23:59:59')
+      .gt('approved_at', fromTimestamp)
+      .lte('approved_at', toTimestamp)
 
-    // Process deliveries
     let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0
     const cashDeliveries = [], jazzDeliveries = [], creditDeliveries = []
 
@@ -124,17 +114,14 @@ export default function RiderCashSummary({ rider }) {
 
     setSummary({
       cashFromSales, cashFromPayments, totalReceived,
-      jazzFromSales, jazzFromSalesPending,
-      creditSales, totalCashIn,
-      totalExpenses, totalSent, totalAdvancesGiven, totalCashOut,
-      cashToReturn,
-      fromDate, toDate,
+      jazzFromSales, jazzFromSalesPending, creditSales,
+      totalCashIn, totalExpenses, totalSent, totalAdvancesGiven,
+      totalCashOut, cashToReturn,
       cashDeliveries, jazzDeliveries, creditDeliveries,
       cashPayments: cashPayments || [],
       expenses: expenses || [],
       sentTransfers: sentTransfers || [],
       receivedTransfers: receivedTransfers || [],
-      advancesGiven: advancesGiven || [],
       allDeliveries: deliveries || []
     })
     setLoading(false)
@@ -152,7 +139,7 @@ export default function RiderCashSummary({ rider }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '16px' }}>{isOpen ? '▼' : '▶'}</span>
           <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>{title}</span>
-          {count > 0 && <span style={{ fontSize: '10px', background: '#f0f0f0', color: '#888', padding: '2px 6px', borderRadius: '10px' }}>{count} entries</span>}
+          {count > 0 && <span style={{ fontSize: '10px', background: '#f0f0f0', color: '#888', padding: '2px 6px', borderRadius: '10px' }}>{count}</span>}
         </div>
         <span style={{ fontSize: '14px', fontWeight: '700', color }}>{amount >= 0 ? '' : '− '}Rs. {Math.abs(amount).toLocaleString()}</span>
       </div>
@@ -168,7 +155,6 @@ export default function RiderCashSummary({ rider }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
           <p style={{ fontSize: '13px', fontWeight: '600', margin: 0, color: '#333' }}>
             {d.customers?.full_name || 'Walk-in'}
-            {d.customers?.customer_code && <span style={{ fontSize: '10px', color: '#888', marginLeft: '4px' }}>({d.customers.customer_code})</span>}
           </p>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(d.total_amount).toLocaleString()}</p>
         </div>
@@ -179,12 +165,12 @@ export default function RiderCashSummary({ rider }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {isCash && cashPortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Cash: Rs. {cashPortion.toLocaleString()}</span>}
-            {creditPortion > 0 && <span style={{ fontSize: '11px', color: '#f44336', fontWeight: '600' }}>📋 Credit: Rs. {creditPortion.toLocaleString()}</span>}
-            {d.payment_method === 'jazzcash' && <span style={{ fontSize: '11px', color: '#9c27b0', fontWeight: '600' }}>📱 JazzCash {d.jazzcash_confirmed ? '✅' : '⏳'}</span>}
+            {isCash && cashPortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Rs. {cashPortion.toLocaleString()}</span>}
+            {creditPortion > 0 && <span style={{ fontSize: '11px', color: '#f44336', fontWeight: '600' }}>📋 Rs. {creditPortion.toLocaleString()}</span>}
+            {d.payment_method === 'jazzcash' && <span style={{ fontSize: '11px', color: '#9c27b0', fontWeight: '600' }}>📱 {d.jazzcash_confirmed ? '✅' : '⏳'}</span>}
           </div>
           <span style={{ fontSize: '10px', color: '#aaa' }}>
-            {new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(d.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
+            {new Date(d.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>
       </div>
@@ -193,11 +179,11 @@ export default function RiderCashSummary({ rider }) {
 
   if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
 
-  const dateRangeLabel = mode === 'since_transfer'
-    ? lastTransferDate
-      ? `Since last transfer (${new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })})`
-      : 'All time (no transfer recorded)'
-    : new Date(selectedDate).toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long' })
+  const dateLabel = mode === 'today'
+    ? new Date(selectedDate).toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long' })
+    : lastTransferDate
+      ? `Since ${new Date(lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}`
+      : 'All time — no transfer yet'
 
   return (
     <div>
@@ -207,49 +193,36 @@ export default function RiderCashSummary({ rider }) {
 
       {/* Mode Selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <button onClick={() => setMode('today')}
+          style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: mode === 'today' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'today' ? '#0f4c81' : 'white', color: mode === 'today' ? 'white' : '#555', fontWeight: mode === 'today' ? '700' : '400', fontSize: '13px' }}>
+          📅 Today
+        </button>
         <button onClick={() => setMode('since_transfer')}
           style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: mode === 'since_transfer' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'since_transfer' ? '#0f4c81' : 'white', color: mode === 'since_transfer' ? 'white' : '#555', fontWeight: mode === 'since_transfer' ? '700' : '400', fontSize: '13px' }}>
           📊 Since Last Transfer
         </button>
-        <button onClick={() => setMode('single_day')}
-          style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: mode === 'single_day' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'single_day' ? '#0f4c81' : 'white', color: mode === 'single_day' ? 'white' : '#555', fontWeight: mode === 'single_day' ? '700' : '400', fontSize: '13px' }}>
-          📅 Single Day
-        </button>
       </div>
 
-      {/* Date selector for single day mode */}
-      {mode === 'single_day' && (
+      {/* Date picker for today mode */}
+      {mode === 'today' && (
         <div style={{ marginBottom: '12px' }}>
           <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
             style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
         </div>
       )}
 
-      {/* Date Range Info */}
-      <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ fontSize: '14px' }}>📅</span>
-        <div>
-          <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{dateRangeLabel}</p>
-          {mode === 'since_transfer' && summary && (
-            <p style={{ fontSize: '11px', color: '#888', margin: '2px 0 0' }}>
-              {summary.fromDate} → {summary.toDate}
-              {lastTransferDate
-                ? ` · Last transfer: Rs. ${(summary.sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0).toLocaleString()}`
-                : ' · No transfer recorded yet'}
-            </p>
-          )}
-        </div>
+      {/* Date range info */}
+      <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>📅 {dateLabel}</p>
+        {mode === 'since_transfer' && !lastTransferDate && (
+          <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0' }}>⚠️ No transfer recorded yet — showing all cash since start</p>
+        )}
+        {mode === 'since_transfer' && lastTransferDate && (
+          <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>Showing all cash collected after your last transfer to office</p>
+        )}
       </div>
 
-      {/* Last Transfer Alert */}
-      {mode === 'since_transfer' && !lastTransferDate && (
-        <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', marginBottom: '12px' }}>
-          <p style={{ fontSize: '12px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>⚠️ No transfer recorded yet</p>
-          <p style={{ fontSize: '11px', color: '#795548', margin: 0 }}>Showing all cash since you started. Transfer cash to office to reset this balance.</p>
-        </div>
-      )}
-
-      {/* Closing Cash Banner */}
+      {/* Cash Banner */}
       <div style={{
         background: summary.cashToReturn <= 0 ? '#1a7a4a' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)',
         color: 'white', borderRadius: '14px', padding: '20px',
@@ -266,11 +239,6 @@ export default function RiderCashSummary({ rider }) {
           <span style={{ fontSize: '12px' }}>In: Rs. {summary.totalCashIn.toLocaleString()}</span>
           <span style={{ fontSize: '12px' }}>Out: Rs. {summary.totalCashOut.toLocaleString()}</span>
         </div>
-        {mode === 'since_transfer' && summary.cashToReturn > 0 && (
-          <p style={{ fontSize: '11px', opacity: 0.6, margin: '8px 0 0' }}>
-            This is the total cash you owe the office since your last transfer
-          </p>
-        )}
       </div>
 
       {/* CASH IN */}
@@ -296,7 +264,7 @@ export default function RiderCashSummary({ rider }) {
                 <div key={p.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #1a7a4a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{p.customers?.full_name}</p>
-                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{p.customers?.customer_code} · {new Date(p.payment_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{new Date(p.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {Number(p.amount).toLocaleString()}</p>
                 </div>
@@ -311,7 +279,7 @@ export default function RiderCashSummary({ rider }) {
               <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
                 {summary.receivedTransfers.map(t => (
                   <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #1a7a4a', display: 'flex', justifyContent: 'space-between' }}>
-                    <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Transfer received · {new Date(t.transfer_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
+                    <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Transfer received</p>
                     <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
                   </div>
                 ))}
@@ -339,8 +307,7 @@ export default function RiderCashSummary({ rider }) {
                 <div key={e.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px', textTransform: 'capitalize' }}>{e.expense_type}</p>
-                    {e.description && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{e.description}</p>}
-                    <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{new Date(e.expense_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
+                    {e.description && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{e.description}</p>}
                   </div>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(e.amount).toLocaleString()}</p>
                 </div>
@@ -355,30 +322,11 @@ export default function RiderCashSummary({ rider }) {
               ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No transfers made</p>
               : summary.sentTransfers.map(t => (
                 <div key={t.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{t.to_office ? '🏢 To Office' : '⭐ To Main Rider'}</p>
-                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{new Date(t.transfer_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
-                  </div>
+                  <p style={{ fontSize: '13px', fontWeight: '600', margin: 0 }}>{t.to_office ? '🏢 To Office' : '⭐ To Main Rider'}</p>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(t.amount).toLocaleString()}</p>
                 </div>
               ))}
           </div>
-        )}
-
-        {summary.totalAdvancesGiven > 0 && (
-          <>
-            <SectionHeader sectionKey="advances" title="Salary Advances Given" amount={summary.totalAdvancesGiven} color="#e65100" count={summary.advancesGiven.length} />
-            {expandedSection === 'advances' && (
-              <div style={{ paddingTop: '10px', paddingBottom: '4px' }}>
-                {summary.advancesGiven.map(a => (
-                  <div key={a.id} style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid #e65100', display: 'flex', justifyContent: 'space-between' }}>
-                    <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>Advance to {a.riders?.full_name}</p>
-                    <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {Number(a.amount).toLocaleString()}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </>
         )}
 
         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0 0', marginTop: '4px', borderTop: '2px solid #ffebee' }}>
@@ -416,10 +364,9 @@ export default function RiderCashSummary({ rider }) {
         {[
           { label: 'Cash from Deliveries', value: summary.cashFromSales, color: '#1a7a4a' },
           { label: 'Cash from Collections', value: summary.cashFromPayments, color: '#1a7a4a' },
-          { label: 'Cash Received from Riders', value: summary.totalReceived, color: '#1a7a4a' },
+          { label: 'Received from Riders', value: summary.totalReceived, color: '#1a7a4a' },
           { label: '− Field Expenses', value: -summary.totalExpenses, color: '#f44336' },
           { label: '− Cash Transferred Out', value: -summary.totalSent, color: '#f44336' },
-          { label: '− Advances Given', value: -summary.totalAdvancesGiven, color: '#f44336' },
         ].filter(r => r.value !== 0).map(r => (
           <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f0f0f0' }}>
             <span style={{ fontSize: '13px', color: '#555' }}>{r.label}</span>
@@ -435,20 +382,8 @@ export default function RiderCashSummary({ rider }) {
           </span>
         </div>
         <p style={{ fontSize: '11px', color: '#888', margin: '8px 0 0', textAlign: 'center' }}>
-          Count your physical cash and match with above amount
+          Count your physical cash and match with above
         </p>
-      </div>
-
-      {/* All Deliveries */}
-      <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <SectionHeader sectionKey="allDeliveries" title="All Deliveries" amount={summary.allDeliveries.reduce((s, d) => s + Number(d.total_amount), 0)} color="#0f4c81" count={summary.allDeliveries.length} />
-        {expandedSection === 'allDeliveries' && (
-          <div style={{ paddingTop: '10px' }}>
-            {summary.allDeliveries.length === 0
-              ? <p style={{ fontSize: '12px', color: '#888', textAlign: 'center', padding: '10px 0' }}>No deliveries</p>
-              : summary.allDeliveries.map(d => <DeliveryRow key={d.id} d={d} />)}
-          </div>
-        )}
       </div>
 
       <button onClick={fetchSummary}
