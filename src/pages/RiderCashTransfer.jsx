@@ -44,11 +44,6 @@ export default function RiderCashTransfer({ rider }) {
       .eq('status', 'confirmed')
       .gte('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
 
-    const { data: sentTransfers } = await supabase.from('cash_transfers')
-      .select('*').eq('from_rider_id', rider.id)
-      .eq('status', 'confirmed')
-      .gte('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
-
     let cashFromSales = 0
     deliveries?.forEach(d => {
       if (d.payment_method === 'cash') cashFromSales += Number(d.amount_received)
@@ -56,9 +51,9 @@ export default function RiderCashTransfer({ rider }) {
     const cashFromPayments = cashPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
     const totalExpenses = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
     const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
 
-    const balance = cashFromSales + cashFromPayments + totalReceived - totalExpenses - totalSent
+    // Transfers are NOT deducted — they are a separate action
+    const balance = cashFromSales + cashFromPayments + totalReceived - totalExpenses
     setCashBalance(balance)
 
     const { data: pending } = await supabase.from('cash_transfers')
@@ -129,7 +124,6 @@ export default function RiderCashTransfer({ rider }) {
         {isMainRider ? 'You are the Main Rider — confirm incoming cash and return to office' : 'Return your cash to Main Rider or Office'}
       </p>
 
-      {/* Success */}
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Transfer Submitted!</p>
@@ -146,7 +140,7 @@ export default function RiderCashTransfer({ rider }) {
       {/* Today's Balance */}
       <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '18px', marginBottom: '8px', textAlign: 'center' }}>
         <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 4px' }}>
-          {cashBalance > 0 ? "Today's Cash to Transfer" : '✅ All Cash Transferred'}
+          {cashBalance > 0 ? "Today's Cash to Transfer" : '✅ All Clear Today'}
         </p>
         <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px' }}>
           Rs. {Math.max(0, cashBalance).toLocaleString()}
@@ -267,7 +261,7 @@ export default function RiderCashTransfer({ rider }) {
       {cashBalance <= 0 && pendingTransfers.length === 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>✅</p>
-          <p style={{ color: '#1a7a4a', fontWeight: '700', marginBottom: '4px' }}>All Clear!</p>
+          <p style={{ color: '#1a7a4a', fontWeight: '700', marginBottom: '4px' }}>All Clear Today!</p>
           <p style={{ color: '#888', fontSize: '13px' }}>No cash balance to transfer today.</p>
         </div>
       )}
