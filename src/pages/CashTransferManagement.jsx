@@ -26,48 +26,22 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
     // For each rider calculate carry-forward cash balance (since last transfer)
     const balances = []
     for (const r of riders || []) {
-      // Find last confirmed transfer to office
-      const { data: lastTransfer } = await supabase.from('cash_transfers')
-        .select('confirmed_at, transfer_date')
-        .eq('from_rider_id', r.id)
-        .eq('to_office', true)
-        .eq('status', 'confirmed')
-        .order('confirmed_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      const lastTransferDt = lastTransfer?.confirmed_at || lastTransfer?.transfer_date
-      let fromDate = '2024-01-01'
-      if (lastTransferDt) {
-        const afterTransfer = new Date(lastTransferDt)
-        afterTransfer.setDate(afterTransfer.getDate() + 1)
-        fromDate = afterTransfer.toISOString().split('T')[0]
-      }
-      const toDate = new Date().toISOString().split('T')[0]
+      // Today only — simple and correct
+      const fromTimestamp = today + 'T00:00:00'
+      const toTimestamp = today + 'T23:59:59'
 
       const { data: deliveries } = await supabase.from('deliveries')
         .select('*').eq('rider_id', r.id).eq('is_voided', false)
-        .gte('delivered_at', fromDate + 'T00:00:00')
-        .lte('delivered_at', toDate + 'T23:59:59')
+        .gte('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
 
       const { data: cashPayments } = await supabase.from('payments')
         .select('*').eq('rider_id', r.id)
         .eq('payment_method', 'cash').eq('is_voided', false)
-        .gte('payment_date', fromDate).lte('payment_date', toDate)
+        .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
       const { data: expenses } = await supabase.from('expenses')
         .select('*').eq('rider_id', r.id).eq('is_voided', false)
-        .gte('expense_date', fromDate).lte('expense_date', toDate)
-
-      const { data: receivedTransfers } = await supabase.from('cash_transfers')
-        .select('*').eq('to_rider_id', r.id)
-        .eq('status', 'confirmed')
-        .gte('transfer_date', fromDate).lte('transfer_date', toDate)
-
-      const { data: sentTransfers } = await supabase.from('cash_transfers')
-        .select('*').eq('from_rider_id', r.id)
-        .eq('status', 'confirmed')
-        .gte('transfer_date', fromDate).lte('transfer_date', toDate)
+        .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
       let cashFromSales = 0
       deliveries?.forEach(d => {
@@ -75,14 +49,9 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
       })
       const cashFromPayments = cashPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
       const totalExpenses = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-      const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-      const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-      const balance = cashFromSales + cashFromPayments + totalReceived - totalExpenses - totalSent
+      const balance = cashFromSales + cashFromPayments - totalExpenses
 
-      balances.push({
-        ...r, cashBalance: balance,
-        fromDate, lastTransferDate: lastTransferDt
-      })
+      balances.push({ ...r, cashBalance: balance })
     }
     setRiderBalances(balances)
 
@@ -165,8 +134,8 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
       {/* Rider Carry-Forward Balances */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: 0 }}>Cash in Hand (Since Last Transfer)</p>
-          <span style={{ fontSize: '11px', color: '#888', background: '#f0f0f0', padding: '3px 8px', borderRadius: '6px' }}>Carry Forward</span>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: 0 }}>Today's Cash in Hand</p>
+        <span style={{ fontSize: '11px', color: '#888', background: '#f0f0f0', padding: '3px 8px', borderRadius: '6px' }}>Today Only</span>
         </div>
         {riderBalances.length === 0 ? (
           <p style={{ color: '#888', fontSize: '13px' }}>No riders found.</p>
@@ -185,9 +154,7 @@ const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
                   Rs. {r.cashBalance.toLocaleString()}
                 </p>
                 <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
-                  {r.lastTransferDate
-                    ? 'Since ' + new Date(r.lastTransferDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })
-                    : 'No transfer yet'}
+                  {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                 </p>
               </div>
             ))}
