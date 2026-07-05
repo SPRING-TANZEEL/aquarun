@@ -371,7 +371,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'Inter', sans-serif", background: '#f5f7fa' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'Inter', sans-serif", background: '#f5f7fa', width: '100vw' }}>
 
       {/* Mobile Overlay */}
       {isMobile && sidebarOpen && (
@@ -381,7 +381,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
       {/* Sidebar */}
       <div style={{
-        width: '220px', background: '#0f4c81', color: 'white',
+        width: isMobile ? '220px' : '260px', background: '#0f4c81', color: 'white',
         display: 'flex', flexDirection: 'column', flexShrink: 0,
         boxShadow: '4px 0 20px rgba(0,0,0,0.15)',
         position: isMobile ? 'fixed' : 'relative',
@@ -492,7 +492,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
           </div>
         </div>
 
-        <div style={{ padding: isMobile ? '12px' : '24px 28px' }}>
+        <div style={{ padding: isMobile ? '12px' : '28px 36px', maxWidth: '100%' }}>
 
           {showSetupWizard && (
             <SetupWizard tenantId={tenantId} onComplete={() => { setShowSetupWizard(false); fetchBusiness() }} />
