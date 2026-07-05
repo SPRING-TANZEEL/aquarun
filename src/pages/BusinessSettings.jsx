@@ -257,12 +257,9 @@ export default function BusinessSettings() {
                 <p style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '20px 0 8px' }}>Developer & Support</p>
                 {[
                   ['Built by', 'Muhammad Tanzeel Ur Rehman'],
-                  ['Qualification', 'CMA — Chartered Management Accountant'],
-                  ['Organization', 'LESCO — Lahore Electric Supply Company'],
-                  ['Support Email', 'mian.tanzeel62@gmail.com'],
-                  ['Contact', '0323-7919338'],
-                  ['WhatsApp', '0309-7621882'],
-                  ['Business', 'Spring Water Kamoke'],
+                  ['Email', 'mian.tanzeel62@gmail.com'],
+                  ['Contact', '+92 323 7919338'],
+                  ['WhatsApp', '+92 309 7621882'],
                 ].map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                     <span style={{ fontSize: '13px', color: '#888' }}>{k}</span>
