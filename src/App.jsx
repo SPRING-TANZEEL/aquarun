@@ -1,203 +1,202 @@
 import { useState, useEffect } from 'react'
-import { supabase } from './supabase'
+import { supabase, getTenantId, setTenantSession, clearTenantSession, isSuperAdmin } from './supabase'
 import AdminDashboard from './pages/AdminDashboard'
 import RiderDashboard from './pages/RiderDashboard'
 import CustomerDashboard from './pages/CustomerDashboard'
+import SuperAdminDashboard from './pages/SuperAdminDashboard'
 
 export default function App() {
-  const [pin, setPin] = useState('')
+  const [screen, setScreen] = useState('login')
+  const [role, setRole] = useState(null)
+  const [rider, setRider] = useState(null)
+  const [tenantId, setTenantId] = useState(null)
+  const [loginError, setLoginError] = useState('')
+  const [logging, setLogging] = useState(false)
+
+  // Form state
+  const [tenantCode, setTenantCode] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('admin')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [currentUser, setCurrentUser] = useState(null)
-  const [checking, setChecking] = useState(true)
 
-  // Check localStorage on app start
   useEffect(() => {
-    const saved = localStorage.getItem('aquarun_user')
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved)
-        setCurrentUser(parsed)
-        setLoggedIn(true)
-      } catch (e) {
-        localStorage.removeItem('aquarun_user')
-      }
+    // Check existing session
+    const savedTenant = localStorage.getItem('aquarun_tenant_id')
+    const savedRole = localStorage.getItem('aquarun_role')
+    const savedUser = localStorage.getItem('aquarun_user')
+
+    if (savedRole === 'superadmin') {
+      setScreen('superadmin')
+      setRole('superadmin')
+      return
     }
-    setChecking(false)
+
+    if (savedTenant && savedRole) {
+      setTenantId(savedTenant)
+      setRole(savedRole)
+      if (savedRole === 'rider' && savedUser) {
+        setRider(JSON.parse(savedUser))
+      }
+      setScreen('app')
+    }
   }, [])
 
   async function handleLogin() {
-    setError('')
-    setLoading(true)
+    setLoginError('')
+    setLogging(true)
 
-    if (role === 'rider') {
-      const { data, error } = await supabase
-        .from('riders')
-        .select('*')
-        .eq('pin_code', pin)
-        .eq('is_active', true)
-        .single()
-
-      if (error || !data) {
-        setError('Wrong PIN. Please try again.')
+    // Super admin login
+    if (tenantCode.toUpperCase() === 'SUPERADMIN') {
+      if (password === 'aquarun@super2026') {
+        localStorage.setItem('aquarun_role', 'superadmin')
+        setRole('superadmin')
+        setScreen('superadmin')
+        setLogging(false)
+        return
       } else {
-        const userData = { ...data, role: 'rider' }
-        localStorage.setItem('aquarun_user', JSON.stringify(userData))
-        setCurrentUser(userData)
-        setLoggedIn(true)
-      }
-
-    } else if (role === 'admin') {
-      if (username === 'admin' && password === 'aquarun123') {
-        const userData = { full_name: 'Admin', role: 'admin' }
-        localStorage.setItem('aquarun_user', JSON.stringify(userData))
-        setCurrentUser(userData)
-        setLoggedIn(true)
-      } else {
-        setError('Username or password is incorrect.')
-      }
-
-    } else if (role === 'customer') {
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('customer_code', username.trim().toUpperCase())
-        .eq('is_active', true)
-        .single()
-
-      if (error || !data) {
-        setError('Customer ID not found.')
-      } else if (data.customer_password !== password && data.password_plain !== password) {
-        setError('Incorrect password.')
-      } else {
-        const userData = { ...data, role: 'customer' }
-        localStorage.setItem('aquarun_user', JSON.stringify(userData))
-        setCurrentUser(userData)
-        setLoggedIn(true)
+        setLoginError('Invalid super admin password')
+        setLogging(false)
+        return
       }
     }
-    setLoading(false)
+
+    // Validate tenant
+    const { data: tenant, error: tenantError } = await supabase
+      .from('tenants')
+      .select('*')
+      .eq('tenant_code', tenantCode.toUpperCase())
+      .eq('is_active', true)
+      .single()
+
+    if (tenantError || !tenant) {
+      setLoginError('Business ID not found or inactive. Please contact support.')
+      setLogging(false)
+      return
+    }
+
+    // Admin login
+    if (username.toLowerCase() === 'admin') {
+      if (password === tenant.admin_password) {
+        setTenantSession(tenant.tenant_code, tenant.business_name, 'admin')
+        localStorage.setItem('aquarun_user', JSON.stringify({ name: 'Admin' }))
+        setTenantId(tenant.tenant_code)
+        setRole('admin')
+        setScreen('app')
+        setLogging(false)
+        return
+      } else {
+        setLoginError('Invalid password')
+        setLogging(false)
+        return
+      }
+    }
+
+    // Rider login
+    const { data: riderData } = await supabase
+      .from('riders')
+      .select('*')
+      .eq('tenant_id', tenant.tenant_code)
+      .eq('is_active', true)
+      .ilike('full_name', username)
+      .single()
+
+    if (!riderData) {
+      setLoginError('Rider not found. Check your name or contact admin.')
+      setLogging(false)
+      return
+    }
+
+    if (password !== (riderData.password || 'rider123')) {
+      setLoginError('Invalid password')
+      setLogging(false)
+      return
+    }
+
+    setTenantSession(tenant.tenant_code, tenant.business_name, 'rider', riderData.id)
+    localStorage.setItem('aquarun_user', JSON.stringify(riderData))
+    setTenantId(tenant.tenant_code)
+    setRider(riderData)
+    setRole('rider')
+    setScreen('app')
+    setLogging(false)
   }
 
   function handleLogout() {
-    localStorage.removeItem('aquarun_user')
-    setLoggedIn(false)
-    setCurrentUser(null)
-    setPin('')
+    clearTenantSession()
+    setScreen('login')
+    setRole(null)
+    setRider(null)
+    setTenantId(null)
+    setTenantCode('')
     setUsername('')
     setPassword('')
   }
 
-  // Show nothing while checking localStorage
-  if (checking) {
-    return (
-      <div style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f4c81 0%, #1a7a4a 100%)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center'
-      }}>
-        <div style={{ textAlign: 'center', color: 'white' }}>
-          <div style={{ fontSize: '48px', marginBottom: '12px' }}>💧</div>
-          <p style={{ fontSize: '16px', opacity: 0.8 }}>Loading AquaRun...</p>
-        </div>
-      </div>
-    )
+  if (screen === 'superadmin') {
+    return <SuperAdminDashboard onLogout={handleLogout} />
   }
 
-  if (loggedIn && currentUser?.role === 'admin') {
-    return <AdminDashboard user={currentUser} onLogout={handleLogout} />
+  if (screen === 'app') {
+    if (role === 'admin') return <AdminDashboard tenantId={tenantId} onLogout={handleLogout} />
+    if (role === 'rider') return <RiderDashboard rider={rider} tenantId={tenantId} onLogout={handleLogout} />
+    if (role === 'customer') return <CustomerDashboard tenantId={tenantId} onLogout={handleLogout} />
   }
 
-  if (loggedIn && currentUser?.role === 'rider') {
-    return <RiderDashboard user={currentUser} onLogout={handleLogout} />
-  }
-
-  if (loggedIn && currentUser?.role === 'customer') {
-    return <CustomerDashboard user={currentUser} onLogout={handleLogout} />
+  // Login Screen
+  const inp = {
+    width: '100%', padding: '14px', border: '2px solid #e8eaed',
+    borderRadius: '10px', fontSize: '15px', outline: 'none',
+    boxSizing: 'border-box', marginBottom: '12px', fontFamily: 'inherit'
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f4c81 0%, #1a7a4a 100%)',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      fontFamily: 'sans-serif'
-    }}>
-      <div style={{
-        background: 'white', borderRadius: '16px', padding: '40px',
-        width: '100%', maxWidth: '380px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
-      }}>
-        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{ fontSize: '48px' }}>💧</div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#0f4c81', margin: '8px 0 4px' }}>AquaRun</h1>
-          <p style={{ color: '#888', fontSize: '13px' }}>Spring Water Kamoke</p>
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f4c81 0%, #1a7a4a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: "'Segoe UI', sans-serif" }}>
+      <div style={{ background: 'white', borderRadius: '20px', padding: '40px 32px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+          <div style={{ fontSize: '48px', marginBottom: '8px' }}>💧</div>
+          <h1 style={{ fontSize: '28px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>AquaRun</h1>
+          <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Water Delivery Management System</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
-          {['admin', 'rider', 'customer'].map(r => (
-            <button key={r} onClick={() => { setRole(r); setError(''); setPin('') }}
-              style={{
-                flex: 1, padding: '8px', border: 'none', borderRadius: '8px',
-                background: role === r ? '#0f4c81' : '#f0f0f0',
-                color: role === r ? 'white' : '#555',
-                fontWeight: role === r ? '600' : '400',
-                cursor: 'pointer', fontSize: '12px'
-              }}>
-              {r === 'admin' ? '👨‍💼 Admin' : r === 'rider' ? '🚴 Rider' : '👤 Customer'}
-            </button>
-          ))}
-        </div>
-
-        {role === 'rider' && (
-          <div>
-            <p style={{ textAlign: 'center', color: '#555', marginBottom: '12px', fontSize: '14px' }}>Enter your PIN</p>
-            <input type="password" placeholder="PIN" value={pin}
-              onChange={e => setPin(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              style={{
-                width: '100%', padding: '14px', fontSize: '24px', textAlign: 'center',
-                border: '2px solid #ddd', borderRadius: '10px', letterSpacing: '8px',
-                outline: 'none', boxSizing: 'border-box'
-              }} />
+        {loginError && (
+          <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: '#c62828', margin: 0, fontWeight: '600' }}>⚠️ {loginError}</p>
           </div>
         )}
 
-        {role !== 'rider' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <input type="text"
-              placeholder={role === 'admin' ? 'Username' : 'Customer ID (e.g. AQ-12345)'}
-              value={username} onChange={e => setUsername(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              style={{
-                width: '100%', padding: '12px 14px', fontSize: '15px',
-                border: '2px solid #ddd', borderRadius: '10px',
-                outline: 'none', boxSizing: 'border-box'
-              }} />
-            <input type="password" placeholder="Password"
-              value={password} onChange={e => setPassword(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              style={{
-                width: '100%', padding: '12px 14px', fontSize: '15px',
-                border: '2px solid #ddd', borderRadius: '10px',
-                outline: 'none', boxSizing: 'border-box'
-              }} />
-          </div>
-        )}
+        <div>
+          <label style={{ fontSize: '12px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Business ID</label>
+          <input value={tenantCode} onChange={e => setTenantCode(e.target.value.toUpperCase())}
+            placeholder="e.g. SW001"
+            style={inp}
+            onFocus={e => e.target.style.borderColor = '#0f4c81'}
+            onBlur={e => e.target.style.borderColor = '#e8eaed'} />
 
-        {error && <p style={{ color: '#e53935', fontSize: '13px', marginTop: '10px', textAlign: 'center' }}>{error}</p>}
+          <label style={{ fontSize: '12px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Username</label>
+          <input value={username} onChange={e => setUsername(e.target.value)}
+            placeholder="admin or rider name"
+            style={inp}
+            onFocus={e => e.target.style.borderColor = '#0f4c81'}
+            onBlur={e => e.target.style.borderColor = '#e8eaed'} />
 
-        <button onClick={handleLogin} disabled={loading}
-          style={{
-            width: '100%', padding: '14px', marginTop: '20px',
-            background: '#0f4c81', color: 'white', border: 'none',
-            borderRadius: '10px', fontSize: '16px', fontWeight: '600', cursor: 'pointer'
-          }}>
-          {loading ? 'Please wait...' : 'Login / لاگ ان'}
-        </button>
+          <label style={{ fontSize: '12px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Password</label>
+          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+            placeholder="Enter password"
+            style={{ ...inp, marginBottom: '20px' }}
+            onKeyDown={e => e.key === 'Enter' && handleLogin()}
+            onFocus={e => e.target.style.borderColor = '#0f4c81'}
+            onBlur={e => e.target.style.borderColor = '#e8eaed'} />
+
+          <button onClick={handleLogin} disabled={logging}
+            style={{ width: '100%', padding: '14px', background: 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
+            {logging ? 'Signing in...' : '→ Sign In'}
+          </button>
+        </div>
+
+        <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: '20px 0 0' }}>
+          Powered by AquaRun · Contact +92 323 7919338
+        </p>
       </div>
     </div>
   )
