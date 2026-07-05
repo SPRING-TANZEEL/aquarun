@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function JazzCashReconciliation({ onUpdate }) {
+export default function JazzCashReconciliation({ tenantId, onUpdate }) {
   const [deliveries, setDeliveries] = useState([])
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -13,13 +13,14 @@ export default function JazzCashReconciliation({ onUpdate }) {
   const [rejectingId, setRejectingId] = useState(null)
   const [rejectType, setRejectType] = useState(null)
 
-  useEffect(() => { fetchEntries() }, [filter, dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchEntries() }, [filter, dateFrom, dateTo, tenantId])
 
   async function fetchEntries() {
     setLoading(true)
 
     let dQuery = supabase.from('deliveries')
       .select('*, customers(full_name, mobile, customer_code), riders(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash')
       .gte('delivered_at', dateFrom + 'T00:00:00')
       .lte('delivered_at', dateTo + 'T23:59:59')
@@ -33,6 +34,7 @@ export default function JazzCashReconciliation({ onUpdate }) {
 
     let pQuery = supabase.from('payments')
       .select('*, customers(full_name, mobile, customer_code), riders(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash')
       .gte('created_at', dateFrom + 'T00:00:00')
       .lte('created_at', dateTo + 'T23:59:59')
@@ -55,14 +57,17 @@ export default function JazzCashReconciliation({ onUpdate }) {
       jazzcash_confirmed_at: new Date().toISOString(),
       jazzcash_confirmed_by: 'Admin',
       amount_received: entry.total_amount
-    }).eq('id', entry.id).select().single()
+    })
+      .eq('id', entry.id)
+      .eq('tenant_id', tenantId)
+      .select().single()
 
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
     // Auto-post journal entry — JazzCash confirmed
     try {
       const { postJazzCashConfirmationJournal } = await import('../accountingEngine')
-      await postJazzCashConfirmationJournal(confirmed, 'delivery')
+      await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     fetchEntries()
@@ -77,7 +82,9 @@ export default function JazzCashReconciliation({ onUpdate }) {
       jazzcash_confirmed_at: null,
       jazzcash_confirmed_by: null,
       amount_received: 0
-    }).eq('id', entry.id)
+    })
+      .eq('id', entry.id)
+      .eq('tenant_id', tenantId)
     if (error) { alert('Error: ' + error.message) }
     else { fetchEntries(); if (onUpdate) onUpdate() }
     setConfirming(null)
@@ -93,17 +100,25 @@ export default function JazzCashReconciliation({ onUpdate }) {
       voided_at: new Date().toISOString(),
       voided_by: 'Admin',
       void_reason: 'JazzCash rejected — ' + rejectReason
-    }).eq('id', entry.id)
+    })
+      .eq('id', entry.id)
+      .eq('tenant_id', tenantId)
 
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
     // Reverse customer balance if credit was added
     if (entry.customer_id) {
-      const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).single()
+      const { data: customer } = await supabase.from('customers')
+        .select('balance')
+        .eq('id', entry.customer_id)
+        .eq('tenant_id', tenantId)
+        .single()
       if (customer) {
         await supabase.from('customers').update({
           balance: Number(customer.balance) - Number(entry.total_amount)
-        }).eq('id', entry.customer_id)
+        })
+          .eq('id', entry.customer_id)
+          .eq('tenant_id', tenantId)
       }
     }
 
@@ -121,16 +136,25 @@ export default function JazzCashReconciliation({ onUpdate }) {
 
     const { data: confirmed, error } = await supabase.from('payments').update({
       jazzcash_confirmed: true
-    }).eq('id', entry.id).select().single()
+    })
+      .eq('id', entry.id)
+      .eq('tenant_id', tenantId)
+      .select().single()
 
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
     // Reduce customer balance
-    const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).single()
+    const { data: customer } = await supabase.from('customers')
+      .select('balance')
+      .eq('id', entry.customer_id)
+      .eq('tenant_id', tenantId)
+      .single()
     if (customer) {
       await supabase.from('customers').update({
         balance: Number(customer.balance) - Number(entry.amount)
-      }).eq('id', entry.customer_id)
+      })
+        .eq('id', entry.customer_id)
+        .eq('tenant_id', tenantId)
     }
 
     // Auto-post journal entry
@@ -146,14 +170,23 @@ export default function JazzCashReconciliation({ onUpdate }) {
 
   async function unconfirmPayment(entry) {
     setConfirming('p-' + entry.id)
-    const { error } = await supabase.from('payments').update({ jazzcash_confirmed: false }).eq('id', entry.id)
+    const { error } = await supabase.from('payments')
+      .update({ jazzcash_confirmed: false })
+      .eq('id', entry.id)
+      .eq('tenant_id', tenantId)
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
-    const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).single()
+    const { data: customer } = await supabase.from('customers')
+      .select('balance')
+      .eq('id', entry.customer_id)
+      .eq('tenant_id', tenantId)
+      .single()
     if (customer) {
       await supabase.from('customers').update({
         balance: Number(customer.balance) + Number(entry.amount)
-      }).eq('id', entry.customer_id)
+      })
+        .eq('id', entry.customer_id)
+        .eq('tenant_id', tenantId)
     }
 
     fetchEntries()
@@ -170,7 +203,9 @@ export default function JazzCashReconciliation({ onUpdate }) {
       voided_at: new Date().toISOString(),
       voided_by: 'Admin',
       void_reason: 'JazzCash rejected — ' + rejectReason
-    }).eq('id', entry.id)
+    })
+      .eq('id', entry.id)
+      .eq('tenant_id', tenantId)
 
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 

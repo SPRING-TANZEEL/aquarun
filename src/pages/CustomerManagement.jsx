@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function CustomerManagement() {
+export default function CustomerManagement({ tenantId }) {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -19,12 +19,14 @@ export default function CustomerManagement() {
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState({})
 
-  useEffect(() => { fetchCustomers() }, [])
+  useEffect(() => { if (tenantId) fetchCustomers() }, [tenantId])
 
   async function fetchCustomers() {
     setLoading(true)
     const { data } = await supabase.from('customers')
-      .select('*').order('full_name')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('full_name')
     setCustomers(data || [])
     setLoading(false)
   }
@@ -125,34 +127,38 @@ export default function CustomerManagement() {
 
     if (editCustomer) {
       // Recalculate balance = opening_balance + (all credit deliveries) - (all payments)
-const { data: deliveryData } = await supabase.from('deliveries')
-  .select('credit_amount, total_amount, payment_method, jazzcash_confirmed')
-  .eq('customer_id', editCustomer.id)
-  .eq('is_voided', false)
+      const { data: deliveryData } = await supabase.from('deliveries')
+        .select('credit_amount, total_amount, payment_method, jazzcash_confirmed')
+        .eq('customer_id', editCustomer.id)
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
 
-const { data: paymentData } = await supabase.from('payments')
-  .select('amount, payment_method, jazzcash_confirmed')
-  .eq('customer_id', editCustomer.id)
-  .eq('is_voided', false)
+      const { data: paymentData } = await supabase.from('payments')
+        .select('amount, payment_method, jazzcash_confirmed')
+        .eq('customer_id', editCustomer.id)
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
 
-let balance = cleanForm.opening_balance
+      let balance = cleanForm.opening_balance
 
-deliveryData?.forEach(d => {
-  if (d.payment_method === 'credit') balance += Number(d.total_amount)
-  else if (d.payment_method === 'cash') balance += Number(d.credit_amount || 0)
-  else if (d.payment_method === 'jazzcash' && !d.jazzcash_confirmed) balance += Number(d.total_amount)
-})
+      deliveryData?.forEach(d => {
+        if (d.payment_method === 'credit') balance += Number(d.total_amount)
+        else if (d.payment_method === 'cash') balance += Number(d.credit_amount || 0)
+        else if (d.payment_method === 'jazzcash' && !d.jazzcash_confirmed) balance += Number(d.total_amount)
+      })
 
-paymentData?.forEach(p => {
-  if (p.payment_method === 'cash') balance -= Number(p.amount)
-  else if (p.payment_method === 'jazzcash' && p.jazzcash_confirmed) balance -= Number(p.amount)
-})
+      paymentData?.forEach(p => {
+        if (p.payment_method === 'cash') balance -= Number(p.amount)
+        else if (p.payment_method === 'jazzcash' && p.jazzcash_confirmed) balance -= Number(p.amount)
+      })
 
-const { error } = await supabase.from('customers').update({
-  ...cleanForm,
-  balance: balance,
-  updated_at: new Date().toISOString()
-}).eq('id', editCustomer.id)
+      const { error } = await supabase.from('customers').update({
+        ...cleanForm,
+        balance: balance,
+        updated_at: new Date().toISOString()
+      })
+        .eq('id', editCustomer.id)
+        .eq('tenant_id', tenantId)
       if (error) { 
         console.error('Update error:', error)
         alert('Error: ' + error.message)
@@ -164,6 +170,7 @@ const { error } = await supabase.from('customers').update({
       const customerCode = 'AQ-' + Math.floor(10000 + Math.random() * 90000)
       const { error } = await supabase.from('customers').insert([{
         ...cleanForm,
+        tenant_id: tenantId,
         customer_code: customerCode,
         balance: Number(form.opening_balance) || 0,
       }])
@@ -183,7 +190,10 @@ const { error } = await supabase.from('customers').update({
   }
 
   async function toggleActive(c) {
-    await supabase.from('customers').update({ is_active: !c.is_active }).eq('id', c.id)
+    await supabase.from('customers')
+      .update({ is_active: !c.is_active })
+      .eq('id', c.id)
+      .eq('tenant_id', tenantId)
     fetchCustomers()
   }
 
@@ -191,7 +201,9 @@ const { error } = await supabase.from('customers').update({
     const newPass = generatePassword()
     await supabase.from('customers').update({
       customer_password: newPass, password_plain: newPass
-    }).eq('id', c.id)
+    })
+      .eq('id', c.id)
+      .eq('tenant_id', tenantId)
     alert(`New password for ${c.full_name}:\n\nPassword: ${newPass}\n\nShare this with the customer.`)
     fetchCustomers()
   }

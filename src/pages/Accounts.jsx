@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function Accounts() {
+export default function Accounts({ tenantId }) {
   const [activeTab, setActiveTab] = useState('coa')
   const tabs = [
     { key: 'coa', label: '📋 Chart of Accounts' },
@@ -24,17 +24,17 @@ export default function Accounts() {
           </button>
         ))}
       </div>
-      {activeTab === 'coa' && <ChartOfAccounts />}
-      {activeTab === 'trial' && <TrialBalance />}
-      {activeTab === 'pl' && <IncomeStatement />}
-      {activeTab === 'bs' && <BalanceSheet />}
-      {activeTab === 'journal' && <JournalEntries />}
+      {activeTab === 'coa' && <ChartOfAccounts tenantId={tenantId} />}
+      {activeTab === 'trial' && <TrialBalance tenantId={tenantId} />}
+      {activeTab === 'pl' && <IncomeStatement tenantId={tenantId} />}
+      {activeTab === 'bs' && <BalanceSheet tenantId={tenantId} />}
+      {activeTab === 'journal' && <JournalEntries tenantId={tenantId} />}
     </div>
   )
 }
 
 // ─── CHART OF ACCOUNTS ─────────────────────────────────────────────
-function ChartOfAccounts() {
+function ChartOfAccounts({ tenantId }) {
   const [accounts, setAccounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -42,11 +42,14 @@ function ChartOfAccounts() {
   const [form, setForm] = useState({ account_code: '', account_name: '', account_type: 'expense', account_subtype: '', description: '' })
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchAccounts() }, [])
+  useEffect(() => { if (tenantId) fetchAccounts() }, [tenantId])
 
   async function fetchAccounts() {
     setLoading(true)
-    const { data } = await supabase.from('chart_of_accounts').select('*').order('account_code')
+    const { data } = await supabase.from('chart_of_accounts')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('account_code')
     setAccounts(data || [])
     setLoading(false)
   }
@@ -72,10 +75,13 @@ function ChartOfAccounts() {
         account_type: form.account_type,
         account_subtype: form.account_subtype,
         description: form.description
-      }).eq('id', editAccount.id)
+      })
+        .eq('id', editAccount.id)
+        .eq('tenant_id', tenantId)
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
     } else {
       const { error } = await supabase.from('chart_of_accounts').insert([{
+        tenant_id: tenantId,
         account_code: form.account_code,
         account_name: form.account_name,
         account_type: form.account_type,
@@ -95,7 +101,10 @@ function ChartOfAccounts() {
 
   async function toggleActive(acc) {
     if (acc.is_system) return alert('System accounts cannot be deactivated')
-    await supabase.from('chart_of_accounts').update({ is_active: !acc.is_active }).eq('id', acc.id)
+    await supabase.from('chart_of_accounts')
+      .update({ is_active: !acc.is_active })
+      .eq('id', acc.id)
+      .eq('tenant_id', tenantId)
     fetchAccounts()
   }
 
@@ -216,18 +225,24 @@ function ChartOfAccounts() {
 }
 
 // ─── TRIAL BALANCE ─────────────────────────────────────────────────
-function TrialBalance() {
+function TrialBalance({ tenantId }) {
   const [dateFrom, setDateFrom] = useState('2024-01-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState([])
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { fetchTrialBalance() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchTrialBalance() }, [dateFrom, dateTo, tenantId])
 
   async function fetchTrialBalance() {
     setLoading(true)
-    const { data: accounts } = await supabase.from('chart_of_accounts').select('*').eq('is_active', true).order('account_code')
-    const { data: lines } = await supabase.from('journal_entry_lines').select('*, journal_entries!inner(entry_date)').gte('journal_entries.entry_date', dateFrom).lte('journal_entries.entry_date', dateTo)
+    const { data: accounts } = await supabase.from('chart_of_accounts')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true).order('account_code')
+    const { data: lines } = await supabase.from('journal_entry_lines')
+      .select('*, journal_entries!inner(entry_date, tenant_id)')
+      .eq('journal_entries.tenant_id', tenantId)
+      .gte('journal_entries.entry_date', dateFrom).lte('journal_entries.entry_date', dateTo)
 
     const balances = {}
     lines?.forEach(l => {
@@ -331,18 +346,19 @@ function TrialBalance() {
 }
 
 // ─── INCOME STATEMENT ──────────────────────────────────────────────
-function IncomeStatement() {
+function IncomeStatement({ tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { fetchData() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchData() }, [dateFrom, dateTo, tenantId])
 
   async function fetchData() {
     setLoading(true)
     const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, account:account_code(account_name, account_type, account_subtype), journal_entries!inner(entry_date)')
+      .select('*, account:account_code(account_name, account_type, account_subtype), journal_entries!inner(entry_date, tenant_id)')
+      .eq('journal_entries.tenant_id', tenantId)
       .gte('journal_entries.entry_date', dateFrom)
       .lte('journal_entries.entry_date', dateTo)
 
@@ -465,17 +481,18 @@ function IncomeStatement() {
 }
 
 // ─── BALANCE SHEET ─────────────────────────────────────────────────
-function BalanceSheet() {
+function BalanceSheet({ tenantId }) {
   const [asOf, setAsOf] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { fetchData() }, [asOf])
+  useEffect(() => { if (tenantId) fetchData() }, [asOf, tenantId])
 
   async function fetchData() {
     setLoading(true)
     const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, account:account_code(account_name, account_type, account_subtype), journal_entries!inner(entry_date)')
+      .select('*, account:account_code(account_name, account_type, account_subtype), journal_entries!inner(entry_date, tenant_id)')
+      .eq('journal_entries.tenant_id', tenantId)
       .lte('journal_entries.entry_date', asOf)
 
     const balances = {}
@@ -493,7 +510,6 @@ function BalanceSheet() {
     const equity = {}
     let retainedEarnings = 0
 
-    // Revenue and expenses go into retained earnings
     lines?.forEach(l => {
       const type = l.account?.account_type
       if (type === 'revenue') retainedEarnings += Number(l.credit || 0) - Number(l.debit || 0)
@@ -554,7 +570,6 @@ function BalanceSheet() {
 
       {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : !data ? null : (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          {/* Assets */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 12px', paddingBottom: '8px', borderBottom: '2px solid #e3f0ff' }}>ASSETS</p>
             <Section title="Current Assets" items={data.assets} color="#0f4c81" />
@@ -564,7 +579,6 @@ function BalanceSheet() {
             </div>
           </div>
 
-          {/* Liabilities + Equity */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#c62828', margin: '0 0 12px', paddingBottom: '8px', borderBottom: '2px solid #ffebee' }}>LIABILITIES & EQUITY</p>
             {Object.keys(data.liabilities).length > 0 && (
@@ -591,19 +605,20 @@ function BalanceSheet() {
 }
 
 // ─── JOURNAL ENTRIES ───────────────────────────────────────────────
-function JournalEntries() {
+function JournalEntries({ tenantId }) {
   const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [expandedEntry, setExpandedEntry] = useState(null)
 
-  useEffect(() => { fetchEntries() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchEntries() }, [dateFrom, dateTo, tenantId])
 
   async function fetchEntries() {
     setLoading(true)
     const { data } = await supabase.from('journal_entries')
       .select('*, lines:journal_entry_lines(*)')
+      .eq('tenant_id', tenantId)
       .gte('entry_date', dateFrom).lte('entry_date', dateTo)
       .order('created_at', { ascending: false })
     setEntries(data || [])

@@ -226,11 +226,12 @@ export default function RiderDashboard({ user, onLogout }) {
       {/* Content */}
       <div style={{ padding: '16px', paddingBottom: '90px' }}>
         {activePage === 'deliveries' && (
-          <RiderDeliveries rider={user} isOnline={isOnline} dbReady={dbReady} />
+          <RiderDeliveries rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} />
         )}
         {activePage === 'sell' && (
           <RiderSellToCustomer
             rider={user}
+            tenantId={user.tenant_id}
             preSelectedCustomer={preSelectedCustomer}
             onClearPreSelected={() => setPreSelectedCustomer(null)}
             isOnline={isOnline}
@@ -240,17 +241,18 @@ export default function RiderDashboard({ user, onLogout }) {
         {activePage === 'receivables' && (
           <RiderReceivables
             rider={user}
+            tenantId={user.tenant_id}
             onSelectCustomer={handleSelectCustomer}
             isOnline={isOnline}
             dbReady={dbReady}
           />
         )}
-        {activePage === 'cash' && <RiderCashSummary rider={user} />}
-        {activePage === 'expense' && <RiderExpense rider={user} isOnline={isOnline} dbReady={dbReady} />}
-        {activePage === 'transfer' && <RiderCashTransfer rider={user} />}
-        {activePage === 'salary' && <RiderSalary rider={user} />}
-        {activePage === 'advances' && <RiderAdvanceApproval rider={user} />}
-        {activePage === 'fieldexpenses' && <OfficeExpenses rider={user} isCEO={false} />}
+        {activePage === 'cash' && <RiderCashSummary rider={user} tenantId={user.tenant_id} />}
+        {activePage === 'expense' && <RiderExpense rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} />}
+        {activePage === 'transfer' && <RiderCashTransfer rider={user} tenantId={user.tenant_id} />}
+        {activePage === 'salary' && <RiderSalary rider={user} tenantId={user.tenant_id} />}
+        {activePage === 'advances' && <RiderAdvanceApproval rider={user} tenantId={user.tenant_id} />}
+        {activePage === 'fieldexpenses' && <OfficeExpenses rider={user} isCEO={false} tenantId={user.tenant_id} />}
 
         {activePage === 'more' && (
           <div>

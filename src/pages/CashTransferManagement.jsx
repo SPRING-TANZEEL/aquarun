@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function CashTransferManagement({ onUpdate }) {
+export default function CashTransferManagement({ tenantId, onUpdate }) {
   const [pendingTransfers, setPendingTransfers] = useState([])
   const [confirmedTransfers, setConfirmedTransfers] = useState([])
   const [riderBalances, setRiderBalances] = useState([])
@@ -15,7 +15,7 @@ export default function CashTransferManagement({ onUpdate }) {
   })
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
-  useEffect(() => { fetchData() }, [filter, dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchData() }, [filter, dateFrom, dateTo, tenantId])
 
   async function fetchData() {
     setLoading(true)
@@ -24,22 +24,33 @@ export default function CashTransferManagement({ onUpdate }) {
     const toTimestamp = today + 'T23:59:59'
 
     // Fetch all active riders
-    const { data: riders } = await supabase.from('riders').select('*').eq('is_active', true)
+    const { data: riders } = await supabase.from('riders')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
 
     // For each rider calculate TODAY's cash balance only
     const balances = []
     for (const r of riders || []) {
       const { data: deliveries } = await supabase.from('deliveries')
-        .select('*').eq('rider_id', r.id).eq('is_voided', false)
+        .select('*')
+        .eq('rider_id', r.id)
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
         .gte('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
 
       const { data: cashPayments } = await supabase.from('payments')
-        .select('*').eq('rider_id', r.id)
+        .select('*')
+        .eq('rider_id', r.id)
+        .eq('tenant_id', tenantId)
         .eq('payment_method', 'cash').eq('is_voided', false)
         .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
       const { data: expenses } = await supabase.from('expenses')
-        .select('*').eq('rider_id', r.id).eq('is_voided', false)
+        .select('*')
+        .eq('rider_id', r.id)
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
         .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
       let cashFromSales = 0
@@ -58,6 +69,7 @@ export default function CashTransferManagement({ onUpdate }) {
     const { data: pendingData, error: pendingError } = await supabase
       .from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name, is_main_rider)')
+      .eq('tenant_id', tenantId)
       .eq('to_office', true)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -68,6 +80,7 @@ export default function CashTransferManagement({ onUpdate }) {
     const { data: confirmedData, error: confirmedError } = await supabase
       .from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name, is_main_rider)')
+      .eq('tenant_id', tenantId)
       .eq('to_office', true)
       .eq('status', 'confirmed')
       .gte('transfer_date', dateFrom)
@@ -97,13 +110,16 @@ export default function CashTransferManagement({ onUpdate }) {
       status: 'confirmed',
       confirmed_at: new Date().toISOString(),
       confirmed_by: 'Admin'
-    }).eq('id', transfer.id).select().single()
+    })
+      .eq('id', transfer.id)
+      .eq('tenant_id', tenantId)
+      .select().single()
 
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
     try {
       const { postCashTransferJournal } = await import('../accountingEngine')
-      await postCashTransferJournal(confirmed)
+      await postCashTransferJournal(confirmed, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     fetchData()
@@ -113,7 +129,10 @@ export default function CashTransferManagement({ onUpdate }) {
 
   async function rejectTransfer(transfer) {
     setConfirming(transfer.id)
-    await supabase.from('cash_transfers').update({ status: 'rejected' }).eq('id', transfer.id)
+    await supabase.from('cash_transfers')
+      .update({ status: 'rejected' })
+      .eq('id', transfer.id)
+      .eq('tenant_id', tenantId)
     fetchData()
     setConfirming(null)
   }

@@ -17,7 +17,7 @@ const PAYMENT_METHODS = [
   { key: 'bank', label: 'Bank', icon: '🏦' },
 ]
 
-export default function OfficeExpenses({ rider, isCEO }) {
+export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   const [expenses, setExpenses] = useState([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState(null)
@@ -30,13 +30,15 @@ export default function OfficeExpenses({ rider, isCEO }) {
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [summary, setSummary] = useState({})
 
-  useEffect(() => { fetchExpenses() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchExpenses() }, [dateFrom, dateTo, tenantId])
 
   async function fetchExpenses() {
     setLoading(true)
     const paidBy = isCEO ? 'ceo' : 'main_rider'
     const { data } = await supabase.from('office_expenses')
-      .select('*').eq('paid_by', paidBy)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('paid_by', paidBy)
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
       .eq('is_voided', false)
       .order('created_at', { ascending: false })
@@ -54,6 +56,7 @@ export default function OfficeExpenses({ rider, isCEO }) {
     const paidBy = isCEO ? 'ceo' : 'main_rider'
 
     const { data: saved, error } = await supabase.from('office_expenses').insert([{
+      tenant_id: tenantId,
       paid_by: paidBy,
       paid_by_rider_id: rider.id,
       category,
@@ -68,7 +71,7 @@ export default function OfficeExpenses({ rider, isCEO }) {
     // Auto-post journal entry
     try {
       const { postOfficeExpenseJournal } = await import('../accountingEngine')
-      await postOfficeExpenseJournal(saved)
+      await postOfficeExpenseJournal(saved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     setSuccess(true)

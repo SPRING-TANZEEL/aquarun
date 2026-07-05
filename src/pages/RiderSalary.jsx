@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function RiderSalary({ rider }) {
+export default function RiderSalary({ rider, tenantId }) {
   const [loading, setLoading] = useState(true)
   const [advances, setAdvances] = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
@@ -22,18 +22,20 @@ export default function RiderSalary({ rider }) {
   const monthLabel = new Date().toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })
   const isCommission = rider.salary_type === 'commission'
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { if (tenantId) fetchData() }, [tenantId])
 
   async function fetchData() {
     setLoading(true)
 
     const { data: mainRiderData } = await supabase
       .from('riders').select('*')
+      .eq('tenant_id', tenantId)
       .eq('is_main_rider', true).eq('is_active', true).single()
     setMainRider(mainRiderData || null)
 
     const { data: approvedAdvances } = await supabase
       .from('salary_advances').select('*')
+      .eq('tenant_id', tenantId)
       .eq('rider_id', rider.id)
       .eq('month_year', currentMonthYear)
       .eq('status', 'approved')
@@ -42,19 +44,20 @@ export default function RiderSalary({ rider }) {
 
     const { data: pending } = await supabase
       .from('salary_advances').select('*')
+      .eq('tenant_id', tenantId)
       .eq('rider_id', rider.id)
       .eq('month_year', currentMonthYear)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
     setPendingRequests(pending || [])
 
-    // Calculate commission from deliveries this month
     if (isCommission) {
       const monthStart = currentMonthYear + '-01'
       const nextMonth = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1)).toISOString().split('T')[0]
 
       const { data: deliveries } = await supabase
         .from('deliveries').select('qty_19l, qty_half_litre, qty_1_5l')
+        .eq('tenant_id', tenantId)
         .eq('rider_id', rider.id)
         .gte('delivered_at', monthStart + 'T00:00:00')
         .lt('delivered_at', nextMonth + 'T00:00:00')
@@ -85,6 +88,7 @@ export default function RiderSalary({ rider }) {
     const isMainRider = requestTo === 'main_rider'
 
     const { error } = await supabase.from('salary_advances').insert([{
+      tenant_id: tenantId,
       rider_id: rider.id,
       requested_from: requestTo,
       requested_from_rider_id: isMainRider ? mainRider?.id : null,
@@ -129,18 +133,12 @@ export default function RiderSalary({ rider }) {
         </div>
       )}
 
-      {/* Salary Type Badge */}
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
-        <span style={{
-          padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '700',
-          background: isCommission ? '#e8f5e9' : '#f3e5f5',
-          color: isCommission ? '#1a7a4a' : '#7b1fa2'
-        }}>
+        <span style={{ padding: '6px 16px', borderRadius: '20px', fontSize: '13px', fontWeight: '700', background: isCommission ? '#e8f5e9' : '#f3e5f5', color: isCommission ? '#1a7a4a' : '#7b1fa2' }}>
           {isCommission ? '📦 Commission Based Salary' : '💰 Fixed Monthly Salary'}
         </span>
       </div>
 
-      {/* Commission Breakdown — only for commission riders */}
       {isCommission && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>📦 Deliveries This Month</p>
@@ -182,7 +180,6 @@ export default function RiderSalary({ rider }) {
         </div>
       )}
 
-      {/* Salary Summary */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Salary Summary — {monthLabel}</p>
 
@@ -210,7 +207,6 @@ export default function RiderSalary({ rider }) {
         )}
       </div>
 
-      {/* Commission Rates Info */}
       {isCommission && (
         <div style={{ background: '#f0f7ff', border: '1px solid #c8e0ff', borderRadius: '10px', padding: '12px 14px', marginBottom: '12px' }}>
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: '0 0 6px' }}>Your Commission Rates</p>
@@ -222,19 +218,13 @@ export default function RiderSalary({ rider }) {
         </div>
       )}
 
-      {/* Request Advance Button */}
       {!showRequestForm && (
         <button onClick={() => setShowRequestForm(true)}
-          style={{
-            width: '100%', padding: '14px', background: '#0f4c81', color: 'white',
-            border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px',
-            fontWeight: '700', marginBottom: '12px'
-          }}>
+          style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700', marginBottom: '12px' }}>
           + Request Salary Advance
         </button>
       )}
 
-      {/* Request Form */}
       {showRequestForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #e3f0ff' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -247,26 +237,14 @@ export default function RiderSalary({ rider }) {
           <div style={{ display: 'flex', gap: '10px', marginBottom: '14px' }}>
             {mainRider && mainRider.id !== rider.id && (
               <button onClick={() => setRequestTo('main_rider')}
-                style={{
-                  flex: 1, padding: '14px', border: '2px solid',
-                  borderColor: requestTo === 'main_rider' ? '#f59e0b' : '#eee',
-                  borderRadius: '10px', cursor: 'pointer',
-                  background: requestTo === 'main_rider' ? '#fff8e1' : '#f8f9fa',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
-                }}>
+                style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: requestTo === 'main_rider' ? '#f59e0b' : '#eee', borderRadius: '10px', cursor: 'pointer', background: requestTo === 'main_rider' ? '#fff8e1' : '#f8f9fa', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
                 <span style={{ fontSize: '24px' }}>⭐</span>
                 <span style={{ fontSize: '13px', fontWeight: '700', color: '#795548' }}>{mainRider.full_name}</span>
                 <span style={{ fontSize: '11px', color: '#888' }}>Main Rider</span>
               </button>
             )}
             <button onClick={() => setRequestTo('ceo')}
-              style={{
-                flex: 1, padding: '14px', border: '2px solid',
-                borderColor: requestTo === 'ceo' ? '#0f4c81' : '#eee',
-                borderRadius: '10px', cursor: 'pointer',
-                background: requestTo === 'ceo' ? '#e3f0ff' : '#f8f9fa',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px'
-              }}>
+              style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: requestTo === 'ceo' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: requestTo === 'ceo' ? '#e3f0ff' : '#f8f9fa', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
               <span style={{ fontSize: '24px' }}>👨‍💼</span>
               <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>CEO / Admin</span>
               <span style={{ fontSize: '11px', color: '#888' }}>Office</span>
@@ -277,31 +255,20 @@ export default function RiderSalary({ rider }) {
           <input type="number" value={requestAmount}
             onChange={e => setRequestAmount(e.target.value)}
             placeholder="0"
-            style={{
-              width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px',
-              fontSize: '24px', fontWeight: '700', outline: 'none',
-              boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px'
-            }} />
+            style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px' }} />
 
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Note (optional)</p>
           <input value={requestNote} onChange={e => setRequestNote(e.target.value)}
             placeholder="Reason for advance..."
-            style={{
-              width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px',
-              fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px'
-            }} />
+            style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
 
           <button onClick={submitRequest} disabled={saving}
-            style={{
-              width: '100%', padding: '14px', background: '#1a7a4a', color: 'white',
-              border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700'
-            }}>
+            style={{ width: '100%', padding: '14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
             {saving ? 'Submitting...' : '✓ Submit Request'}
           </button>
         </div>
       )}
 
-      {/* Pending Requests */}
       {pendingRequests.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #ffe082' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#795548', marginBottom: '12px' }}>⏳ Pending Requests</p>
@@ -319,7 +286,6 @@ export default function RiderSalary({ rider }) {
         </div>
       )}
 
-      {/* Advances History */}
       {advances.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Advances Received This Month</p>
@@ -343,11 +309,7 @@ export default function RiderSalary({ rider }) {
       )}
 
       <button onClick={fetchData}
-        style={{
-          width: '100%', padding: '12px', background: '#f0f4ff', color: '#0f4c81',
-          border: '1px solid #c8d8ff', borderRadius: '10px', cursor: 'pointer',
-          fontSize: '14px', fontWeight: '600', marginTop: '12px'
-        }}>
+        style={{ width: '100%', padding: '12px', background: '#f0f4ff', color: '#0f4c81', border: '1px solid #c8d8ff', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', marginTop: '12px' }}>
         🔄 Refresh
       </button>
     </div>

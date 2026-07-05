@@ -3,7 +3,7 @@ import { supabase } from '../supabase'
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
-export default function RiderQuickSale({ rider }) {
+export default function RiderQuickSale({ rider, tenantId }) {
   const [selectedRate, setSelectedRate] = useState(null)
   const [qty, setQty] = useState(1)
   const [paymentMethod, setPaymentMethod] = useState('cash')
@@ -18,6 +18,7 @@ export default function RiderQuickSale({ rider }) {
     const total = selectedRate * qty
 
     const { error } = await supabase.from('deliveries').insert([{
+      tenant_id: tenantId,
       customer_id: null,
       rider_id: rider.id,
       qty_19l: qty,
@@ -46,10 +47,7 @@ export default function RiderQuickSale({ rider }) {
       <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>Walk-in or roadside customer — no account needed</p>
 
       {success && (
-        <div style={{
-          background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px',
-          padding: '14px 16px', marginBottom: '16px'
-        }}>
+        <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Sale Posted!</p>
           <p style={{ fontSize: '13px', color: '#2e7d32' }}>
             {success.qty} bottle × Rs. {success.rate} = <strong>Rs. {success.total.toLocaleString()}</strong> — {success.paymentMethod}
@@ -61,27 +59,31 @@ export default function RiderQuickSale({ rider }) {
         </div>
       )}
 
-      {/* Rate Buttons */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Select Rate — 19 Litre</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
           {RATES.map(r => (
             <button key={r} onClick={() => setSelectedRate(r)}
-              style={{
-                padding: '18px', border: '2px solid',
-                borderColor: selectedRate === r ? '#0f4c81' : '#eee',
-                borderRadius: '12px', cursor: 'pointer',
-                background: selectedRate === r ? '#0f4c81' : '#f8f9fa',
-                color: selectedRate === r ? 'white' : '#333',
-                fontWeight: '700', fontSize: '20px'
-              }}>
+              style={{ padding: '18px', border: '2px solid', borderColor: selectedRate === r ? '#0f4c81' : '#eee', borderRadius: '12px', cursor: 'pointer', background: selectedRate === r ? '#0f4c81' : '#f8f9fa', color: selectedRate === r ? 'white' : '#333', fontWeight: '700', fontSize: '20px' }}>
               Rs. {r}
             </button>
           ))}
         </div>
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>یا خود لکھیں (Manual Rate)</p>
+        <input
+          type="number"
+          value={selectedRate || ''}
+          onChange={e => setSelectedRate(e.target.value === '' ? null : Number(e.target.value))}
+          placeholder="e.g. 130"
+          style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center' }}
+        />
+        {selectedRate && (
+          <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600', margin: '6px 0 0', textAlign: 'center' }}>
+            ✅ Rate: Rs. {selectedRate} per bottle
+          </p>
+        )}
       </div>
 
-      {/* Quantity */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Quantity — 19L Bottles</p>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px' }}>
@@ -93,7 +95,6 @@ export default function RiderQuickSale({ rider }) {
         </div>
       </div>
 
-      {/* Payment */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment</p>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -102,15 +103,7 @@ export default function RiderQuickSale({ rider }) {
             { key: 'jazzcash', label: 'جیز کیش', sublabel: 'JazzCash', color: '#9c27b0' },
           ].map(pm => (
             <button key={pm.key} onClick={() => setPaymentMethod(pm.key)}
-              style={{
-                flex: 1, padding: '14px', border: '2px solid',
-                borderColor: paymentMethod === pm.key ? pm.color : '#eee',
-                borderRadius: '10px', cursor: 'pointer',
-                background: paymentMethod === pm.key ? pm.color : 'white',
-                color: paymentMethod === pm.key ? 'white' : '#555',
-                fontWeight: '700', fontSize: '15px',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px'
-              }}>
+              style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
               <span>{pm.label}</span>
               <span style={{ fontSize: '10px', opacity: 0.8 }}>{pm.sublabel}</span>
             </button>
@@ -125,7 +118,6 @@ export default function RiderQuickSale({ rider }) {
         )}
       </div>
 
-      {/* Total */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
           <p style={{ fontSize: '16px', color: '#555', margin: 0 }}>Total Amount</p>
@@ -134,10 +126,7 @@ export default function RiderQuickSale({ rider }) {
           </p>
         </div>
         <button onClick={postQuickSale} disabled={saving}
-          style={{
-            width: '100%', padding: '16px', background: '#1a7a4a', color: 'white',
-            border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '16px', fontWeight: '700'
-          }}>
+          style={{ width: '100%', padding: '16px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
           {saving ? 'Saving...' : '✓ محفوظ کریں'}
         </button>
       </div>

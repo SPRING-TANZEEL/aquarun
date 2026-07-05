@@ -8,7 +8,7 @@ const PAYMENT_METHODS = [
   { key: 'bank', label: 'Bank', icon: '🏦' },
 ]
 
-export default function SalaryManagement({ adminUser }) {
+export default function SalaryManagement({ adminUser, tenantId }) {
   const [riders, setRiders] = useState([])
   const [riderSummaries, setRiderSummaries] = useState([])
   const [advances, setAdvances] = useState([])
@@ -23,20 +23,26 @@ export default function SalaryManagement({ adminUser }) {
   const [payMethod, setPayMethod] = useState('cash')
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchData() }, [selectedMonth])
+  useEffect(() => { if (tenantId) fetchData() }, [selectedMonth, tenantId])
 
   async function fetchData() {
     setLoading(true)
-    const { data: ridersData } = await supabase.from('riders').select('*').eq('is_active', true).order('created_at')
+    const { data: ridersData } = await supabase.from('riders')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('created_at')
     setRiders(ridersData || [])
 
     const { data: advancesData } = await supabase.from('salary_advances')
       .select('*, rider:rider_id(full_name, monthly_salary, salary_type)')
+      .eq('tenant_id', tenantId)
       .eq('month_year', selectedMonth).order('created_at', { ascending: false })
     setAdvances(advancesData || [])
 
     const { data: pendingData } = await supabase.from('salary_advances')
       .select('*, rider:rider_id(full_name, monthly_salary, salary_type)')
+      .eq('tenant_id', tenantId)
       .eq('requested_from', 'ceo').eq('status', 'pending').order('created_at', { ascending: false })
     setPendingRequests(pendingData || [])
 
@@ -54,7 +60,9 @@ export default function SalaryManagement({ adminUser }) {
       if (r.salary_type === 'commission') {
         const { data: deliveries } = await supabase.from('deliveries')
           .select('qty_19l, qty_half_litre, qty_1_5l')
-          .eq('rider_id', r.id).eq('is_voided', false)
+          .eq('rider_id', r.id)
+          .eq('tenant_id', tenantId)
+          .eq('is_voided', false)
           .gte('delivered_at', monthStart + 'T00:00:00')
           .lt('delivered_at', nextMonth + 'T00:00:00')
 
@@ -86,13 +94,14 @@ export default function SalaryManagement({ adminUser }) {
     const { data: approved, error } = await supabase.from('salary_advances')
       .update({ status: 'approved', approved_by: 'Admin/CEO', approved_at: new Date().toISOString() })
       .eq('id', request.id)
+      .eq('tenant_id', tenantId)
       .select().single()
     if (error) { alert('Error: ' + error.message); setProcessing(null); return }
 
     // Auto-post journal entry
     try {
       const { postSalaryAdvanceJournal } = await import('../accountingEngine')
-      await postSalaryAdvanceJournal(approved)
+      await postSalaryAdvanceJournal(approved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     fetchData()
@@ -101,7 +110,10 @@ export default function SalaryManagement({ adminUser }) {
 
   async function rejectRequest(request) {
     setProcessing(request.id)
-    await supabase.from('salary_advances').update({ status: 'rejected', approved_by: 'Admin/CEO' }).eq('id', request.id)
+    await supabase.from('salary_advances')
+      .update({ status: 'rejected', approved_by: 'Admin/CEO' })
+      .eq('id', request.id)
+      .eq('tenant_id', tenantId)
     fetchData()
     setProcessing(null)
   }
@@ -111,6 +123,7 @@ export default function SalaryManagement({ adminUser }) {
     setSaving(true)
     const summary = riderSummaries.find(r => r.id === rider.id)
     const { data: savedPayment, error } = await supabase.from('salary_payments').insert([{
+      tenant_id: tenantId,
       rider_id: rider.id,
       paid_by: 'ceo',
       month_year: selectedMonth,
@@ -125,7 +138,7 @@ export default function SalaryManagement({ adminUser }) {
     // Auto-post journal entry
     try {
       const { postSalaryPaymentJournal } = await import('../accountingEngine')
-      await postSalaryPaymentJournal(savedPayment)
+      await postSalaryPaymentJournal(savedPayment, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     alert(`Salary paid to ${rider.full_name}!\nAmount: Rs. ${Number(payAmount).toLocaleString()}\nPaid via: ${payMethod}`)
     setPayingRider(null)
@@ -368,7 +381,7 @@ export default function SalaryManagement({ adminUser }) {
 
       {/* OFFICE EXPENSES */}
       {activeTab === 'expenses' && (
-        <OfficeExpenses rider={adminUser} isCEO={true} />
+        <OfficeExpenses rider={adminUser} isCEO={true} tenantId={tenantId} />
       )}
     </div>
   )

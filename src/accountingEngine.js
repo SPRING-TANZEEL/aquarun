@@ -1,12 +1,13 @@
 import { supabase } from './supabase'
 
 // ─── CORE JOURNAL POSTING FUNCTION ────────────────────────────────
-async function postJournalEntry({ date, referenceType, referenceId, narration, lines }) {
+async function postJournalEntry({ date, referenceType, referenceId, narration, lines, tenantId }) {
   const totalAmount = lines.reduce((s, l) => s + (l.debit || 0), 0)
 
   const { data: entry, error } = await supabase
     .from('journal_entries')
     .insert([{
+      tenant_id: tenantId,
       entry_date: date || new Date().toISOString().split('T')[0],
       reference_type: referenceType,
       reference_id: referenceId,
@@ -19,6 +20,7 @@ async function postJournalEntry({ date, referenceType, referenceId, narration, l
   if (error) { console.error('Journal entry error:', error); return null }
 
   const entryLines = lines.map(l => ({
+    tenant_id: tenantId,
     journal_entry_id: entry.id,
     account_code: l.account_code,
     account_name: l.account_name,
@@ -50,7 +52,6 @@ function getSalesBreakdown(delivery) {
   const qty19l = Number(delivery.qty_19l || 0)
   const qtyHalf = Number(delivery.qty_half_litre || 0)
   const qty15l = Number(delivery.qty_1_5l || 0)
-  const rate = Number(delivery.rate_applied || 0)
   const totalAmount = Number(delivery.total_amount || 0)
 
   if (qty19l > 0 && qtyHalf === 0 && qty15l === 0) {
@@ -81,7 +82,7 @@ function getExpenseAccount(category) {
 }
 
 // ─── 1. POST DELIVERY JOURNAL ENTRY ───────────────────────────────
-export async function postDeliveryJournal(delivery, customerId) {
+export async function postDeliveryJournal(delivery, customerId, tenantId) {
   try {
     const totalAmount = Number(delivery.total_amount || 0)
     const cashReceived = Number(delivery.amount_received || 0)
@@ -99,7 +100,6 @@ export async function postDeliveryJournal(delivery, customerId) {
         lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
       }
     } else if (paymentMethod === 'jazzcash') {
-      // JazzCash — pending until confirmed — post to receivable first
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: totalAmount })
     } else if (paymentMethod === 'credit') {
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: totalAmount })
@@ -108,6 +108,7 @@ export async function postDeliveryJournal(delivery, customerId) {
     salesLines.forEach(s => lines.push({ ...s, debit: 0 }))
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
@@ -116,7 +117,10 @@ export async function postDeliveryJournal(delivery, customerId) {
     })
 
     if (entryId && delivery.id) {
-      await supabase.from('deliveries').update({ journal_entry_id: entryId }).eq('id', delivery.id)
+      await supabase.from('deliveries')
+        .update({ journal_entry_id: entryId })
+        .eq('id', delivery.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -127,7 +131,7 @@ export async function postDeliveryJournal(delivery, customerId) {
 }
 
 // ─── 2. POST PAYMENT JOURNAL ENTRY ────────────────────────────────
-export async function postPaymentJournal(payment) {
+export async function postPaymentJournal(payment, tenantId) {
   try {
     const amount = Number(payment.amount || 0)
     const paymentMethod = payment.payment_method
@@ -144,6 +148,7 @@ export async function postPaymentJournal(payment) {
     if (lines.length === 0) return null
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: payment.payment_date || new Date().toISOString().split('T')[0],
       referenceType: 'payment',
       referenceId: payment.id,
@@ -152,7 +157,10 @@ export async function postPaymentJournal(payment) {
     })
 
     if (entryId && payment.id) {
-      await supabase.from('payments').update({ journal_entry_id: entryId }).eq('id', payment.id)
+      await supabase.from('payments')
+        .update({ journal_entry_id: entryId })
+        .eq('id', payment.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -163,7 +171,7 @@ export async function postPaymentJournal(payment) {
 }
 
 // ─── 3. POST JAZZCASH CONFIRMATION JOURNAL ENTRY ──────────────────
-export async function postJazzCashConfirmationJournal(record, recordType) {
+export async function postJazzCashConfirmationJournal(record, recordType, tenantId) {
   try {
     const amount = Number(record.total_amount || record.amount || 0)
     const lines = [
@@ -172,6 +180,7 @@ export async function postJazzCashConfirmationJournal(record, recordType) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: new Date().toISOString().split('T')[0],
       referenceType: recordType + '_jazzcash_confirmed',
       referenceId: record.id,
@@ -187,7 +196,7 @@ export async function postJazzCashConfirmationJournal(record, recordType) {
 }
 
 // ─── 4. POST RIDER EXPENSE JOURNAL ENTRY ──────────────────────────
-export async function postRiderExpenseJournal(expense) {
+export async function postRiderExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
     const lines = [
@@ -196,6 +205,7 @@ export async function postRiderExpenseJournal(expense) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: expense.expense_date || new Date().toISOString().split('T')[0],
       referenceType: 'rider_expense',
       referenceId: expense.id,
@@ -204,7 +214,10 @@ export async function postRiderExpenseJournal(expense) {
     })
 
     if (entryId && expense.id) {
-      await supabase.from('expenses').update({ journal_entry_id: entryId }).eq('id', expense.id)
+      await supabase.from('expenses')
+        .update({ journal_entry_id: entryId })
+        .eq('id', expense.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -215,7 +228,7 @@ export async function postRiderExpenseJournal(expense) {
 }
 
 // ─── 5. POST OFFICE EXPENSE JOURNAL ENTRY ─────────────────────────
-export async function postOfficeExpenseJournal(expense) {
+export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
     const expenseAcc = getExpenseAccount(expense.category)
@@ -227,6 +240,7 @@ export async function postOfficeExpenseJournal(expense) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: expense.expense_date || new Date().toISOString().split('T')[0],
       referenceType: 'office_expense',
       referenceId: expense.id,
@@ -235,7 +249,10 @@ export async function postOfficeExpenseJournal(expense) {
     })
 
     if (entryId && expense.id) {
-      await supabase.from('office_expenses').update({ journal_entry_id: entryId }).eq('id', expense.id)
+      await supabase.from('office_expenses')
+        .update({ journal_entry_id: entryId })
+        .eq('id', expense.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -246,7 +263,7 @@ export async function postOfficeExpenseJournal(expense) {
 }
 
 // ─── 6. POST SALARY PAYMENT JOURNAL ENTRY ─────────────────────────
-export async function postSalaryPaymentJournal(payment) {
+export async function postSalaryPaymentJournal(payment, tenantId) {
   try {
     const amount = Number(payment.amount_paid || 0)
     const cashAcc = getCashAccount(payment.payment_method || 'cash')
@@ -257,6 +274,7 @@ export async function postSalaryPaymentJournal(payment) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: payment.payment_date || new Date().toISOString().split('T')[0],
       referenceType: 'salary_payment',
       referenceId: payment.id,
@@ -265,7 +283,10 @@ export async function postSalaryPaymentJournal(payment) {
     })
 
     if (entryId && payment.id) {
-      await supabase.from('salary_payments').update({ journal_entry_id: entryId }).eq('id', payment.id)
+      await supabase.from('salary_payments')
+        .update({ journal_entry_id: entryId })
+        .eq('id', payment.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -276,7 +297,7 @@ export async function postSalaryPaymentJournal(payment) {
 }
 
 // ─── 7. POST SALARY ADVANCE JOURNAL ENTRY ─────────────────────────
-export async function postSalaryAdvanceJournal(advance) {
+export async function postSalaryAdvanceJournal(advance, tenantId) {
   try {
     const amount = Number(advance.amount || 0)
     const cashAcc = getCashAccount(advance.payment_method || 'cash')
@@ -287,6 +308,7 @@ export async function postSalaryAdvanceJournal(advance) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: new Date().toISOString().split('T')[0],
       referenceType: 'salary_advance',
       referenceId: advance.id,
@@ -295,7 +317,10 @@ export async function postSalaryAdvanceJournal(advance) {
     })
 
     if (entryId && advance.id) {
-      await supabase.from('salary_advances').update({ journal_entry_id: entryId }).eq('id', advance.id)
+      await supabase.from('salary_advances')
+        .update({ journal_entry_id: entryId })
+        .eq('id', advance.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -306,7 +331,7 @@ export async function postSalaryAdvanceJournal(advance) {
 }
 
 // ─── 8. POST STOCK PURCHASE JOURNAL ENTRY ─────────────────────────
-export async function postStockPurchaseJournal(purchase) {
+export async function postStockPurchaseJournal(purchase, tenantId) {
   try {
     const amount = Number(purchase.total_cost || 0)
     const cashAcc = getCashAccount(purchase.payment_method || 'cash')
@@ -317,6 +342,7 @@ export async function postStockPurchaseJournal(purchase) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: purchase.purchase_date || new Date().toISOString().split('T')[0],
       referenceType: 'stock_purchase',
       referenceId: purchase.id,
@@ -325,7 +351,10 @@ export async function postStockPurchaseJournal(purchase) {
     })
 
     if (entryId && purchase.id) {
-      await supabase.from('stock_purchases').update({ journal_entry_id: entryId }).eq('id', purchase.id)
+      await supabase.from('stock_purchases')
+        .update({ journal_entry_id: entryId })
+        .eq('id', purchase.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -336,7 +365,7 @@ export async function postStockPurchaseJournal(purchase) {
 }
 
 // ─── 9. POST OWNER TRANSACTION JOURNAL ENTRY ──────────────────────
-export async function postOwnerTransactionJournal(transaction) {
+export async function postOwnerTransactionJournal(transaction, tenantId) {
   try {
     const amount = Number(transaction.amount || 0)
     const cashAcc = getCashAccount(transaction.account || 'cash')
@@ -352,6 +381,7 @@ export async function postOwnerTransactionJournal(transaction) {
     }
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: transaction.transaction_date || new Date().toISOString().split('T')[0],
       referenceType: 'owner_transaction',
       referenceId: transaction.id,
@@ -360,7 +390,10 @@ export async function postOwnerTransactionJournal(transaction) {
     })
 
     if (entryId && transaction.id) {
-      await supabase.from('owner_transactions').update({ journal_entry_id: entryId }).eq('id', transaction.id)
+      await supabase.from('owner_transactions')
+        .update({ journal_entry_id: entryId })
+        .eq('id', transaction.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -371,7 +404,7 @@ export async function postOwnerTransactionJournal(transaction) {
 }
 
 // ─── 10. POST ACCOUNT TRANSFER JOURNAL ENTRY ──────────────────────
-export async function postAccountTransferJournal(transfer) {
+export async function postAccountTransferJournal(transfer, tenantId) {
   try {
     const amount = Number(transfer.amount || 0)
     const fromAcc = getCashAccount(transfer.from_account)
@@ -383,6 +416,7 @@ export async function postAccountTransferJournal(transfer) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: transfer.transfer_date || new Date().toISOString().split('T')[0],
       referenceType: 'account_transfer',
       referenceId: transfer.id,
@@ -391,7 +425,10 @@ export async function postAccountTransferJournal(transfer) {
     })
 
     if (entryId && transfer.id) {
-      await supabase.from('ceo_account_transfers').update({ journal_entry_id: entryId }).eq('id', transfer.id)
+      await supabase.from('ceo_account_transfers')
+        .update({ journal_entry_id: entryId })
+        .eq('id', transfer.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -402,7 +439,7 @@ export async function postAccountTransferJournal(transfer) {
 }
 
 // ─── 11. POST CASH TRANSFER FROM RIDER JOURNAL ENTRY ──────────────
-export async function postCashTransferJournal(transfer) {
+export async function postCashTransferJournal(transfer, tenantId) {
   try {
     const amount = Number(transfer.amount || 0)
     const transferType = transfer.transfer_type || 'cash'
@@ -414,6 +451,7 @@ export async function postCashTransferJournal(transfer) {
     ]
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: transfer.transfer_date || new Date().toISOString().split('T')[0],
       referenceType: 'cash_transfer',
       referenceId: transfer.id,
@@ -422,7 +460,10 @@ export async function postCashTransferJournal(transfer) {
     })
 
     if (entryId && transfer.id) {
-      await supabase.from('cash_transfers').update({ journal_entry_id: entryId }).eq('id', transfer.id)
+      await supabase.from('cash_transfers')
+        .update({ journal_entry_id: entryId })
+        .eq('id', transfer.id)
+        .eq('tenant_id', tenantId)
     }
 
     return entryId
@@ -433,12 +474,13 @@ export async function postCashTransferJournal(transfer) {
 }
 
 // ─── 12. REVERSE JOURNAL ENTRY (for void) ─────────────────────────
-export async function reverseJournalEntry(originalEntryId, referenceId, referenceType) {
+export async function reverseJournalEntry(originalEntryId, referenceId, referenceType, tenantId) {
   try {
     const { data: originalLines } = await supabase
       .from('journal_entry_lines')
       .select('*')
       .eq('journal_entry_id', originalEntryId)
+      .eq('tenant_id', tenantId)
 
     if (!originalLines || originalLines.length === 0) return null
 
@@ -450,6 +492,7 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
     }))
 
     const entryId = await postJournalEntry({
+      tenantId,
       date: new Date().toISOString().split('T')[0],
       referenceType: referenceType + '_reversal',
       referenceId: referenceId,

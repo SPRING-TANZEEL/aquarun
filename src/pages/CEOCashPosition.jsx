@@ -7,7 +7,7 @@ const ACCOUNTS = [
   { key: 'bank', label: 'Bank', icon: '🏦', color: '#1a7a4a' },
 ]
 
-export default function CEOCashPosition() {
+export default function CEOCashPosition({ tenantId }) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('position')
   const [data, setData] = useState(null)
@@ -34,7 +34,7 @@ export default function CEOCashPosition() {
   const [dateFrom, setDateFrom] = useState('2024-01-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
-  useEffect(() => { fetchAll() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchAll() }, [dateFrom, dateTo, tenantId])
 
   async function fetchAll() {
     setLoading(true)
@@ -46,6 +46,7 @@ export default function CEOCashPosition() {
   async function fetchOpeningBalances() {
     const { data } = await supabase.from('chart_of_accounts')
       .select('account_code, opening_balance')
+      .eq('tenant_id', tenantId)
       .in('account_code', ['1001', '1002', '1003'])
     const map = {}
     data?.forEach(a => { map[a.account_code] = Number(a.opening_balance || 0) })
@@ -67,15 +68,19 @@ export default function CEOCashPosition() {
       await supabase.from('chart_of_accounts')
         .update({ opening_balance: Number(tempOpening[key]) || 0 })
         .eq('account_code', code)
+        .eq('tenant_id', tenantId)
     }
 
     // Auto-calculate receivables from customer opening balances
     const { data: customers } = await supabase.from('customers')
-      .select('opening_balance').eq('is_active', true)
+      .select('opening_balance')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
     const totalReceivable = customers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
     await supabase.from('chart_of_accounts')
       .update({ opening_balance: totalReceivable })
       .eq('account_code', '1100')
+      .eq('tenant_id', tenantId)
 
     // Auto-calculate owner capital = total assets
     const totalAssets = (Number(tempOpening.cash) || 0) +
@@ -85,13 +90,16 @@ export default function CEOCashPosition() {
     await supabase.from('chart_of_accounts')
       .update({ opening_balance: totalAssets })
       .eq('account_code', '3001')
+      .eq('tenant_id', tenantId)
 
     // Keep business_settings in sync for backward compatibility
+    // NOTE: requires a unique constraint on (tenant_id, setting_key) in the database —
+    // see accompanying note. Without it, this upsert can overwrite another tenant's row.
     await supabase.from('business_settings').upsert([
-      { setting_key: 'opening_cash_balance', setting_value: String(Number(tempOpening.cash) || 0) },
-      { setting_key: 'opening_jazzcash_balance', setting_value: String(Number(tempOpening.jazzcash) || 0) },
-      { setting_key: 'opening_bank_balance', setting_value: String(Number(tempOpening.bank) || 0) },
-    ], { onConflict: 'setting_key' })
+      { tenant_id: tenantId, setting_key: 'opening_cash_balance', setting_value: String(Number(tempOpening.cash) || 0) },
+      { tenant_id: tenantId, setting_key: 'opening_jazzcash_balance', setting_value: String(Number(tempOpening.jazzcash) || 0) },
+      { tenant_id: tenantId, setting_key: 'opening_bank_balance', setting_value: String(Number(tempOpening.bank) || 0) },
+    ], { onConflict: 'tenant_id,setting_key' })
 
     setEditingOpening(false)
     setSavingOpening(false)
@@ -100,59 +108,79 @@ export default function CEOCashPosition() {
 
   async function fetchAccountTransfers() {
     const { data } = await supabase.from('ceo_account_transfers')
-      .select('*').order('transfer_date', { ascending: false })
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('transfer_date', { ascending: false })
     setAccountTransfers(data || [])
   }
 
   async function fetchOwnerTransactions() {
     const { data } = await supabase.from('owner_transactions')
-      .select('*').order('transaction_date', { ascending: false })
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('transaction_date', { ascending: false })
     setOwnerTransactions(data || [])
   }
 
   async function fetchTransactions() {
     const { data: cashTransfers } = await supabase.from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('to_office', true).eq('status', 'confirmed')
       .gte('transfer_date', dateFrom).lte('transfer_date', dateTo)
 
     const { data: jazzSales } = await supabase.from('deliveries')
       .select('*, customers(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', true).eq('is_voided', false)
       .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
 
     const { data: jazzPayments } = await supabase.from('payments')
       .select('*, customers(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', true).eq('is_voided', false)
       .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
 
     const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('*').eq('is_voided', false)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false)
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
 
     const { data: stockPurchases } = await supabase.from('stock_purchases')
       .select('*, products(name)')
+      .eq('tenant_id', tenantId)
       .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
 
     const { data: salaryPayments } = await supabase.from('salary_payments')
       .select('*, rider:rider_id(full_name)')
+      .eq('tenant_id', tenantId)
       .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
 
     const { data: advances } = await supabase.from('salary_advances')
       .select('*, rider:rider_id(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('requested_from', 'ceo').eq('status', 'approved').eq('is_voided', false)
       .gte('approved_at', dateFrom + 'T00:00:00').lte('approved_at', dateTo + 'T23:59:59')
 
     const { data: ceoTransfers } = await supabase.from('ceo_account_transfers')
-      .select('*').gte('transfer_date', dateFrom).lte('transfer_date', dateTo)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .gte('transfer_date', dateFrom).lte('transfer_date', dateTo)
 
     const { data: ownerTx } = await supabase.from('owner_transactions')
-      .select('*').gte('transaction_date', dateFrom).lte('transaction_date', dateTo)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .gte('transaction_date', dateFrom).lte('transaction_date', dateTo)
 
     const { data: jazzPendingSales } = await supabase.from('deliveries')
-      .select('total_amount').eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
+      .select('total_amount')
+      .eq('tenant_id', tenantId)
+      .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
     const { data: jazzPendingPay } = await supabase.from('payments')
-      .select('amount').eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
+      .select('amount')
+      .eq('tenant_id', tenantId)
+      .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
     const jazzPending = (jazzPendingSales?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
       (jazzPendingPay?.reduce((s, p) => s + Number(p.amount), 0) || 0)
 
@@ -212,13 +240,14 @@ export default function CEOCashPosition() {
     if (transferFrom === transferTo) return alert('From and To cannot be the same')
     setSavingTransfer(true)
     const { data: savedTransfer, error } = await supabase.from('ceo_account_transfers').insert([{
+      tenant_id: tenantId,
       from_account: transferFrom, to_account: transferTo,
       amount: Number(transferAmount), transfer_date: transferDate, notes: transferNotes
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingTransfer(false); return }
     try {
       const { postAccountTransferJournal } = await import('../accountingEngine')
-      await postAccountTransferJournal(savedTransfer)
+      await postAccountTransferJournal(savedTransfer, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     setTransferAmount(''); setTransferNotes('')
     setTransferSuccess(true)
@@ -231,13 +260,14 @@ export default function CEOCashPosition() {
     if (!ownerAmount || Number(ownerAmount) <= 0) return alert('Please enter amount')
     setSavingOwner(true)
     const { data: savedTx, error } = await supabase.from('owner_transactions').insert([{
+      tenant_id: tenantId,
       transaction_type: ownerType, account: ownerAccount,
       amount: Number(ownerAmount), transaction_date: ownerDate, notes: ownerNotes
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingOwner(false); return }
     try {
       const { postOwnerTransactionJournal } = await import('../accountingEngine')
-      await postOwnerTransactionJournal(savedTx)
+      await postOwnerTransactionJournal(savedTx, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     setOwnerAmount(''); setOwnerNotes('')
     setOwnerSuccess(true)

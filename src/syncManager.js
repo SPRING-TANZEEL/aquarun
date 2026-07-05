@@ -27,6 +27,7 @@ export async function downloadRiderData(rider) {
     const { data: orders } = await supabase
       .from('orders')
       .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, own_bottles, our_bottles_placed)')
+      .eq('tenant_id', rider.tenant_id)
       .eq('rider_id', rider.id)
       .eq('status', 'assigned')
       .lte('delivery_date', today)
@@ -36,6 +37,7 @@ export async function downloadRiderData(rider) {
     const { data: customers } = await supabase
       .from('customers')
       .select('*')
+      .eq('tenant_id', rider.tenant_id)
       .eq('is_active', true)
       .order('full_name')
 

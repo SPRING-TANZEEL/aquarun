@@ -11,7 +11,7 @@ const TRANSACTION_TYPES = [
   { key: 'salary_advances', label: '💼 Salary Advances' },
 ]
 
-export default function Transactions() {
+export default function Transactions({ tenantId }) {
   const [activeType, setActiveType] = useState('all')
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -24,7 +24,7 @@ export default function Transactions() {
   const [voidReason, setVoidReason] = useState('')
   const [processing, setProcessing] = useState(false)
 
-  useEffect(() => { fetchTransactions() }, [activeType, dateFrom, dateTo, showVoided])
+  useEffect(() => { if (tenantId) fetchTransactions() }, [activeType, dateFrom, dateTo, showVoided, tenantId])
 
   async function fetchTransactions() {
     setLoading(true)
@@ -33,6 +33,7 @@ export default function Transactions() {
     if (activeType === 'all' || activeType === 'deliveries') {
       const { data } = await supabase.from('deliveries')
         .select('*, customers(full_name, customer_code), riders(full_name)')
+        .eq('tenant_id', tenantId)
         .gte('delivered_at', dateFrom + 'T00:00:00')
         .lte('delivered_at', dateTo + 'T23:59:59')
         .eq('is_voided', showVoided)
@@ -56,6 +57,7 @@ export default function Transactions() {
     if (activeType === 'all' || activeType === 'payments') {
       const { data } = await supabase.from('payments')
         .select('*, customers(full_name, customer_code), riders(full_name)')
+        .eq('tenant_id', tenantId)
         .gte('payment_date', dateFrom)
         .lte('payment_date', dateTo)
         .eq('is_voided', showVoided)
@@ -79,6 +81,7 @@ export default function Transactions() {
     if (activeType === 'all' || activeType === 'expenses') {
       const { data } = await supabase.from('expenses')
         .select('*, riders(full_name)')
+        .eq('tenant_id', tenantId)
         .gte('expense_date', dateFrom)
         .lte('expense_date', dateTo)
         .eq('is_voided', showVoided)
@@ -102,6 +105,7 @@ export default function Transactions() {
     if (activeType === 'all' || activeType === 'office_expenses') {
       const { data } = await supabase.from('office_expenses')
         .select('*')
+        .eq('tenant_id', tenantId)
         .gte('expense_date', dateFrom)
         .lte('expense_date', dateTo)
         .eq('is_voided', showVoided)
@@ -125,6 +129,7 @@ export default function Transactions() {
     if (activeType === 'all' || activeType === 'cash_transfers') {
       const { data } = await supabase.from('cash_transfers')
         .select('*, from_rider:from_rider_id(full_name)')
+        .eq('tenant_id', tenantId)
         .gte('transfer_date', dateFrom)
         .lte('transfer_date', dateTo)
         .eq('is_voided', showVoided)
@@ -148,6 +153,7 @@ export default function Transactions() {
     if (activeType === 'all' || activeType === 'salary_advances') {
       const { data } = await supabase.from('salary_advances')
         .select('*, riders(full_name)')
+        .eq('tenant_id', tenantId)
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
         .eq('is_voided', showVoided)
@@ -185,81 +191,89 @@ export default function Transactions() {
       voided_at: now,
       voided_by: 'Admin',
       void_reason: voidReason
-    }).eq('id', tx.id)
+    })
+      .eq('id', tx.id)
+      .eq('tenant_id', tenantId)
 
     // Reverse effects based on transaction type
     if (tx.type === 'delivery' && tx.raw.customer_id) {
-      // Reverse customer balance
-      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
+      const { data: customer } = await supabase.from('customers')
+        .select('balance')
+        .eq('id', tx.raw.customer_id)
+        .eq('tenant_id', tenantId)
+        .single()
       if (customer) {
-        // Delivery added credit_amount to balance — reverse it
         const creditPortion = Number(tx.raw.credit_amount || 0)
         if (creditPortion > 0) {
           await supabase.from('customers').update({
             balance: Number(customer.balance) - creditPortion
-          }).eq('id', tx.raw.customer_id)
+          })
+            .eq('id', tx.raw.customer_id)
+            .eq('tenant_id', tenantId)
         }
-        // If jazzcash delivery was confirmed — reverse balance too
         if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
           await supabase.from('customers').update({
             balance: Number(customer.balance) - Number(tx.raw.total_amount)
-          }).eq('id', tx.raw.customer_id)
+          })
+            .eq('id', tx.raw.customer_id)
+            .eq('tenant_id', tenantId)
         }
       }
-      // Reverse order status if linked
       if (tx.raw.order_id) {
         await supabase.from('orders').update({
           status: 'assigned', completed_at: null
-        }).eq('id', tx.raw.order_id)
+        })
+          .eq('id', tx.raw.order_id)
+          .eq('tenant_id', tenantId)
       }
     }
 
     if (tx.type === 'payment') {
       if (tx.raw.customer_id) {
-        const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
+        const { data: customer } = await supabase.from('customers')
+          .select('balance')
+          .eq('id', tx.raw.customer_id)
+          .eq('tenant_id', tenantId)
+          .single()
         if (customer) {
-          // Cash payment reduced balance — reverse it
           if (tx.raw.payment_method === 'cash') {
             await supabase.from('customers').update({
               balance: Number(customer.balance) + Number(tx.raw.amount)
-            }).eq('id', tx.raw.customer_id)
+            })
+              .eq('id', tx.raw.customer_id)
+              .eq('tenant_id', tenantId)
           }
-          // Confirmed jazzcash payment reduced balance — reverse it
           if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
             await supabase.from('customers').update({
               balance: Number(customer.balance) + Number(tx.raw.amount)
-            }).eq('id', tx.raw.customer_id)
+            })
+              .eq('id', tx.raw.customer_id)
+              .eq('tenant_id', tenantId)
           }
         }
       }
     }
 
-    if (tx.type === 'expense') {
-      // Rider cash summary will auto update since is_voided filters it out
-    }
-
-    if (tx.type === 'office_expense') {
-      // CEO cash position will auto update since is_voided filters it out
-    }
-
     if (tx.type === 'cash_transfer') {
-      // Reverse the cash transfer — update status back to pending
       await supabase.from('cash_transfers').update({
         is_voided: true,
         voided_at: now,
         voided_by: 'Admin',
         void_reason: voidReason
-      }).eq('id', tx.id)
+      })
+        .eq('id', tx.id)
+        .eq('tenant_id', tenantId)
     }
 
     if (tx.type === 'salary_advance') {
-      // Reverse salary advance — update status back
       await supabase.from('salary_advances').update({
         is_voided: true,
         voided_at: now,
         voided_by: 'Admin',
         void_reason: voidReason
-      }).eq('id', tx.id)
+      })
+        .eq('id', tx.id)
+        .eq('tenant_id', tenantId)
     }
 
     setShowVoidForm(false)
@@ -281,38 +295,56 @@ export default function Transactions() {
       voided_at: null,
       voided_by: null,
       void_reason: null
-    }).eq('id', tx.id)
+    })
+      .eq('id', tx.id)
+      .eq('tenant_id', tenantId)
 
     // Re-apply effects
     if (tx.type === 'delivery' && tx.raw.customer_id) {
       const creditPortion = Number(tx.raw.credit_amount || 0)
       if (creditPortion > 0) {
-        const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
+        const { data: customer } = await supabase.from('customers')
+          .select('balance')
+          .eq('id', tx.raw.customer_id)
+          .eq('tenant_id', tenantId)
+          .single()
         if (customer) {
           await supabase.from('customers').update({
             balance: Number(customer.balance) + creditPortion
-          }).eq('id', tx.raw.customer_id)
+          })
+            .eq('id', tx.raw.customer_id)
+            .eq('tenant_id', tenantId)
         }
       }
       if (tx.raw.order_id) {
         await supabase.from('orders').update({
           status: 'completed', completed_at: tx.raw.delivered_at
-        }).eq('id', tx.raw.order_id)
+        })
+          .eq('id', tx.raw.order_id)
+          .eq('tenant_id', tenantId)
       }
     }
 
     if (tx.type === 'payment' && tx.raw.customer_id) {
-      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).single()
+      const { data: customer } = await supabase.from('customers')
+        .select('balance')
+        .eq('id', tx.raw.customer_id)
+        .eq('tenant_id', tenantId)
+        .single()
       if (customer) {
         if (tx.raw.payment_method === 'cash') {
           await supabase.from('customers').update({
             balance: Number(customer.balance) - Number(tx.raw.amount)
-          }).eq('id', tx.raw.customer_id)
+          })
+            .eq('id', tx.raw.customer_id)
+            .eq('tenant_id', tenantId)
         }
         if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
           await supabase.from('customers').update({
             balance: Number(customer.balance) - Number(tx.raw.amount)
-          }).eq('id', tx.raw.customer_id)
+          })
+            .eq('id', tx.raw.customer_id)
+            .eq('tenant_id', tenantId)
         }
       }
     }

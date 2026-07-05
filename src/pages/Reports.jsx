@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function Reports() {
+export default function Reports({ tenantId }) {
   const [activeTab, setActiveTab] = useState('daily')
   const tabs = [
     { key: 'daily', label: '💵 Daily Cash' },
@@ -24,33 +24,51 @@ export default function Reports() {
           </button>
         ))}
       </div>
-      {activeTab === 'daily' && <DailyCashReport />}
-      {activeTab === 'ledger' && <CustomerLedger />}
-      {activeTab === 'ageing' && <ReceivablesAgeing />}
-      {activeTab === 'sales' && <SalesSummary />}
-      {activeTab === 'pl' && <ProfitLoss />}
+      {activeTab === 'daily' && <DailyCashReport tenantId={tenantId} />}
+      {activeTab === 'ledger' && <CustomerLedger tenantId={tenantId} />}
+      {activeTab === 'ageing' && <ReceivablesAgeing tenantId={tenantId} />}
+      {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
+      {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
     </div>
   )
 }
 
 // ─── DAILY CASH REPORT ─────────────────────────────────────────────
-function DailyCashReport() {
+function DailyCashReport({ tenantId }) {
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { fetchReport() }, [date])
+  useEffect(() => { if (tenantId) fetchReport() }, [date, tenantId])
 
   async function fetchReport() {
     setLoading(true)
     const from = date + 'T00:00:00'
     const to = date + 'T23:59:59'
-    const { data: deliveries } = await supabase.from('deliveries').select('*, riders(full_name)').gte('delivered_at', from).lte('delivered_at', to).eq('is_voided', false)
-    const { data: payments } = await supabase.from('payments').select('*, riders(full_name)').eq('payment_date', date).eq('is_voided', false)
-    const { data: expenses } = await supabase.from('expenses').select('*, riders(full_name)').eq('expense_date', date).eq('is_voided', false)
-    const { data: officeExpenses } = await supabase.from('office_expenses').select('*').eq('expense_date', date).eq('is_voided', false)
-    const { data: advances } = await supabase.from('salary_advances').select('*, riders(full_name)').eq('status', 'approved').eq('is_voided', false).gte('approved_at', from).lte('approved_at', to)
-    const { data: salaryPayments } = await supabase.from('salary_payments').select('*, riders(full_name)').gte('created_at', from).lte('created_at', to)
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('*, riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .gte('delivered_at', from).lte('delivered_at', to).eq('is_voided', false)
+    const { data: payments } = await supabase.from('payments')
+      .select('*, riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('payment_date', date).eq('is_voided', false)
+    const { data: expenses } = await supabase.from('expenses')
+      .select('*, riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('expense_date', date).eq('is_voided', false)
+    const { data: officeExpenses } = await supabase.from('office_expenses')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('expense_date', date).eq('is_voided', false)
+    const { data: advances } = await supabase.from('salary_advances')
+      .select('*, riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'approved').eq('is_voided', false).gte('approved_at', from).lte('approved_at', to)
+    const { data: salaryPayments } = await supabase.from('salary_payments')
+      .select('*, riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', from).lte('created_at', to)
 
     let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0, totalSalesValue = 0
     const riderCash = {}
@@ -157,7 +175,7 @@ function DailyCashReport() {
 }
 
 // ─── CUSTOMER LEDGER ───────────────────────────────────────────────
-function CustomerLedger() {
+function CustomerLedger({ tenantId }) {
   const [customers, setCustomers] = useState([])
   const [search, setSearch] = useState('')
   const [selectedCustomer, setSelectedCustomer] = useState(null)
@@ -165,10 +183,12 @@ function CustomerLedger() {
   const [loading, setLoading] = useState(false)
   const [businessSettings, setBusinessSettings] = useState({})
 
-  useEffect(() => { fetchSettings() }, [])
+  useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
 
   async function fetchSettings() {
-    const { data } = await supabase.from('business_settings').select('*')
+    const { data } = await supabase.from('business_settings')
+      .select('*')
+      .eq('tenant_id', tenantId)
     const map = {}
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     setBusinessSettings(map)
@@ -177,7 +197,10 @@ function CustomerLedger() {
   async function searchCustomer(val) {
     setSearch(val)
     if (val.length < 2) { setCustomers([]); return }
-    const { data } = await supabase.from('customers').select('*').or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
+    const { data } = await supabase.from('customers')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
     setCustomers(data || [])
   }
 
@@ -187,8 +210,16 @@ function CustomerLedger() {
     setSearch('')
     setLoading(true)
 
-    const { data: deliveries } = await supabase.from('deliveries').select('*').eq('customer_id', customer.id).eq('is_voided', false).order('delivered_at', { ascending: true })
-    const { data: payments } = await supabase.from('payments').select('*').eq('customer_id', customer.id).eq('is_voided', false).order('created_at', { ascending: true })
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false).order('delivered_at', { ascending: true })
+    const { data: payments } = await supabase.from('payments')
+      .select('*')
+      .eq('customer_id', customer.id)
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false).order('created_at', { ascending: true })
 
     const entries = []
     deliveries?.forEach(d => {
@@ -484,19 +515,26 @@ function CustomerLedger() {
 }
 
 // ─── RECEIVABLES AGEING ────────────────────────────────────────────
-function ReceivablesAgeing() {
+function ReceivablesAgeing({ tenantId }) {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  useEffect(() => { fetchAgeing() }, [])
+  useEffect(() => { if (tenantId) fetchAgeing() }, [tenantId])
 
   async function fetchAgeing() {
     setLoading(true)
-    const { data } = await supabase.from('customers').select('*').eq('is_active', true).gt('balance', 0).order('balance', { ascending: false })
+    const { data } = await supabase.from('customers')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true).gt('balance', 0).order('balance', { ascending: false })
     const today = new Date()
     const customersWithAge = await Promise.all((data || []).map(async c => {
-      const { data: lastDelivery } = await supabase.from('deliveries').select('delivered_at').eq('customer_id', c.id).eq('is_voided', false).order('delivered_at', { ascending: false }).limit(1).single()
+      const { data: lastDelivery } = await supabase.from('deliveries')
+        .select('delivered_at')
+        .eq('customer_id', c.id)
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false).order('delivered_at', { ascending: false }).limit(1).single()
       const lastDate = lastDelivery ? new Date(lastDelivery.delivered_at) : null
       const daysPending = lastDate ? Math.floor((today - lastDate) / (1000 * 60 * 60 * 24)) : 999
       let ageBucket = '60+ days'
@@ -577,17 +615,20 @@ function ReceivablesAgeing() {
 }
 
 // ─── SALES SUMMARY ─────────────────────────────────────────────────
-function SalesSummary() {
+function SalesSummary({ tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { fetchSales() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchSales() }, [dateFrom, dateTo, tenantId])
 
   async function fetchSales() {
     setLoading(true)
-    const { data: deliveries } = await supabase.from('deliveries').select('*, riders(full_name)').gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('*, riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
     let total19l = 0, totalHalf = 0, total15l = 0, totalCash = 0, totalJazz = 0, totalCredit = 0, totalSales = 0
     const riderSales = {}
     deliveries?.forEach(d => {
@@ -657,28 +698,46 @@ function SalesSummary() {
 }
 
 // ─── PROFIT & LOSS ─────────────────────────────────────────────────
-function ProfitLoss() {
+function ProfitLoss({ tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { fetchPL() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchPL() }, [dateFrom, dateTo, tenantId])
 
   async function fetchPL() {
     setLoading(true)
-    const { data: deliveries } = await supabase.from('deliveries').select('total_amount').gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('total_amount')
+      .eq('tenant_id', tenantId)
+      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
     const totalRevenue = deliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
-    const { data: productions } = await supabase.from('production_entries').select('total_overhead').gte('production_date', dateFrom).lte('production_date', dateTo)
+    const { data: productions } = await supabase.from('production_entries')
+      .select('total_overhead')
+      .eq('tenant_id', tenantId)
+      .gte('production_date', dateFrom).lte('production_date', dateTo)
     const totalProductionOverhead = productions?.reduce((s, p) => s + Number(p.total_overhead), 0) || 0
-    const { data: purchases } = await supabase.from('stock_purchases').select('total_cost').gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
+    const { data: purchases } = await supabase.from('stock_purchases')
+      .select('total_cost')
+      .eq('tenant_id', tenantId)
+      .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
     const totalPurchaseCost = purchases?.reduce((s, p) => s + Number(p.total_cost), 0) || 0
     const grossProfit = totalRevenue - totalProductionOverhead - totalPurchaseCost
-    const { data: riderExpenses } = await supabase.from('expenses').select('amount').eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+    const { data: riderExpenses } = await supabase.from('expenses')
+      .select('amount')
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalRiderExpenses = riderExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const { data: officeExpenses } = await supabase.from('office_expenses').select('amount').eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+    const { data: officeExpenses } = await supabase.from('office_expenses')
+      .select('amount')
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalOfficeExpenses = officeExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const { data: salaryPayments } = await supabase.from('salary_payments').select('amount_paid').gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+    const { data: salaryPayments } = await supabase.from('salary_payments')
+      .select('amount_paid')
+      .eq('tenant_id', tenantId)
+      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
     const totalSalaries = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
     const totalOperatingExpenses = totalRiderExpenses + totalOfficeExpenses + totalSalaries
     const netProfit = grossProfit - totalOperatingExpenses

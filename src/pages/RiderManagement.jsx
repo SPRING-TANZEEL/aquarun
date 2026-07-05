@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function RiderManagement() {
+export default function RiderManagement({ tenantId }) {
   const [riders, setRiders] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -17,11 +17,14 @@ export default function RiderManagement() {
   })
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { fetchRiders() }, [])
+  useEffect(() => { if (tenantId) fetchRiders() }, [tenantId])
 
   async function fetchRiders() {
     setLoading(true)
-    const { data } = await supabase.from('riders').select('*').order('created_at')
+    const { data } = await supabase.from('riders')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .order('created_at')
     setRiders(data || [])
     setLoading(false)
   }
@@ -62,15 +65,23 @@ export default function RiderManagement() {
 
     if (form.is_main_rider) {
       await supabase.from('riders').update({ is_main_rider: false })
+        .eq('tenant_id', tenantId)
         .neq('id', editRider?.id || '00000000-0000-0000-0000-000000000000')
     }
 
     if (editRider) {
-      const { error } = await supabase.from('riders').update(form).eq('id', editRider.id)
+      const { error } = await supabase.from('riders')
+        .update(form)
+        .eq('id', editRider.id)
+        .eq('tenant_id', tenantId)
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       alert('Rider updated!')
     } else {
-      const { error } = await supabase.from('riders').insert([{ ...form, is_active: true }])
+      const { error } = await supabase.from('riders').insert([{
+        ...form,
+        tenant_id: tenantId,
+        is_active: true
+      }])
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       alert('Rider added!')
     }
@@ -82,7 +93,10 @@ export default function RiderManagement() {
   }
 
   async function toggleActive(r) {
-    await supabase.from('riders').update({ is_active: !r.is_active }).eq('id', r.id)
+    await supabase.from('riders')
+      .update({ is_active: !r.is_active })
+      .eq('id', r.id)
+      .eq('tenant_id', tenantId)
     fetchRiders()
   }
 

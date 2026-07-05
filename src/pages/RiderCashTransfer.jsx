@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function RiderCashTransfer({ rider }) {
+export default function RiderCashTransfer({ rider, tenantId }) {
   const [mainRider, setMainRider] = useState(null)
   const [pendingTransfers, setPendingTransfers] = useState([])
   const [cashBalance, setCashBalance] = useState(0)
@@ -13,13 +13,15 @@ export default function RiderCashTransfer({ rider }) {
   const [success, setSuccess] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { if (tenantId) fetchData() }, [tenantId])
 
   async function fetchData() {
     setLoading(true)
 
     const { data: mainRiderData } = await supabase
-      .from('riders').select('*').eq('is_main_rider', true).eq('is_active', true).single()
+      .from('riders').select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_main_rider', true).eq('is_active', true).single()
     setMainRider(mainRiderData || null)
 
     const today = new Date().toISOString().split('T')[0]
@@ -27,20 +29,28 @@ export default function RiderCashTransfer({ rider }) {
     const toTimestamp = today + 'T23:59:59'
 
     const { data: deliveries } = await supabase.from('deliveries')
-      .select('*').eq('rider_id', rider.id).eq('is_voided', false)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id).eq('is_voided', false)
       .gte('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
 
     const { data: cashPayments } = await supabase.from('payments')
-      .select('*').eq('rider_id', rider.id)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id)
       .eq('payment_method', 'cash').eq('is_voided', false)
       .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
     const { data: expenses } = await supabase.from('expenses')
-      .select('*').eq('rider_id', rider.id).eq('is_voided', false)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id).eq('is_voided', false)
       .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
     const { data: receivedTransfers } = await supabase.from('cash_transfers')
-      .select('*').eq('to_rider_id', rider.id)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('to_rider_id', rider.id)
       .eq('status', 'confirmed')
       .gte('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
 
@@ -52,12 +62,12 @@ export default function RiderCashTransfer({ rider }) {
     const totalExpenses = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
     const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
 
-    // Transfers are NOT deducted — they are a separate action
     const balance = cashFromSales + cashFromPayments + totalReceived - totalExpenses
     setCashBalance(balance)
 
     const { data: pending } = await supabase.from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('to_rider_id', rider.id).eq('status', 'pending')
     setPendingTransfers(pending || [])
 
@@ -74,6 +84,7 @@ export default function RiderCashTransfer({ rider }) {
     const toRiderId = isOffice ? null : mainRider?.id
 
     const { error } = await supabase.from('cash_transfers').insert([{
+      tenant_id: tenantId,
       from_rider_id: rider.id,
       to_rider_id: toRiderId,
       to_office: isOffice,
@@ -99,7 +110,9 @@ export default function RiderCashTransfer({ rider }) {
       status: 'confirmed',
       confirmed_at: new Date().toISOString(),
       confirmed_by: rider.full_name
-    }).eq('id', transfer.id)
+    })
+      .eq('id', transfer.id)
+      .eq('tenant_id', tenantId)
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
     fetchData()
     setConfirming(null)
@@ -107,7 +120,10 @@ export default function RiderCashTransfer({ rider }) {
 
   async function rejectTransfer(transfer) {
     setConfirming(transfer.id)
-    await supabase.from('cash_transfers').update({ status: 'rejected' }).eq('id', transfer.id)
+    await supabase.from('cash_transfers')
+      .update({ status: 'rejected' })
+      .eq('id', transfer.id)
+      .eq('tenant_id', tenantId)
     fetchData()
     setConfirming(null)
   }
@@ -137,7 +153,6 @@ export default function RiderCashTransfer({ rider }) {
         </div>
       )}
 
-      {/* Today's Balance */}
       <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '18px', marginBottom: '8px', textAlign: 'center' }}>
         <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 4px' }}>
           {cashBalance > 0 ? "Today's Cash to Transfer" : '✅ All Clear Today'}
@@ -156,7 +171,6 @@ export default function RiderCashTransfer({ rider }) {
         </div>
       )}
 
-      {/* Pending Confirmations for Main Rider */}
       {pendingTransfers.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #ffe082' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#795548', marginBottom: '12px' }}>
@@ -193,7 +207,6 @@ export default function RiderCashTransfer({ rider }) {
         </div>
       )}
 
-      {/* Transfer Form */}
       {cashBalance > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>How are you sending?</p>

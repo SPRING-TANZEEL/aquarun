@@ -8,7 +8,7 @@ const STATUS_COLORS = {
   cancelled: { bg: '#ffebee', color: '#c62828', label: 'Cancelled' },
 }
 
-export default function Orders() {
+export default function Orders({ tenantId }) {
   const [orders, setOrders] = useState([])
   const [riders, setRiders] = useState([])
   const [customers, setCustomers] = useState([])
@@ -27,13 +27,14 @@ export default function Orders() {
   const [customerResults, setCustomerResults] = useState([])
   const [selectedCustomer, setSelectedCustomer] = useState(null)
 
-  useEffect(() => { fetchOrders(); fetchRiders() }, [filter])
+  useEffect(() => { if (tenantId) { fetchOrders(); fetchRiders() } }, [filter, tenantId])
 
   async function fetchOrders() {
     setLoading(true)
     let query = supabase
       .from('orders')
       .select('*, customers(full_name, mobile, customer_code, rate_19l, rate_half_litre, rate_1_5l), riders(full_name)')
+      .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false })
 
     if (filter !== 'all') query = query.eq('status', filter)
@@ -45,14 +46,19 @@ export default function Orders() {
   }
 
   async function fetchRiders() {
-    const { data } = await supabase.from('riders').select('*').eq('is_active', true)
+    const { data } = await supabase.from('riders')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
     setRiders(data || [])
   }
 
   async function searchCustomer(val) {
     setCustomerSearch(val)
     if (val.length < 2) { setCustomerResults([]); return }
-    const { data } = await supabase.from('customers').select('*').eq('is_active', true)
+    const { data } = await supabase.from('customers').select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
     setCustomerResults(data || [])
   }
@@ -83,6 +89,7 @@ export default function Orders() {
         assigned_at: new Date().toISOString()
       })
       .in('id', selectedOrders)
+      .eq('tenant_id', tenantId)
 
     if (error) { alert('Error: ' + error.message); setAssigning(false); return }
 
@@ -95,7 +102,10 @@ export default function Orders() {
 
   async function cancelOrder(id) {
     if (!window.confirm('Cancel this order?')) return
-    await supabase.from('orders').update({ status: 'cancelled' }).eq('id', id)
+    await supabase.from('orders')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .eq('tenant_id', tenantId)
     fetchOrders()
   }
 
@@ -106,6 +116,7 @@ export default function Orders() {
 
     setSaving(true)
     const { error } = await supabase.from('orders').insert([{
+      tenant_id: tenantId,
       customer_id: selectedCustomer.id,
       qty_19l: form.qty_19l,
       qty_half_litre: form.qty_half_litre,

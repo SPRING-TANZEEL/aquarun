@@ -9,7 +9,7 @@ const EXPENSE_TYPES = [
   { key: 'other', label: 'Other', icon: '📝' },
 ]
 
-export default function RiderExpense({ rider, isOnline }) {
+export default function RiderExpense({ rider, tenantId, isOnline }) {
   const [expenseType, setExpenseType] = useState(null)
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
@@ -18,15 +18,17 @@ export default function RiderExpense({ rider, isOnline }) {
   const [todayExpenses, setTodayExpenses] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { 
-    if (isOnline) fetchTodayExpenses() 
-    else setLoading(false) 
-  }, [isOnline])
+  useEffect(() => {
+    if (isOnline && tenantId) fetchTodayExpenses()
+    else setLoading(false)
+  }, [isOnline, tenantId])
 
   async function fetchTodayExpenses() {
     const today = new Date().toISOString().split('T')[0]
     const { data } = await supabase.from('expenses')
-      .select('*').eq('rider_id', rider.id).eq('expense_date', today)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id).eq('expense_date', today)
       .order('created_at', { ascending: false })
     setTodayExpenses(data || [])
     setLoading(false)
@@ -40,6 +42,7 @@ export default function RiderExpense({ rider, isOnline }) {
     const today = new Date().toISOString().split('T')[0]
 
     const expenseData = {
+      tenant_id: tenantId,
       rider_id: rider.id,
       expense_type: expenseType,
       amount: Number(amount),

@@ -7,7 +7,7 @@ import {
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
-export default function RiderDeliveries({ rider, isOnline, dbReady }) {
+export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -21,7 +21,7 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
   const [success, setSuccess] = useState(null)
   const [filter, setFilter] = useState('today')
 
-  useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady])
+  useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady, tenantId])
 
   async function fetchOrders() {
     setLoading(true)
@@ -31,6 +31,7 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
         let query = supabase
           .from('orders')
           .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l)')
+          .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
           .order('delivery_date', { ascending: true })
@@ -94,6 +95,7 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
     const now = new Date().toISOString()
 
     const deliveryData = {
+      tenant_id: tenantId,
       order_id: selectedOrder.id,
       customer_id: selectedOrder.customer_id,
       rider_id: rider.id,
@@ -127,7 +129,7 @@ export default function RiderDeliveries({ rider, isOnline, dbReady }) {
       // Auto-post journal entry
       try {
         const { postDeliveryJournal } = await import('../accountingEngine')
-        await postDeliveryJournal(savedDelivery)
+        await postDeliveryJournal(savedDelivery, selectedOrder.customer_id, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
 
     } else {

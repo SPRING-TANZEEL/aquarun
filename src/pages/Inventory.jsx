@@ -1,16 +1,20 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function Inventory() {
+export default function Inventory({ tenantId }) {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
 
-  useEffect(() => { fetchProducts() }, [])
+  useEffect(() => { if (tenantId) fetchProducts() }, [tenantId])
 
   async function fetchProducts() {
     setLoading(true)
-    const { data } = await supabase.from('products').select('*').eq('is_active', true).order('product_type').order('name')
+    const { data } = await supabase.from('products')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('product_type').order('name')
     setProducts(data || [])
     setLoading(false)
   }
@@ -48,11 +52,11 @@ export default function Inventory() {
       </div>
 
       {activeTab === 'dashboard' && <StockDashboard products={products} loading={loading} rawMaterials={rawMaterials} finishedGoods={finishedGoods} tradingItems={tradingItems} />}
-      {activeTab === 'opening' && <OpeningStock products={products} onRefresh={fetchProducts} />}
-      {activeTab === 'purchase' && <PurchaseEntry products={products} onRefresh={fetchProducts} />}
-      {activeTab === 'production' && <ProductionEntry products={products} onRefresh={fetchProducts} />}
-      {activeTab === 'products' && <ProductManagement products={products} onRefresh={fetchProducts} />}
-      {activeTab === 'history' && <StockHistory products={products} />}
+      {activeTab === 'opening' && <OpeningStock products={products} onRefresh={fetchProducts} tenantId={tenantId} />}
+      {activeTab === 'purchase' && <PurchaseEntry products={products} onRefresh={fetchProducts} tenantId={tenantId} />}
+      {activeTab === 'production' && <ProductionEntry products={products} onRefresh={fetchProducts} tenantId={tenantId} />}
+      {activeTab === 'products' && <ProductManagement products={products} onRefresh={fetchProducts} tenantId={tenantId} />}
+      {activeTab === 'history' && <StockHistory products={products} tenantId={tenantId} />}
     </div>
   )
 }
@@ -122,7 +126,7 @@ function StockDashboard({ products, loading, rawMaterials, finishedGoods, tradin
 }
 
 // ─── OPENING STOCK ─────────────────────────────────────────────────
-function OpeningStock({ products, onRefresh }) {
+function OpeningStock({ products, onRefresh, tenantId }) {
   const [stockValues, setStockValues] = useState({})
   const [kgValues, setKgValues] = useState({})
   const [saving, setSaving] = useState(false)
@@ -150,7 +154,10 @@ function OpeningStock({ products, onRefresh }) {
       if (product.name === 'Shrinking Paper') {
         updateData.current_stock_kg = Number(kgValues[product.id] || 0)
       }
-      await supabase.from('products').update(updateData).eq('id', product.id)
+      await supabase.from('products')
+        .update(updateData)
+        .eq('id', product.id)
+        .eq('tenant_id', tenantId)
     }
     setSaved(true)
     onRefresh()
@@ -232,7 +239,7 @@ function OpeningStock({ products, onRefresh }) {
 }
 
 // ─── PURCHASE ENTRY ────────────────────────────────────────────────
-function PurchaseEntry({ products, onRefresh }) {
+function PurchaseEntry({ products, onRefresh, tenantId }) {
   const [selectedProduct, setSelectedProduct] = useState('')
   const [quantity, setQuantity] = useState('')
   const [quantityKg, setQuantityKg] = useState('')
@@ -271,6 +278,7 @@ function PurchaseEntry({ products, onRefresh }) {
     const totalPieces = isShrinkingPaper ? Number(quantityKg) * Number(piecesPerKg) : Number(quantity)
 
     const { data: savedPurchase, error } = await supabase.from('stock_purchases').insert([{
+      tenant_id: tenantId,
       product_id: selectedProduct,
       quantity: totalPieces,
       quantity_kg: isShrinkingPaper ? Number(quantityKg) : 0,
@@ -287,12 +295,15 @@ function PurchaseEntry({ products, onRefresh }) {
     // Auto-post journal entry
     try {
       const { postStockPurchaseJournal } = await import('../accountingEngine')
-      await postStockPurchaseJournal(savedPurchase)
+      await postStockPurchaseJournal(savedPurchase, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     const updateData = { current_stock: (product.current_stock || 0) + totalPieces }
     if (isShrinkingPaper) updateData.current_stock_kg = (product.current_stock_kg || 0) + Number(quantityKg)
-    await supabase.from('products').update(updateData).eq('id', selectedProduct)
+    await supabase.from('products')
+      .update(updateData)
+      .eq('id', selectedProduct)
+      .eq('tenant_id', tenantId)
 
     setSuccess(true)
     setSelectedProduct('')
@@ -419,7 +430,7 @@ function PurchaseEntry({ products, onRefresh }) {
 }
 
 // ─── PRODUCTION ENTRY ──────────────────────────────────────────────
-function ProductionEntry({ products, onRefresh }) {
+function ProductionEntry({ products, onRefresh, tenantId }) {
   const [selectedProduct, setSelectedProduct] = useState('')
   const [quantity, setQuantity] = useState('')
   const [saving, setSaving] = useState(false)
@@ -436,6 +447,7 @@ function ProductionEntry({ products, onRefresh }) {
     const { data } = await supabase
       .from('bill_of_materials')
       .select('*, raw_material:raw_material_id(*)')
+      .eq('tenant_id', tenantId)
       .eq('finished_good_id', productId)
     setBom(data || [])
     setBomLoading(false)
@@ -476,6 +488,7 @@ function ProductionEntry({ products, onRefresh }) {
     const { data: prodEntry, error: prodError } = await supabase
       .from('production_entries')
       .insert([{
+        tenant_id: tenantId,
         finished_good_id: selectedProduct,
         quantity_produced: qty,
         overhead_per_unit: OVERHEAD_PER_UNIT,
@@ -491,6 +504,7 @@ function ProductionEntry({ products, onRefresh }) {
       const rm = products.find(p => p.id === bomItem.raw_material_id)
 
       await supabase.from('production_consumption').insert([{
+        tenant_id: tenantId,
         production_entry_id: prodEntry.id,
         raw_material_id: bomItem.raw_material_id,
         quantity_consumed: consumed
@@ -504,12 +518,16 @@ function ProductionEntry({ products, onRefresh }) {
         updateData.current_stock_kg = Math.max(0, (rm.current_stock_kg || 0) - (consumed * kgPerPiece))
       }
 
-      await supabase.from('products').update(updateData).eq('id', bomItem.raw_material_id)
+      await supabase.from('products')
+        .update(updateData)
+        .eq('id', bomItem.raw_material_id)
+        .eq('tenant_id', tenantId)
     }
 
     await supabase.from('products')
       .update({ current_stock: (product?.current_stock || 0) + qty })
       .eq('id', selectedProduct)
+      .eq('tenant_id', tenantId)
 
     setSuccess({ product: product?.name, qty, totalOverhead })
     setSelectedProduct('')
@@ -598,7 +616,7 @@ function ProductionEntry({ products, onRefresh }) {
 }
 
 // ─── PRODUCT MANAGEMENT ────────────────────────────────────────────
-function ProductManagement({ products, onRefresh }) {
+function ProductManagement({ products, onRefresh, tenantId }) {
   const [showForm, setShowForm] = useState(false)
   const [editProduct, setEditProduct] = useState(null)
   const [form, setForm] = useState({
@@ -628,11 +646,19 @@ function ProductManagement({ products, onRefresh }) {
     setSaving(true)
 
     if (editProduct) {
-      const { error } = await supabase.from('products').update(form).eq('id', editProduct.id)
+      const { error } = await supabase.from('products')
+        .update(form)
+        .eq('id', editProduct.id)
+        .eq('tenant_id', tenantId)
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       alert('Product updated!')
     } else {
-      const { error } = await supabase.from('products').insert([{ ...form, current_stock: 0, opening_stock: 0 }])
+      const { error } = await supabase.from('products').insert([{
+        ...form,
+        tenant_id: tenantId,
+        current_stock: 0,
+        opening_stock: 0
+      }])
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       alert('Product added! Go to Opening Stock tab to set current stock.')
     }
@@ -773,7 +799,7 @@ function ProductManagement({ products, onRefresh }) {
 }
 
 // ─── STOCK HISTORY ─────────────────────────────────────────────────
-function StockHistory({ products }) {
+function StockHistory({ products, tenantId }) {
   const [purchases, setPurchases] = useState([])
   const [productions, setProductions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -781,13 +807,14 @@ function StockHistory({ products }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
 
-  useEffect(() => { fetchHistory() }, [dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchHistory() }, [dateFrom, dateTo, tenantId])
 
   async function fetchHistory() {
     setLoading(true)
 
     const { data: purchasesData } = await supabase
       .from('stock_purchases').select('*, product:product_id(name)')
+      .eq('tenant_id', tenantId)
       .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
       .order('purchase_date', { ascending: false })
     setPurchases(purchasesData || [])
@@ -795,6 +822,7 @@ function StockHistory({ products }) {
     const { data: productionsData } = await supabase
       .from('production_entries')
       .select('*, product:finished_good_id(name), consumption:production_consumption(*, raw_material:raw_material_id(name))')
+      .eq('tenant_id', tenantId)
       .gte('production_date', dateFrom).lte('production_date', dateTo)
       .order('production_date', { ascending: false })
     setProductions(productionsData || [])

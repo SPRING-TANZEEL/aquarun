@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function RiderAdvanceApproval({ rider }) {
+export default function RiderAdvanceApproval({ rider, tenantId }) {
   const [pendingRequests, setPendingRequests] = useState([])
   const [approvedToday, setApprovedToday] = useState([])
   const [loading, setLoading] = useState(true)
@@ -10,55 +10,66 @@ export default function RiderAdvanceApproval({ rider }) {
 
   const currentMonthYear = new Date().toISOString().slice(0, 7)
 
-  useEffect(() => { fetchData() }, [])
+  useEffect(() => { if (tenantId) fetchData() }, [tenantId])
 
   async function fetchData() {
     setLoading(true)
     const today = new Date().toISOString().split('T')[0]
     const isCEO = !rider.is_main_rider
-
-    // Fetch pending requests directed to this person
     const requestedFrom = isCEO ? 'ceo' : 'main_rider'
+
     const { data: pending } = await supabase
       .from('salary_advances')
       .select('*, rider:rider_id(full_name, monthly_salary)')
+      .eq('tenant_id', tenantId)
       .eq('requested_from', requestedFrom)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
     setPendingRequests(pending || [])
 
-    // Fetch approved today
     const { data: approved } = await supabase
       .from('salary_advances')
       .select('*, rider:rider_id(full_name)')
+      .eq('tenant_id', tenantId)
       .eq('requested_from', requestedFrom)
       .eq('status', 'approved')
       .gte('created_at', today + 'T00:00:00')
       .order('created_at', { ascending: false })
     setApprovedToday(approved || [])
 
-    // Get cash balance for this rider/CEO
     const { data: deliveries } = await supabase.from('deliveries')
-      .select('*').eq('rider_id', rider.id)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id)
       .gte('delivered_at', today + 'T00:00:00')
 
     const { data: cashPayments } = await supabase.from('payments')
-      .select('*').eq('rider_id', rider.id)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id)
       .eq('payment_method', 'cash').eq('payment_date', today)
 
     const { data: expenses } = await supabase.from('expenses')
-      .select('*').eq('rider_id', rider.id).eq('expense_date', today)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('rider_id', rider.id).eq('expense_date', today)
 
     const { data: receivedTransfers } = await supabase.from('cash_transfers')
-      .select('*').eq('to_rider_id', rider.id)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('to_rider_id', rider.id)
       .eq('status', 'confirmed').eq('transfer_date', today)
 
     const { data: sentTransfers } = await supabase.from('cash_transfers')
-      .select('*').eq('from_rider_id', rider.id)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('from_rider_id', rider.id)
       .eq('status', 'confirmed').eq('transfer_date', today)
 
     const { data: advancesGiven } = await supabase.from('salary_advances')
-      .select('*').eq('requested_from', requestedFrom)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('requested_from', requestedFrom)
       .eq('status', 'approved')
       .gte('created_at', today + 'T00:00:00')
 
@@ -91,6 +102,7 @@ export default function RiderAdvanceApproval({ rider }) {
         approved_at: new Date().toISOString()
       })
       .eq('id', request.id)
+      .eq('tenant_id', tenantId)
 
     if (error) { alert('Error: ' + error.message); setProcessing(null); return }
 
@@ -103,6 +115,7 @@ export default function RiderAdvanceApproval({ rider }) {
     const { error } = await supabase.from('salary_advances')
       .update({ status: 'rejected', approved_by: rider.full_name })
       .eq('id', request.id)
+      .eq('tenant_id', tenantId)
 
     if (error) { alert('Error: ' + error.message) }
     fetchData()
@@ -122,7 +135,6 @@ export default function RiderAdvanceApproval({ rider }) {
         {isCEO ? 'Requests sent to CEO/Admin' : 'Requests sent to you as Main Rider'}
       </p>
 
-      {/* Your Cash Balance */}
       <div style={{
         background: '#0f4c81', color: 'white', borderRadius: '12px',
         padding: '16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
@@ -134,7 +146,6 @@ export default function RiderAdvanceApproval({ rider }) {
         <p style={{ fontSize: '32px', margin: 0 }}>💵</p>
       </div>
 
-      {/* Pending Requests */}
       {pendingRequests.length === 0 ? (
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '12px' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>✅</p>
@@ -176,7 +187,6 @@ export default function RiderAdvanceApproval({ rider }) {
                 </div>
               </div>
 
-              {/* Warning if insufficient balance */}
               {cashBalance < Number(r.amount) && (
                 <div style={{ background: '#ffebee', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
                   <p style={{ fontSize: '12px', color: '#c62828', margin: 0 }}>
@@ -209,7 +219,6 @@ export default function RiderAdvanceApproval({ rider }) {
         </div>
       )}
 
-      {/* Approved Today */}
       {approvedToday.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>✅ Approved Today</p>

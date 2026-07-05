@@ -46,7 +46,7 @@ const MENU_ITEMS = [
   { key: 'about', icon: 'ℹ️', label: 'About' },
 ]
 
-export default function BusinessSettings() {
+export default function BusinessSettings({ tenantId }) {
   const [activeMenu, setActiveMenu] = useState('business')
   const [settings, setSettings] = useState({})
   const [loading, setLoading] = useState(true)
@@ -58,15 +58,17 @@ export default function BusinessSettings() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   useEffect(() => {
-    fetchSettings()
+    if (tenantId) fetchSettings()
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [])
+  }, [tenantId])
 
   async function fetchSettings() {
     setLoading(true)
-    const { data } = await supabase.from('business_settings').select('*')
+    const { data } = await supabase.from('business_settings')
+      .select('*')
+      .eq('tenant_id', tenantId)
     const map = {}
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     setSettings(map)
@@ -81,12 +83,15 @@ export default function BusinessSettings() {
     if (file.size > 2 * 1024 * 1024) return alert('Image must be less than 2MB')
     setUploadingLogo(true)
     const ext = file.name.split('.').pop()
-    const fileName = `logo_${Date.now()}.${ext}`
+    const fileName = `logo_${tenantId}_${Date.now()}.${ext}`
     const { error: uploadError } = await supabase.storage.from('aquarun').upload(fileName, file, { upsert: true })
     if (uploadError) { alert('Upload error: ' + uploadError.message); setUploadingLogo(false); return }
     const { data: urlData } = supabase.storage.from('aquarun').getPublicUrl(fileName)
     const publicUrl = urlData.publicUrl
-    await supabase.from('business_settings').upsert({ setting_key: 'business_logo', setting_value: publicUrl }, { onConflict: 'setting_key' })
+    await supabase.from('business_settings').upsert(
+      { tenant_id: tenantId, setting_key: 'business_logo', setting_value: publicUrl },
+      { onConflict: 'tenant_id,setting_key' }
+    )
     setSettings(s => ({ ...s, business_logo: publicUrl }))
     setLogoPreview(publicUrl)
     setUploadingLogo(false)
@@ -94,7 +99,10 @@ export default function BusinessSettings() {
   }
 
   async function removeLogo() {
-    await supabase.from('business_settings').upsert({ setting_key: 'business_logo', setting_value: '' }, { onConflict: 'setting_key' })
+    await supabase.from('business_settings').upsert(
+      { tenant_id: tenantId, setting_key: 'business_logo', setting_value: '' },
+      { onConflict: 'tenant_id,setting_key' }
+    )
     setSettings(s => ({ ...s, business_logo: '' }))
     setLogoPreview(null)
   }
@@ -103,7 +111,10 @@ export default function BusinessSettings() {
     setSaving(true)
     for (const [key, value] of Object.entries(settings)) {
       if (key === 'business_logo') continue
-      await supabase.from('business_settings').upsert({ setting_key: key, setting_value: value }, { onConflict: 'setting_key' })
+      await supabase.from('business_settings').upsert(
+        { tenant_id: tenantId, setting_key: key, setting_value: value },
+        { onConflict: 'tenant_id,setting_key' }
+      )
     }
     setSaved(true)
     setSaving(false)
@@ -221,13 +232,13 @@ export default function BusinessSettings() {
           )}
 
           {/* BACKUP & RESTORE */}
-          {activeMenu === 'backup' && <BackupRestore settings={settings} />}
+          {activeMenu === 'backup' && <BackupRestore settings={settings} tenantId={tenantId} />}
 
           {/* DATA EXPORT */}
-          {activeMenu === 'export' && <DataExport />}
+          {activeMenu === 'export' && <DataExport tenantId={tenantId} />}
 
           {/* IMPORT CUSTOMERS */}
-          {activeMenu === 'import' && <ImportCustomers />}
+          {activeMenu === 'import' && <ImportCustomers tenantId={tenantId} />}
 
           {/* ABOUT */}
           {activeMenu === 'about' && (
@@ -259,7 +270,7 @@ export default function BusinessSettings() {
                   ['Built by', 'Muhammad Tanzeel Ur Rehman'],
                   ['Email', 'mian.tanzeel62@gmail.com'],
                   ['Contact', '+92 323 7919338'],
-                  ['WhatsApp', '+92 309 7621882'],
+                  ['WhatsApp', '+92 323 7919338'],
                 ].map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                     <span style={{ fontSize: '13px', color: '#888' }}>{k}</span>
@@ -269,7 +280,7 @@ export default function BusinessSettings() {
 
                 <div style={{ marginTop: '20px', background: '#f0f7ff', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
                   <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600', margin: '0 0 4px' }}>Need help or support?</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Contact Muhammad Tanzeel on WhatsApp: <strong>0309-7621882</strong></p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Contact Muhammad Tanzeel on WhatsApp: <strong>+92 323 7621882</strong></p>
                 </div>
 
                 <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: '16px 0 0' }}>© 2026 AquaRun — Built by Muhammad Tanzeel Ur Rehman</p>
@@ -284,16 +295,16 @@ export default function BusinessSettings() {
 }
 
 // ── BACKUP & RESTORE ─────────────────────────────────────────────────
-function BackupRestore({ settings }) {
+function BackupRestore({ settings, tenantId }) {
   const [backing, setBacking] = useState(false)
   const [restoring, setRestoring] = useState(false)
   const [backupHistory, setBackupHistory] = useState([])
   const restoreRef = useRef()
 
   useEffect(() => {
-    const history = JSON.parse(localStorage.getItem('aquarun_backup_history') || '[]')
+    const history = JSON.parse(localStorage.getItem(`aquarun_backup_history_${tenantId}`) || '[]')
     setBackupHistory(history)
-  }, [])
+  }, [tenantId])
 
   async function downloadBackup() {
     setBacking(true)
@@ -307,12 +318,13 @@ function BackupRestore({ settings }) {
       ]
       const backup = {
         version: '1.0.0', app: 'AquaRun',
+        tenant_id: tenantId,
         business: settings.business_name || 'AquaRun',
         created_at: new Date().toISOString(), tables: {}
       }
       let totalRecords = 0
       for (const table of tables) {
-        const { data, error } = await supabase.from(table).select('*')
+        const { data, error } = await supabase.from(table).select('*').eq('tenant_id', tenantId)
         if (!error) { backup.tables[table] = data || []; totalRecords += (data || []).length }
       }
       backup.total_records = totalRecords
@@ -320,13 +332,14 @@ function BackupRestore({ settings }) {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `AquaRun_Backup_${new Date().toISOString().split('T')[0]}.json`
+      a.download = `AquaRun_Backup_${tenantId}_${new Date().toISOString().split('T')[0]}.json`
       a.click()
       URL.revokeObjectURL(url)
-      const history = JSON.parse(localStorage.getItem('aquarun_backup_history') || '[]')
+      const historyKey = `aquarun_backup_history_${tenantId}`
+      const history = JSON.parse(localStorage.getItem(historyKey) || '[]')
       history.unshift({ date: new Date().toISOString(), records: totalRecords, type: 'Manual' })
       const trimmed = history.slice(0, 10)
-      localStorage.setItem('aquarun_backup_history', JSON.stringify(trimmed))
+      localStorage.setItem(historyKey, JSON.stringify(trimmed))
       setBackupHistory(trimmed)
     } catch (err) { alert('Backup failed: ' + err.message) }
     setBacking(false)
@@ -335,13 +348,19 @@ function BackupRestore({ settings }) {
   async function restoreBackup(e) {
     const file = e.target.files[0]
     if (!file) return
-    const confirmed = window.confirm('⚠️ WARNING: Restoring will REPLACE all existing data with backup data.\n\nThis cannot be undone. Are you sure?')
+    const confirmed = window.confirm('⚠️ WARNING: Restoring will REPLACE all existing data for your business with backup data.\n\nThis cannot be undone. Are you sure?')
     if (!confirmed) return
     setRestoring(true)
     try {
       const text = await file.text()
       const backup = JSON.parse(text)
       if (!backup.tables || !backup.version) { alert('Invalid backup file.'); setRestoring(false); return }
+      // Safety check: only restore backups for this tenant
+      if (backup.tenant_id && backup.tenant_id !== tenantId) {
+        alert('This backup belongs to a different business account. Restore cancelled.')
+        setRestoring(false)
+        return
+      }
       const restoreOrder = [
         'business_settings', 'chart_of_accounts', 'riders', 'products',
         'customers', 'orders', 'deliveries', 'payments', 'expenses',
@@ -351,9 +370,12 @@ function BackupRestore({ settings }) {
       ]
       for (const table of restoreOrder) {
         if (!backup.tables[table] || backup.tables[table].length === 0) continue
-        await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000')
+        // Only delete this tenant's rows
+        await supabase.from(table).delete().eq('tenant_id', tenantId)
+        // Ensure all rows being restored have correct tenant_id
+        const rowsWithTenant = backup.tables[table].map(row => ({ ...row, tenant_id: tenantId }))
         const chunks = []
-        for (let i = 0; i < backup.tables[table].length; i += 100) chunks.push(backup.tables[table].slice(i, i + 100))
+        for (let i = 0; i < rowsWithTenant.length; i += 100) chunks.push(rowsWithTenant.slice(i, i + 100))
         for (const chunk of chunks) await supabase.from(table).insert(chunk)
       }
       alert(`✅ Restore complete! ${backup.total_records} records restored.`)
@@ -383,7 +405,7 @@ function BackupRestore({ settings }) {
           <div style={{ width: '48px', height: '48px', background: '#e3f0ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>💾</div>
           <div>
             <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Full Database Backup</p>
-            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Exports all tables including customers, deliveries, payments, accounting entries, riders and settings. Downloads as a JSON file to your device.</p>
+            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Exports all your business tables including customers, deliveries, payments, accounting entries, riders and settings.</p>
           </div>
         </div>
         <button onClick={downloadBackup} disabled={backing}
@@ -398,7 +420,7 @@ function BackupRestore({ settings }) {
           <div>
             <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Restore from Backup</p>
             <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>Upload a previously downloaded backup file to restore all your data.</p>
-            <p style={{ fontSize: '11px', color: '#f44336', fontWeight: '600', margin: 0 }}>⚠️ Warning: This will replace ALL current data with the backup data.</p>
+            <p style={{ fontSize: '11px', color: '#f44336', fontWeight: '600', margin: 0 }}>⚠️ Warning: This will replace ALL current data for your business with the backup data.</p>
           </div>
         </div>
         <button onClick={() => restoreRef.current.click()} disabled={restoring}
@@ -447,7 +469,7 @@ function BackupRestore({ settings }) {
 }
 
 // ── DATA EXPORT ──────────────────────────────────────────────────────
-function DataExport() {
+function DataExport({ tenantId }) {
   const [exporting, setExporting] = useState(null)
 
   const EXPORT_TABLES = [
@@ -467,7 +489,7 @@ function DataExport() {
   async function exportCSV(table, label) {
     setExporting(table)
     try {
-      const { data, error } = await supabase.from(table).select('*')
+      const { data, error } = await supabase.from(table).select('*').eq('tenant_id', tenantId)
       if (error) throw error
       if (!data || data.length === 0) { alert('No data found in ' + label); setExporting(null); return }
       const headers = Object.keys(data[0])
@@ -532,7 +554,7 @@ function DataExport() {
 }
 
 // ── IMPORT CUSTOMERS ─────────────────────────────────────────────────
-function ImportCustomers() {
+function ImportCustomers({ tenantId }) {
   const [step, setStep] = useState(1)
   const [importing, setImporting] = useState(false)
   const [preview, setPreview] = useState([])
@@ -572,6 +594,7 @@ function ImportCustomers() {
       if (!row.full_name) { errs.push(`Row ${i}: full_name is required`); continue }
       if (!row.mobile) { errs.push(`Row ${i}: mobile is required`); continue }
       rows.push({
+        tenant_id: tenantId,
         full_name: row.full_name,
         mobile: row.mobile,
         customer_code: row.customer_code || `C${String(i).padStart(3, '0')}`,
@@ -600,9 +623,16 @@ function ImportCustomers() {
       if (!error) count += chunk.length
     }
     try {
-      const { data: allCustomers } = await supabase.from('customers').select('opening_balance').eq('is_active', true)
+      // Only recalculate receivables for this tenant's customers and COA
+      const { data: allCustomers } = await supabase.from('customers')
+        .select('opening_balance')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
       const totalReceivable = allCustomers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
-      await supabase.from('chart_of_accounts').update({ opening_balance: totalReceivable }).eq('account_code', '1100')
+      await supabase.from('chart_of_accounts')
+        .update({ opening_balance: totalReceivable })
+        .eq('account_code', '1100')
+        .eq('tenant_id', tenantId)
     } catch (err) { console.error('COA update error:', err) }
     setImported(count)
     setStep(3)
