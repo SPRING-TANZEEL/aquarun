@@ -136,7 +136,7 @@ export default function App() {
   }
 
   if (screen === 'app') {
-    if (role === 'admin') return <AdminDashboard tenantId={tenantId} onLogout={handleLogout} />
+    if (role === 'admin') return <AdminDashboard user={{ full_name: 'Admin', name: 'Admin' }} tenantId={tenantId} onLogout={handleLogout} />
     if (role === 'rider') return <RiderDashboard rider={rider} tenantId={tenantId} onLogout={handleLogout} />
     if (role === 'customer') return <CustomerDashboard tenantId={tenantId} onLogout={handleLogout} />
   }
