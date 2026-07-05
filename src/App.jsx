@@ -9,6 +9,7 @@ export default function App() {
   const [screen, setScreen] = useState('login')
   const [role, setRole] = useState(null)
   const [rider, setRider] = useState(null)
+  const [loggedInCustomer, setLoggedInCustomer] = useState(null)
   const [tenantId, setTenantId] = useState(null)
   const [loginError, setLoginError] = useState('')
   const [logging, setLogging] = useState(false)
@@ -19,7 +20,6 @@ export default function App() {
   const [password, setPassword] = useState('')
 
   useEffect(() => {
-    // Check existing session
     const savedTenant = localStorage.getItem('aquarun_tenant_id')
     const savedRole = localStorage.getItem('aquarun_role')
     const savedUser = localStorage.getItem('aquarun_user')
@@ -35,6 +35,9 @@ export default function App() {
       setRole(savedRole)
       if (savedRole === 'rider' && savedUser) {
         setRider(JSON.parse(savedUser))
+      }
+      if (savedRole === 'customer' && savedUser) {
+        setLoggedInCustomer(JSON.parse(savedUser))
       }
       setScreen('app')
     }
@@ -59,7 +62,7 @@ export default function App() {
       }
     }
 
-    // Validate tenant
+    // Validate tenant — get full tenant record including UUID id
     const { data: tenant, error: tenantError } = await supabase
       .from('tenants')
       .select('*')
@@ -73,12 +76,16 @@ export default function App() {
       return
     }
 
+    // ✅ Always use tenant.id (UUID) — never tenant.tenant_code
+    const tenantUUID = tenant.id
+
     // Admin login
     if (username.toLowerCase() === 'admin') {
       if (password === tenant.admin_password) {
-        setTenantSession(tenant.tenant_code, tenant.business_name, 'admin')
-        localStorage.setItem('aquarun_user', JSON.stringify({ name: 'Admin' }))
-        setTenantId(tenant.tenant_code)
+        localStorage.setItem('aquarun_tenant_id', tenantUUID)
+        localStorage.setItem('aquarun_role', 'admin')
+        localStorage.setItem('aquarun_user', JSON.stringify({ full_name: 'Admin', name: 'Admin' }))
+        setTenantId(tenantUUID)
         setRole('admin')
         setScreen('app')
         setLogging(false)
@@ -90,41 +97,70 @@ export default function App() {
       }
     }
 
-    // Rider login
+    // Rider login — use UUID to find rider
     const { data: riderData } = await supabase
       .from('riders')
       .select('*')
-      .eq('tenant_id', tenant.tenant_code)
+      .eq('tenant_id', tenantUUID)
       .eq('is_active', true)
       .ilike('full_name', username)
       .single()
 
-    if (!riderData) {
-      setLoginError('Rider not found. Check your name or contact admin.')
+    if (riderData) {
+      if (password !== riderData.pin_code && password !== (riderData.password || 'rider123')) {
+        setLoginError('Invalid password or PIN')
+        setLogging(false)
+        return
+      }
+      localStorage.setItem('aquarun_tenant_id', tenantUUID)
+      localStorage.setItem('aquarun_role', 'rider')
+      localStorage.setItem('aquarun_user', JSON.stringify(riderData))
+      setTenantId(tenantUUID)
+      setRider(riderData)
+      setRole('rider')
+      setScreen('app')
       setLogging(false)
       return
     }
 
-    if (password !== (riderData.password || 'rider123')) {
-      setLoginError('Invalid password')
+    // Customer login
+    const { data: customerData } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('tenant_id', tenantUUID)
+      .eq('is_active', true)
+      .eq('customer_code', username.toUpperCase())
+      .single()
+
+    if (customerData) {
+      if (password !== customerData.customer_password && password !== customerData.password_plain) {
+        setLoginError('Invalid password')
+        setLogging(false)
+        return
+      }
+      localStorage.setItem('aquarun_tenant_id', tenantUUID)
+      localStorage.setItem('aquarun_role', 'customer')
+      localStorage.setItem('aquarun_user', JSON.stringify(customerData))
+      setTenantId(tenantUUID)
+      setLoggedInCustomer(customerData)
+      setRole('customer')
+      setScreen('app')
       setLogging(false)
       return
     }
 
-    setTenantSession(tenant.tenant_code, tenant.business_name, 'rider', riderData.id)
-    localStorage.setItem('aquarun_user', JSON.stringify(riderData))
-    setTenantId(tenant.tenant_code)
-    setRider(riderData)
-    setRole('rider')
-    setScreen('app')
+    setLoginError('User not found. Check your username or contact admin.')
     setLogging(false)
   }
 
   function handleLogout() {
-    clearTenantSession()
+    localStorage.removeItem('aquarun_tenant_id')
+    localStorage.removeItem('aquarun_role')
+    localStorage.removeItem('aquarun_user')
     setScreen('login')
     setRole(null)
     setRider(null)
+    setLoggedInCustomer(null)
     setTenantId(null)
     setTenantCode('')
     setUsername('')
@@ -137,8 +173,8 @@ export default function App() {
 
   if (screen === 'app') {
     if (role === 'admin') return <AdminDashboard user={{ full_name: 'Admin', name: 'Admin' }} tenantId={tenantId} onLogout={handleLogout} />
-    if (role === 'rider') return <RiderDashboard rider={rider} tenantId={tenantId} onLogout={handleLogout} />
-    if (role === 'customer') return <CustomerDashboard tenantId={tenantId} onLogout={handleLogout} />
+    if (role === 'rider') return <RiderDashboard user={rider} rider={rider} tenantId={tenantId} onLogout={handleLogout} />
+    if (role === 'customer') return <CustomerDashboard customer={loggedInCustomer} tenantId={tenantId} onLogout={handleLogout} />
   }
 
   // Login Screen
@@ -175,14 +211,14 @@ export default function App() {
 
           <label style={{ fontSize: '12px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Username</label>
           <input value={username} onChange={e => setUsername(e.target.value)}
-            placeholder="admin or rider name"
+            placeholder="admin / rider name / customer ID"
             style={inp}
             onFocus={e => e.target.style.borderColor = '#0f4c81'}
             onBlur={e => e.target.style.borderColor = '#e8eaed'} />
 
-          <label style={{ fontSize: '12px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Password</label>
+          <label style={{ fontSize: '12px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px' }}>Password / PIN</label>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-            placeholder="Enter password"
+            placeholder="Enter password or PIN"
             style={{ ...inp, marginBottom: '20px' }}
             onKeyDown={e => e.key === 'Enter' && handleLogin()}
             onFocus={e => e.target.style.borderColor = '#0f4c81'}
