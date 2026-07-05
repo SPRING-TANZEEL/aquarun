@@ -55,7 +55,6 @@ export default function BusinessSettings() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [logoPreview, setLogoPreview] = useState(null)
   const fileRef = useRef()
-  const importRef = useRef()
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   useEffect(() => {
@@ -134,7 +133,7 @@ export default function BusinessSettings() {
 
       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
 
-        {/* ── SIDEBAR MENU ── */}
+        {/* SIDEBAR */}
         <div style={{
           width: isMobile ? '100%' : '200px', flexShrink: 0,
           background: 'white', borderRadius: '12px', padding: '8px',
@@ -159,10 +158,10 @@ export default function BusinessSettings() {
           ))}
         </div>
 
-        {/* ── CONTENT ── */}
+        {/* CONTENT */}
         <div style={{ flex: 1, minWidth: 0 }}>
 
-          {/* ── BUSINESS PROFILE ── */}
+          {/* BUSINESS PROFILE */}
           {activeMenu === 'business' && (
             <div>
               {saved && (
@@ -170,8 +169,6 @@ export default function BusinessSettings() {
                   <p style={{ fontWeight: '700', color: '#1b5e20', margin: 0 }}>✅ Settings saved successfully!</p>
                 </div>
               )}
-
-              {/* Logo */}
               <div style={card}>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>🖼️ Business Logo</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -197,7 +194,6 @@ export default function BusinessSettings() {
                 </div>
               </div>
 
-              {/* All Settings Sections */}
               {SETTINGS_CONFIG.map(section => (
                 <div key={section.section} style={card}>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>
@@ -224,16 +220,16 @@ export default function BusinessSettings() {
             </div>
           )}
 
-          {/* ── BACKUP & RESTORE ── */}
+          {/* BACKUP & RESTORE */}
           {activeMenu === 'backup' && <BackupRestore settings={settings} />}
 
-          {/* ── DATA EXPORT ── */}
+          {/* DATA EXPORT */}
           {activeMenu === 'export' && <DataExport />}
 
-          {/* ── IMPORT CUSTOMERS ── */}
+          {/* IMPORT CUSTOMERS */}
           {activeMenu === 'import' && <ImportCustomers />}
 
-          {/* ── ABOUT ── */}
+          {/* ABOUT */}
           {activeMenu === 'about' && (
             <div style={card}>
               <div style={{ padding: '8px 0' }}>
@@ -284,6 +280,12 @@ export default function BusinessSettings() {
             </div>
           )}
 
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── BACKUP & RESTORE ─────────────────────────────────────────────────
 function BackupRestore({ settings }) {
   const [backing, setBacking] = useState(false)
@@ -306,27 +308,17 @@ function BackupRestore({ settings }) {
         'owner_transactions', 'ceo_account_transfers', 'chart_of_accounts',
         'journal_entries', 'journal_entry_lines', 'business_settings'
       ]
-
       const backup = {
-        version: '1.0.0',
-        app: 'AquaRun',
+        version: '1.0.0', app: 'AquaRun',
         business: settings.business_name || 'AquaRun',
-        created_at: new Date().toISOString(),
-        tables: {}
+        created_at: new Date().toISOString(), tables: {}
       }
-
       let totalRecords = 0
       for (const table of tables) {
         const { data, error } = await supabase.from(table).select('*')
-        if (!error) {
-          backup.tables[table] = data || []
-          totalRecords += (data || []).length
-        }
+        if (!error) { backup.tables[table] = data || []; totalRecords += (data || []).length }
       }
-
       backup.total_records = totalRecords
-
-      // Download as JSON file
       const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -334,46 +326,25 @@ function BackupRestore({ settings }) {
       a.download = `AquaRun_Backup_${new Date().toISOString().split('T')[0]}.json`
       a.click()
       URL.revokeObjectURL(url)
-
-      // Save to history
       const history = JSON.parse(localStorage.getItem('aquarun_backup_history') || '[]')
-      history.unshift({
-        date: new Date().toISOString(),
-        records: totalRecords,
-        type: 'Manual'
-      })
+      history.unshift({ date: new Date().toISOString(), records: totalRecords, type: 'Manual' })
       const trimmed = history.slice(0, 10)
       localStorage.setItem('aquarun_backup_history', JSON.stringify(trimmed))
       setBackupHistory(trimmed)
-
-    } catch (err) {
-      alert('Backup failed: ' + err.message)
-    }
+    } catch (err) { alert('Backup failed: ' + err.message) }
     setBacking(false)
   }
 
   async function restoreBackup(e) {
     const file = e.target.files[0]
     if (!file) return
-
-    const confirmed = window.confirm(
-      '⚠️ WARNING: Restoring will REPLACE all existing data with backup data.\n\n' +
-      'This cannot be undone. Are you sure you want to continue?'
-    )
+    const confirmed = window.confirm('⚠️ WARNING: Restoring will REPLACE all existing data with backup data.\n\nThis cannot be undone. Are you sure?')
     if (!confirmed) return
-
     setRestoring(true)
     try {
       const text = await file.text()
       const backup = JSON.parse(text)
-
-      if (!backup.tables || !backup.version) {
-        alert('Invalid backup file. Please select a valid AquaRun backup.')
-        setRestoring(false)
-        return
-      }
-
-      // Restore tables in correct order (respect foreign keys)
+      if (!backup.tables || !backup.version) { alert('Invalid backup file.'); setRestoring(false); return }
       const restoreOrder = [
         'business_settings', 'chart_of_accounts', 'riders', 'products',
         'customers', 'orders', 'deliveries', 'payments', 'expenses',
@@ -381,27 +352,16 @@ function BackupRestore({ settings }) {
         'stock_purchases', 'production_entries', 'owner_transactions',
         'ceo_account_transfers', 'journal_entries', 'journal_entry_lines'
       ]
-
       for (const table of restoreOrder) {
         if (!backup.tables[table] || backup.tables[table].length === 0) continue
-        // Delete existing
         await supabase.from(table).delete().neq('id', '00000000-0000-0000-0000-000000000000')
-        // Insert backup data in chunks
         const chunks = []
-        for (let i = 0; i < backup.tables[table].length; i += 100) {
-          chunks.push(backup.tables[table].slice(i, i + 100))
-        }
-        for (const chunk of chunks) {
-          await supabase.from(table).insert(chunk)
-        }
+        for (let i = 0; i < backup.tables[table].length; i += 100) chunks.push(backup.tables[table].slice(i, i + 100))
+        for (const chunk of chunks) await supabase.from(table).insert(chunk)
       }
-
-      alert(`✅ Restore complete! ${backup.total_records} records restored from backup dated ${new Date(backup.created_at).toLocaleDateString('en-PK')}.`)
+      alert(`✅ Restore complete! ${backup.total_records} records restored.`)
       window.location.reload()
-
-    } catch (err) {
-      alert('Restore failed: ' + err.message)
-    }
+    } catch (err) { alert('Restore failed: ' + err.message) }
     setRestoring(false)
   }
 
@@ -409,62 +369,39 @@ function BackupRestore({ settings }) {
 
   return (
     <div>
-      {/* Last Backup Status */}
-      <div style={{
-        background: lastBackup ? '#e8f5e9' : '#fff3e0',
-        border: `1px solid ${lastBackup ? '#c8e6c9' : '#ffe082'}`,
-        borderRadius: '12px', padding: '16px', marginBottom: '16px',
-        display: 'flex', alignItems: 'center', gap: '12px'
-      }}>
+      <div style={{ background: lastBackup ? '#e8f5e9' : '#fff3e0', border: `1px solid ${lastBackup ? '#c8e6c9' : '#ffe082'}`, borderRadius: '12px', padding: '16px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
         <span style={{ fontSize: '28px' }}>{lastBackup ? '✅' : '⚠️'}</span>
         <div>
           <p style={{ fontSize: '14px', fontWeight: '700', color: lastBackup ? '#1a7a4a' : '#e65100', margin: '0 0 2px' }}>
-            {lastBackup
-              ? `Last backup ${Math.floor((Date.now() - new Date(lastBackup.date)) / 86400000)} days ago`
-              : 'No backup taken yet'}
+            {lastBackup ? `Last backup ${Math.floor((Date.now() - new Date(lastBackup.date)) / 86400000)} days ago` : 'No backup taken yet'}
           </p>
           <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
-            {lastBackup
-              ? `Your data is protected · ${lastBackup.records} records`
-              : 'Take your first backup now to protect your data'}
+            {lastBackup ? `Your data is protected · ${lastBackup.records} records` : 'Take your first backup now to protect your data'}
           </p>
         </div>
       </div>
 
-      {/* Full Backup */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
-          <div style={{ width: '48px', height: '48px', background: '#e3f0ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
-            💾
-          </div>
+          <div style={{ width: '48px', height: '48px', background: '#e3f0ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>💾</div>
           <div>
             <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Full Database Backup</p>
-            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
-              Exports all tables including customers, deliveries, payments, accounting entries, riders and settings.
-              Downloads as a JSON file to your device.
-            </p>
+            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Exports all tables including customers, deliveries, payments, accounting entries, riders and settings. Downloads as a JSON file to your device.</p>
           </div>
         </div>
         <button onClick={downloadBackup} disabled={backing}
-          style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+          style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
           {backing ? '⏳ Creating Backup...' : '⬇️ Download Full Backup Now'}
         </button>
       </div>
 
-      {/* Restore */}
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #ffebee' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
-          <div style={{ width: '48px', height: '48px', background: '#ffebee', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>
-            🔄
-          </div>
+          <div style={{ width: '48px', height: '48px', background: '#ffebee', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>🔄</div>
           <div>
             <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Restore from Backup</p>
-            <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>
-              Upload a previously downloaded backup file to restore all your data.
-            </p>
-            <p style={{ fontSize: '11px', color: '#f44336', fontWeight: '600', margin: 0 }}>
-              ⚠️ Warning: This will replace ALL current data with the backup data.
-            </p>
+            <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>Upload a previously downloaded backup file to restore all your data.</p>
+            <p style={{ fontSize: '11px', color: '#f44336', fontWeight: '600', margin: 0 }}>⚠️ Warning: This will replace ALL current data with the backup data.</p>
           </div>
         </div>
         <button onClick={() => restoreRef.current.click()} disabled={restoring}
@@ -474,7 +411,6 @@ function BackupRestore({ settings }) {
         <input ref={restoreRef} type="file" accept=".json" onChange={restoreBackup} style={{ display: 'none' }} />
       </div>
 
-      {/* Best Practices */}
       <div style={{ background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: '0 0 10px' }}>💡 Best Practices for Free Plan</p>
         {[
@@ -490,7 +426,6 @@ function BackupRestore({ settings }) {
         ))}
       </div>
 
-      {/* Backup History */}
       {backupHistory.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Backup History</p>
@@ -538,8 +473,6 @@ function DataExport() {
       const { data, error } = await supabase.from(table).select('*')
       if (error) throw error
       if (!data || data.length === 0) { alert('No data found in ' + label); setExporting(null); return }
-
-      // Convert to CSV
       const headers = Object.keys(data[0])
       const csvRows = [
         headers.join(','),
@@ -548,14 +481,11 @@ function DataExport() {
             const val = row[h]
             if (val === null || val === undefined) return ''
             const str = String(val)
-            return str.includes(',') || str.includes('"') || str.includes('\n')
-              ? `"${str.replace(/"/g, '""')}"`
-              : str
+            return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str
           }).join(',')
         )
       ]
       const csv = csvRows.join('\n')
-
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -563,9 +493,7 @@ function DataExport() {
       a.download = `AquaRun_${label}_${new Date().toISOString().split('T')[0]}.csv`
       a.click()
       URL.revokeObjectURL(url)
-    } catch (err) {
-      alert('Export failed: ' + err.message)
-    }
+    } catch (err) { alert('Export failed: ' + err.message) }
     setExporting(null)
   }
 
@@ -583,12 +511,10 @@ function DataExport() {
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
         <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Data Export</p>
         <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Export your data as CSV files — opens in Excel or Google Sheets</p>
-
         <button onClick={exportAll} disabled={exporting === 'all'}
           style={{ width: '100%', padding: '12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginBottom: '16px' }}>
           {exporting === 'all' ? '⏳ Exporting All...' : '⬇️ Export All Tables'}
         </button>
-
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
           {EXPORT_TABLES.map(t => (
             <div key={t.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
@@ -636,23 +562,18 @@ function ImportCustomers() {
   async function handleFileUpload(e) {
     const file = e.target.files[0]
     if (!file) return
-
     const text = await file.text()
     const lines = text.trim().split('\n')
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
     const rows = []
     const errs = []
-
     for (let i = 1; i < lines.length; i++) {
       if (!lines[i].trim()) continue
       const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
       const row = {}
       headers.forEach((h, idx) => { row[h] = values[idx] || '' })
-
-      // Validate
       if (!row.full_name) { errs.push(`Row ${i}: full_name is required`); continue }
       if (!row.mobile) { errs.push(`Row ${i}: mobile is required`); continue }
-
       rows.push({
         full_name: row.full_name,
         mobile: row.mobile,
@@ -667,7 +588,6 @@ function ImportCustomers() {
         is_active: true,
       })
     }
-
     setErrors(errs)
     setPreview(rows)
     setStep(2)
@@ -678,19 +598,15 @@ function ImportCustomers() {
     let count = 0
     const chunks = []
     for (let i = 0; i < preview.length; i += 50) chunks.push(preview.slice(i, i + 50))
-
     for (const chunk of chunks) {
       const { error } = await supabase.from('customers').insert(chunk)
       if (!error) count += chunk.length
     }
-
-    // Update COA receivables
     try {
       const { data: allCustomers } = await supabase.from('customers').select('opening_balance').eq('is_active', true)
       const totalReceivable = allCustomers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
       await supabase.from('chart_of_accounts').update({ opening_balance: totalReceivable }).eq('account_code', '1100')
     } catch (err) { console.error('COA update error:', err) }
-
     setImported(count)
     setStep(3)
     setImporting(false)
@@ -698,7 +614,6 @@ function ImportCustomers() {
 
   return (
     <div>
-      {/* Steps */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px', background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
         {[
           { n: 1, label: 'Download Template' },
@@ -707,11 +622,7 @@ function ImportCustomers() {
         ].map((s, i) => (
           <div key={s.n} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <div style={{
-                width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: step >= s.n ? '#0f4c81' : '#f0f0f0',
-                color: step >= s.n ? 'white' : '#888', fontSize: '12px', fontWeight: '700', flexShrink: 0
-              }}>{s.n}</div>
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: step >= s.n ? '#0f4c81' : '#f0f0f0', color: step >= s.n ? 'white' : '#888', fontSize: '12px', fontWeight: '700', flexShrink: 0 }}>{s.n}</div>
               <span style={{ fontSize: '11px', color: step >= s.n ? '#0f4c81' : '#888', fontWeight: step === s.n ? '700' : '400' }}>{s.label}</span>
             </div>
             {i < 2 && <div style={{ flex: 1, height: '1px', background: step > s.n ? '#0f4c81' : '#e0e0e0', margin: '0 8px' }} />}
@@ -719,14 +630,10 @@ function ImportCustomers() {
         ))}
       </div>
 
-      {/* Step 1 */}
       {step === 1 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Step 1 — Download the Excel Template</p>
-          <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>
-            Download the CSV template, fill in your customer data in Excel or Google Sheets, then upload it.
-          </p>
-
+          <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Download the CSV template, fill in your customer data in Excel or Google Sheets, then upload it.</p>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
             {[
               { icon: '👤', label: 'Customer Name', color: '#e3f0ff' },
@@ -739,7 +646,6 @@ function ImportCustomers() {
               </div>
             ))}
           </div>
-
           <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#e65100', margin: '0 0 8px' }}>Important tips before filling:</p>
             {[
@@ -752,7 +658,6 @@ function ImportCustomers() {
               <p key={tip} style={{ fontSize: '11px', color: '#795548', margin: '0 0 4px' }}>• {tip}</p>
             ))}
           </div>
-
           <button onClick={downloadTemplate}
             style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginBottom: '10px' }}>
             ⬇️ Download Customer Import Template
@@ -765,12 +670,10 @@ function ImportCustomers() {
         </div>
       )}
 
-      {/* Step 2 — Preview */}
       {step === 2 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Step 2 — Preview Data</p>
           <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>{preview.length} customers ready to import</p>
-
           {errors.length > 0 && (
             <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
               <p style={{ fontSize: '12px', fontWeight: '700', color: '#c62828', margin: '0 0 6px' }}>⚠️ {errors.length} rows skipped due to errors:</p>
@@ -778,8 +681,6 @@ function ImportCustomers() {
               {errors.length > 5 && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>...and {errors.length - 5} more</p>}
             </div>
           )}
-
-          {/* Preview table */}
           <div style={{ overflowX: 'auto', marginBottom: '16px', border: '1px solid #eee', borderRadius: '8px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
@@ -797,16 +698,13 @@ function ImportCustomers() {
                     <td style={{ padding: '8px 10px', color: '#555' }}>{r.mobile}</td>
                     <td style={{ padding: '8px 10px', color: '#0f4c81', fontWeight: '600' }}>{r.customer_code}</td>
                     <td style={{ padding: '8px 10px' }}>Rs. {r.rate_19l}</td>
-                    <td style={{ padding: '8px 10px', color: r.opening_balance > 0 ? '#f44336' : '#888' }}>
-                      Rs. {r.opening_balance.toLocaleString()}
-                    </td>
+                    <td style={{ padding: '8px 10px', color: r.opening_balance > 0 ? '#f44336' : '#888' }}>Rs. {r.opening_balance.toLocaleString()}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
             {preview.length > 10 && <p style={{ padding: '8px 12px', fontSize: '11px', color: '#888', borderTop: '1px solid #f0f0f0' }}>...and {preview.length - 10} more customers</p>}
           </div>
-
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => { setStep(1); setPreview([]); setErrors([]) }}
               style={{ flex: 1, padding: '12px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px' }}>
@@ -820,14 +718,11 @@ function ImportCustomers() {
         </div>
       )}
 
-      {/* Step 3 — Done */}
       {step === 3 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
           <p style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 8px' }}>Import Complete!</p>
-          <p style={{ fontSize: '14px', color: '#555', margin: '0 0 24px' }}>
-            {imported} customers imported successfully. Their opening balances have been added to your accounts receivable.
-          </p>
+          <p style={{ fontSize: '14px', color: '#555', margin: '0 0 24px' }}>{imported} customers imported successfully.</p>
           <button onClick={() => { setStep(1); setPreview([]); setErrors([]); setImported(0) }}
             style={{ padding: '12px 32px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
             Import More Customers
