@@ -9,7 +9,7 @@ const STEPS = [
   { key: 'customer', title: 'Add First Customer', icon: '👤', subtitle: 'Your first customer details' },
 ]
 
-export default function SetupWizard({ onComplete }) {
+export default function SetupWizard({ tenantId, onComplete }) {
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -49,7 +49,7 @@ export default function SetupWizard({ onComplete }) {
   async function uploadLogo(file) {
     setLogoUploading(true)
     const ext = file.name.split('.').pop()
-    const fileName = `logo_${Date.now()}.${ext}`
+    const fileName = `logo_${tenantId}_${Date.now()}.${ext}`
     const { error } = await supabase.storage.from('aquarun').upload(fileName, file, { upsert: true })
     if (error) { alert('Logo upload failed: ' + error.message); setLogoUploading(false); return }
     const { data: urlData } = supabase.storage.from('aquarun').getPublicUrl(fileName)
@@ -61,56 +61,52 @@ export default function SetupWizard({ onComplete }) {
     setSaving(true)
 
     if (step === 0) {
-      // Save business info
       if (!businessName.trim()) { alert('Please enter business name'); setSaving(false); return }
       await supabase.from('business_settings').upsert([
-        { setting_key: 'business_name', setting_value: businessName },
-        { setting_key: 'business_address', setting_value: businessAddress },
-        { setting_key: 'business_phone', setting_value: businessPhone },
-        { setting_key: 'whatsapp_number', setting_value: businessWhatsapp || businessPhone },
-        { setting_key: 'business_tagline', setting_value: businessTagline },
-        { setting_key: 'business_logo', setting_value: businessLogo },
-        { setting_key: 'delivery_number', setting_value: businessPhone },
-        { setting_key: 'complaint_number', setting_value: businessPhone },
-      ], { onConflict: 'setting_key' })
+        { tenant_id: tenantId, setting_key: 'business_name', setting_value: businessName },
+        { tenant_id: tenantId, setting_key: 'business_address', setting_value: businessAddress },
+        { tenant_id: tenantId, setting_key: 'business_phone', setting_value: businessPhone },
+        { tenant_id: tenantId, setting_key: 'whatsapp_number', setting_value: businessWhatsapp || businessPhone },
+        { tenant_id: tenantId, setting_key: 'business_tagline', setting_value: businessTagline },
+        { tenant_id: tenantId, setting_key: 'business_logo', setting_value: businessLogo },
+        { tenant_id: tenantId, setting_key: 'delivery_number', setting_value: businessPhone },
+        { tenant_id: tenantId, setting_key: 'complaint_number', setting_value: businessPhone },
+      ], { onConflict: 'tenant_id,setting_key' })
     }
 
     if (step === 1) {
-      // Save JazzCash
       await supabase.from('business_settings').upsert([
-        { setting_key: 'jazzcash_number_1', setting_value: jazzNumber1 },
-        { setting_key: 'jazzcash_name_1', setting_value: jazzName1 },
-        { setting_key: 'jazzcash_number_2', setting_value: jazzNumber2 },
-        { setting_key: 'jazzcash_name_2', setting_value: jazzName2 },
-      ], { onConflict: 'setting_key' })
+        { tenant_id: tenantId, setting_key: 'jazzcash_number_1', setting_value: jazzNumber1 },
+        { tenant_id: tenantId, setting_key: 'jazzcash_name_1', setting_value: jazzName1 },
+        { tenant_id: tenantId, setting_key: 'jazzcash_number_2', setting_value: jazzNumber2 },
+        { tenant_id: tenantId, setting_key: 'jazzcash_name_2', setting_value: jazzName2 },
+      ], { onConflict: 'tenant_id,setting_key' })
     }
 
     if (step === 2) {
-      // Save opening balances to COA
       const cash = Number(openingCash) || 0
       const jazz = Number(openingJazz) || 0
       const bank = Number(openingBank) || 0
 
-      await supabase.from('chart_of_accounts').update({ opening_balance: cash }).eq('account_code', '1001')
-      await supabase.from('chart_of_accounts').update({ opening_balance: jazz }).eq('account_code', '1002')
-      await supabase.from('chart_of_accounts').update({ opening_balance: bank }).eq('account_code', '1003')
+      await supabase.from('chart_of_accounts').update({ opening_balance: cash }).eq('account_code', '1001').eq('tenant_id', tenantId)
+      await supabase.from('chart_of_accounts').update({ opening_balance: jazz }).eq('account_code', '1002').eq('tenant_id', tenantId)
+      await supabase.from('chart_of_accounts').update({ opening_balance: bank }).eq('account_code', '1003').eq('tenant_id', tenantId)
 
-      // Auto calculate owner capital
-      const { data: customers } = await supabase.from('customers').select('opening_balance').eq('is_active', true)
+      const { data: customers } = await supabase.from('customers').select('opening_balance').eq('tenant_id', tenantId).eq('is_active', true)
       const totalReceivable = customers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
-      await supabase.from('chart_of_accounts').update({ opening_balance: totalReceivable }).eq('account_code', '1100')
-      await supabase.from('chart_of_accounts').update({ opening_balance: cash + jazz + bank + totalReceivable }).eq('account_code', '3001')
 
-      // Sync to business_settings
+      await supabase.from('chart_of_accounts').update({ opening_balance: totalReceivable }).eq('account_code', '1100').eq('tenant_id', tenantId)
+      await supabase.from('chart_of_accounts').update({ opening_balance: cash + jazz + bank + totalReceivable }).eq('account_code', '3001').eq('tenant_id', tenantId)
+
       await supabase.from('business_settings').upsert([
-        { setting_key: 'opening_cash_balance', setting_value: String(cash) },
-        { setting_key: 'opening_jazzcash_balance', setting_value: String(jazz) },
-        { setting_key: 'opening_bank_balance', setting_value: String(bank) },
-      ], { onConflict: 'setting_key' })
+        { tenant_id: tenantId, setting_key: 'opening_cash_balance', setting_value: String(cash) },
+        { tenant_id: tenantId, setting_key: 'opening_jazzcash_balance', setting_value: String(jazz) },
+        { tenant_id: tenantId, setting_key: 'opening_bank_balance', setting_value: String(bank) },
+      ], { onConflict: 'tenant_id,setting_key' })
 
-      // Post opening journal entry if any balance exists
       if (cash + jazz + bank + totalReceivable > 0) {
         const { data: je } = await supabase.from('journal_entries').insert([{
+          tenant_id: tenantId,
           entry_date: new Date().toISOString().split('T')[0],
           reference_type: 'opening_balance',
           narration: 'Opening balances — business start',
@@ -120,20 +116,20 @@ export default function SetupWizard({ onComplete }) {
 
         if (je) {
           const lines = []
-          if (cash > 0) lines.push({ journal_entry_id: je.id, account_code: '1001', account_name: 'Cash in Hand', debit: cash, credit: 0 })
-          if (jazz > 0) lines.push({ journal_entry_id: je.id, account_code: '1002', account_name: 'JazzCash Account', debit: jazz, credit: 0 })
-          if (bank > 0) lines.push({ journal_entry_id: je.id, account_code: '1003', account_name: 'Bank Account', debit: bank, credit: 0 })
-          if (totalReceivable > 0) lines.push({ journal_entry_id: je.id, account_code: '1100', account_name: 'Accounts Receivable', debit: totalReceivable, credit: 0 })
-          lines.push({ journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: cash + jazz + bank + totalReceivable })
+          if (cash > 0) lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '1001', account_name: 'Cash in Hand', debit: cash, credit: 0 })
+          if (jazz > 0) lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '1002', account_name: 'JazzCash Account', debit: jazz, credit: 0 })
+          if (bank > 0) lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '1003', account_name: 'Bank Account', debit: bank, credit: 0 })
+          if (totalReceivable > 0) lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '1100', account_name: 'Accounts Receivable', debit: totalReceivable, credit: 0 })
+          lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: cash + jazz + bank + totalReceivable })
           if (lines.length > 0) await supabase.from('journal_entry_lines').insert(lines)
         }
       }
     }
 
     if (step === 3 && !skipRider) {
-      // Save rider
       if (!riderName.trim()) { alert('Please enter rider name or skip'); setSaving(false); return }
       await supabase.from('riders').insert([{
+        tenant_id: tenantId,
         full_name: riderName,
         mobile: riderMobile,
         is_main_rider: riderIsMain,
@@ -143,10 +139,10 @@ export default function SetupWizard({ onComplete }) {
     }
 
     if (step === 4 && !skipCustomer) {
-      // Save customer
       if (!customerName.trim()) { alert('Please enter customer name or skip'); setSaving(false); return }
       const code = 'C' + String(Math.floor(Math.random() * 9000) + 1000)
       await supabase.from('customers').insert([{
+        tenant_id: tenantId,
         full_name: customerName,
         mobile: customerMobile,
         customer_code: code,
@@ -158,10 +154,9 @@ export default function SetupWizard({ onComplete }) {
     }
 
     if (step === STEPS.length - 1) {
-      // Mark setup as complete
       await supabase.from('business_settings').upsert([
-        { setting_key: 'setup_completed', setting_value: 'true' }
-      ], { onConflict: 'setting_key' })
+        { tenant_id: tenantId, setting_key: 'setup_completed', setting_value: 'true' }
+      ], { onConflict: 'tenant_id,setting_key' })
       setSaving(false)
       onComplete()
       return
@@ -206,8 +201,6 @@ export default function SetupWizard({ onComplete }) {
               <p style={{ fontSize: '13px', opacity: 0.7, margin: 0 }}>Let's set up your business in 5 minutes</p>
             </div>
           </div>
-
-          {/* Progress */}
           <div style={{ display: 'flex', gap: '6px' }}>
             {STEPS.map((s, i) => (
               <div key={s.key} style={{
