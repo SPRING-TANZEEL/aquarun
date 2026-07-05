@@ -18,6 +18,7 @@ import Accounts from './Accounts'
 const menuItems = [
   { key: 'dashboard', icon: '📊', label: 'Dashboard' },
   { key: 'customers', icon: '👥', label: 'Customers' },
+  { key: 'quicksale', icon: '⚡', label: 'Quick Sale' },
   { key: 'orders', icon: '📦', label: 'Orders' },
   { key: 'riders', icon: '🚴', label: 'Riders' },
   { key: 'cashtransfer', icon: '💸', label: 'Cash Transfers' },
@@ -27,7 +28,6 @@ const menuItems = [
   { key: 'inventory', icon: '🏭', label: 'Inventory' },
   { key: 'reports', icon: '📈', label: 'Reports' },
   { key: 'accounts', label: 'Accounts', icon: '📊' },
-  { key: 'quicksale', icon: '⚡', label: 'Quick Sale' },
   { key: 'transactions', icon: '🗂️', label: 'Transactions' },
   { key: 'settings', icon: '⚙️', label: 'Settings' },
 ]
