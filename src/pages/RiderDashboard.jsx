@@ -10,7 +10,7 @@ import RiderCashTransfer from './RiderCashTransfer'
 import RiderSalary from './RiderSalary'
 import RiderAdvanceApproval from './RiderAdvanceApproval'
 import OfficeExpenses from './OfficeExpenses'
-import RiderQuickSale from './RiderQuickSale'
+
 
 export default function RiderDashboard({ user, onLogout }) {
   const [activePage, setActivePage] = useState('deliveries')
@@ -104,9 +104,9 @@ export default function RiderDashboard({ user, onLogout }) {
 
   const mainMenu = [
     { key: 'deliveries', icon: '📦', urdu: 'ڈیلیوری' },
-    { key: 'quicksale', icon: '⚡', urdu: 'فوری' },
     { key: 'sell', icon: '👤', urdu: 'کسٹمر' },
     { key: 'receivables', icon: '💰', urdu: 'باقی' },
+    { key: 'cash', icon: '💵', urdu: 'کیش' },
     { key: 'more', icon: '☰', urdu: 'مزید' },
   ]
 
@@ -248,6 +248,7 @@ export default function RiderDashboard({ user, onLogout }) {
             dbReady={dbReady}
           />
         )}
+        
         {activePage === 'cash' && <RiderCashSummary rider={user} tenantId={user.tenant_id} />}
         {activePage === 'expense' && <RiderExpense rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} />}
         {activePage === 'transfer' && <RiderCashTransfer rider={user} tenantId={user.tenant_id} />}
