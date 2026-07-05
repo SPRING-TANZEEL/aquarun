@@ -236,35 +236,53 @@ export default function BusinessSettings() {
           {/* ── ABOUT ── */}
           {activeMenu === 'about' && (
             <div style={card}>
-              <div style={{ textAlign: 'center', padding: '20px 0' }}>
-                <div style={{ fontSize: '60px', marginBottom: '12px' }}>💧</div>
-                <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>AquaRun</h2>
-                <p style={{ fontSize: '14px', color: '#888', margin: '0 0 20px' }}>Water Delivery Management System</p>
-                <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '16px', marginBottom: '16px', textAlign: 'left' }}>
-                  {[
-                    ['Version', '1.0.0'],
-                    ['Platform', 'Web App + PWA'],
-                    ['Database', 'Supabase (PostgreSQL)'],
-                    ['Frontend', 'React + Vite'],
-                    ['Hosting', 'Vercel'],
-                    ['Built by', 'Spring Water Kamoke'],
-                  ].map(([k, v]) => (
-                    <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #e3f0ff' }}>
-                      <span style={{ fontSize: '13px', color: '#555' }}>{k}</span>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#0f4c81' }}>{v}</span>
-                    </div>
-                  ))}
+              <div style={{ padding: '8px 0' }}>
+                <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '56px', marginBottom: '10px' }}>💧</div>
+                  <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>AquaRun</h2>
+                  <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Water Delivery Management System</p>
                 </div>
-                <p style={{ fontSize: '11px', color: '#aaa' }}>© 2026 AquaRun — All rights reserved</p>
+
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Software Information</p>
+                {[
+                  ['Software', 'AquaRun v1.0'],
+                  ['Platform', 'Web App + PWA'],
+                  ['Database', 'Supabase (PostgreSQL)'],
+                  ['Frontend', 'React + Vite'],
+                  ['Hosting', 'Vercel'],
+                  ['Currency', 'PKR'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <span style={{ fontSize: '13px', color: '#888' }}>{k}</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>{v}</span>
+                  </div>
+                ))}
+
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '20px 0 8px' }}>Developer & Support</p>
+                {[
+                  ['Built by', 'Muhammad Tanzeel Ur Rehman'],
+                  ['Qualification', 'CMA — Chartered Management Accountant'],
+                  ['Organization', 'LESCO — Lahore Electric Supply Company'],
+                  ['Support Email', 'mian.tanzeel62@gmail.com'],
+                  ['Contact', '0323-7919338'],
+                  ['WhatsApp', '0309-7621882'],
+                  ['Business', 'Spring Water Kamoke'],
+                ].map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <span style={{ fontSize: '13px', color: '#888' }}>{k}</span>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#333', textAlign: 'right', maxWidth: '60%' }}>{v}</span>
+                  </div>
+                ))}
+
+                <div style={{ marginTop: '20px', background: '#f0f7ff', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600', margin: '0 0 4px' }}>Need help or support?</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Contact Muhammad Tanzeel on WhatsApp: <strong>0309-7621882</strong></p>
+                </div>
+
+                <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: '16px 0 0' }}>© 2026 AquaRun — Built by Muhammad Tanzeel Ur Rehman</p>
               </div>
             </div>
           )}
-
-        </div>
-      </div>
-    </div>
-  )
-}
 
 // ── BACKUP & RESTORE ─────────────────────────────────────────────────
 function BackupRestore({ settings }) {
