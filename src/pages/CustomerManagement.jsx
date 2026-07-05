@@ -180,6 +180,26 @@ export default function CustomerManagement({ tenantId }) {
         setSaving(false)
         return
       }
+
+      // Post opening balance journal entry if opening balance > 0
+      if (Number(form.opening_balance) > 0) {
+        const { data: je } = await supabase.from('journal_entries').insert([{
+          tenant_id: tenantId,
+          entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'opening_balance',
+          narration: `Opening balance — ${cleanForm.full_name}`,
+          total_amount: Number(form.opening_balance),
+          created_by: 'system'
+        }]).select().single()
+
+        if (je) {
+          await supabase.from('journal_entry_lines').insert([
+            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1100', account_name: 'Accounts Receivable', debit: Number(form.opening_balance), credit: 0 },
+            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Number(form.opening_balance) }
+          ])
+        }
+      }
+
       alert(`Customer added!\n\nCustomer ID: ${customerCode}\nPassword: ${form.customer_password}\n\nShare these with the customer for app login.`)
     }
 
