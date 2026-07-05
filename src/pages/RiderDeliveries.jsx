@@ -87,6 +87,21 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     }
 
     setSaving(true)
+
+    // Silently capture GPS location
+    let deliveryLat = null
+    let deliveryLng = null
+    try {
+      const position = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+      )
+      deliveryLat = position.coords.latitude
+      deliveryLng = position.coords.longitude
+    } catch (err) {
+      console.log('GPS not available:', err.message)
+    }
+
+    setSaving(true)
     const isJazz = paymentMethod === 'jazzcash'
     const isCredit = paymentMethod === 'credit'
     const isCash = paymentMethod === 'cash'

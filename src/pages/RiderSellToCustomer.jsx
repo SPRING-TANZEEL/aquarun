@@ -76,6 +76,19 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const creditPortion = isCredit ? total : isCash ? (total - received) : 0
     const now = new Date().toISOString()
 
+    // Silently capture GPS location
+    let deliveryLat = null
+    let deliveryLng = null
+    try {
+      const position = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+      )
+      deliveryLat = position.coords.latitude
+      deliveryLng = position.coords.longitude
+    } catch (err) {
+      console.log('GPS not available:', err.message)
+    }
+
     const deliveryData = {
       tenant_id: tenantId,
       customer_id: selectedCustomer.id,
@@ -90,7 +103,9 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       credit_amount: creditPortion,
       jazzcash_confirmed: false,
       delivered_at: now,
-      is_voided: false
+      is_voided: false,
+      delivery_lat: deliveryLat,
+      delivery_lng: deliveryLng
     }
 
     if (isOnline) {
@@ -107,6 +122,23 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         const { postDeliveryJournal } = await import('../accountingEngine')
         await postDeliveryJournal(savedDelivery, selectedCustomer.id, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
+
+      // Silently save GPS to customer profile if not already set
+      if (deliveryLat && deliveryLng && selectedCustomer.id) {
+        const { data: cust } = await supabase.from('customers')
+          .select('latitude, longitude')
+          .eq('id', selectedCustomer.id)
+          .eq('tenant_id', tenantId)
+          .single()
+        if (cust && !cust.latitude) {
+          await supabase.from('customers').update({
+            latitude: String(deliveryLat),
+            longitude: String(deliveryLng)
+          })
+            .eq('id', selectedCustomer.id)
+            .eq('tenant_id', tenantId)
+        }
+      }
 
     } else {
       await savePendingDelivery(deliveryData)

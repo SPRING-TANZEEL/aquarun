@@ -2,6 +2,7 @@ import SetupWizard from '../components/SetupWizard'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import CustomerManagement from './CustomerManagement'
+import AdminQuickSale from './AdminQuickSale'
 import Orders from './Orders'
 import RiderManagement from './RiderManagement'
 import JazzCashReconciliation from './JazzCashReconciliation'
@@ -26,6 +27,7 @@ const menuItems = [
   { key: 'inventory', icon: '🏭', label: 'Inventory' },
   { key: 'reports', icon: '📈', label: 'Reports' },
   { key: 'accounts', label: 'Accounts', icon: '📊' },
+  { key: 'quicksale', icon: '⚡', label: 'Quick Sale' },
   { key: 'transactions', icon: '🗂️', label: 'Transactions' },
   { key: 'settings', icon: '⚙️', label: 'Settings' },
 ]
@@ -648,6 +650,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
           {activePage === 'cashposition' && <CEOCashPosition tenantId={tenantId} />}
           {activePage === 'inventory' && <Inventory tenantId={tenantId} />}
           {activePage === 'reports' && <Reports tenantId={tenantId} />}
+          {activePage === 'quicksale' && <AdminQuickSale tenantId={tenantId} />}
           {activePage === 'transactions' && <Transactions tenantId={tenantId} />}
           {activePage === 'accounts' && <Accounts tenantId={tenantId} />}
           {activePage === 'settings' && <BusinessSettings tenantId={tenantId} />}
