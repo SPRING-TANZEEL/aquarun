@@ -291,7 +291,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
     const today = new Date().toISOString().split('T')[0]
 
     return (
-      <svg width="100%" viewBox={`0 0 ${totalW + 40} ${chartH + 50}`} style={{ overflow: 'visible' }}>
+      <svg width="100%" viewBox={`0 0 ${totalW + 40} ${chartH + 50}`} style={{ overflow: 'visible', display: 'block', maxWidth: '100%' }}>
         {[0, 0.5, 1].map((p, i) => (
           <g key={i}>
             <line x1="30" y1={chartH - p * chartH} x2={totalW + 40} y2={chartH - p * chartH} stroke="#f0f0f0" strokeWidth="1" />
@@ -371,7 +371,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
   }
 
   return (
-    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'Inter', sans-serif", background: '#f5f7fa', width: '100vw' }}>
+    <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', fontFamily: "'Inter', sans-serif", background: '#f5f7fa', width: '100%' }}>
 
       {/* Mobile Overlay */}
       {isMobile && sidebarOpen && (
@@ -381,13 +381,14 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
       {/* Sidebar */}
       <div style={{
-        width: isMobile ? '220px' : '260px', background: '#0f4c81', color: 'white',
+        width: isMobile ? '220px' : '240px', background: '#0f4c81', color: 'white',
         display: 'flex', flexDirection: 'column', flexShrink: 0,
         boxShadow: '4px 0 20px rgba(0,0,0,0.15)',
         position: isMobile ? 'fixed' : 'relative',
         top: 0, left: 0, bottom: 0, zIndex: 100,
         transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'none',
-        transition: 'transform 0.3s ease'
+        transition: 'transform 0.3s ease',
+        overflowY: 'auto', overflowX: 'hidden'
       }}>
         <div style={{ padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -447,7 +448,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
       </div>
 
       {/* Main Content */}
-      <div style={{ flex: 1, overflow: 'auto', minWidth: 0 }}>
+      <div style={{ flex: 1, overflow: 'auto', minWidth: 0, width: 0 }}>
 
         {/* Top Bar */}
         <div style={{ background: 'white', padding: '12px 16px', borderBottom: '1px solid #e8eaed', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', position: 'sticky', top: 0, zIndex: 50 }}>
@@ -492,7 +493,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
           </div>
         </div>
 
-        <div style={{ padding: isMobile ? '12px' : '28px 36px', maxWidth: '100%' }}>
+        <div style={{ padding: isMobile ? '12px' : '24px 28px', maxWidth: '100%', boxSizing: 'border-box', overflowX: 'hidden' }}>
 
           {showSetupWizard && (
             <SetupWizard tenantId={tenantId} onComplete={() => { setShowSetupWizard(false); fetchBusiness() }} />
