@@ -437,7 +437,8 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
   const [success, setSuccess] = useState(null)
   const [bom, setBom] = useState([])
   const [bomLoading, setBomLoading] = useState(false)
-  const OVERHEAD_PER_UNIT = 20
+  const [overhead, setOverhead] = useState(20)
+  const [notes, setNotes] = useState('')
 
   const finishedGoods = products.filter(p => p.product_type === 'finished_good')
 
@@ -483,7 +484,7 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
     }
 
     setSaving(true)
-    const totalOverhead = qty * OVERHEAD_PER_UNIT
+     const totalOverhead = qty * overhead
 
     const { data: prodEntry, error: prodError } = await supabase
       .from('production_entries')
@@ -491,45 +492,97 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
         tenant_id: tenantId,
         finished_good_id: selectedProduct,
         quantity_produced: qty,
-        overhead_per_unit: OVERHEAD_PER_UNIT,
         total_overhead: totalOverhead,
-        production_date: new Date().toISOString().split('T')[0]
+        production_date: new Date().toISOString().split('T')[0],
+        notes: notes,
+        total_cost: 0,
+        cost_per_unit: 0
       }])
       .select().single()
 
     if (prodError) { alert('Error: ' + prodError.message); setSaving(false); return }
 
+    let totalRawMaterialCost = 0
+
     for (const bomItem of bom) {
       const consumed = bomItem.quantity_per_unit * qty
       const rm = products.find(p => p.id === bomItem.raw_material_id)
+      const unitCost = Number(rm?.average_cost || rm?.purchase_price || 0)
+      const lineCost = consumed * unitCost
+      totalRawMaterialCost += lineCost
 
+      // Save consumption line
       await supabase.from('production_consumption').insert([{
         tenant_id: tenantId,
         production_entry_id: prodEntry.id,
         raw_material_id: bomItem.raw_material_id,
-        quantity_consumed: consumed
+        quantity_consumed: consumed,
+        unit_cost: unitCost,
+        total_cost: lineCost
       }])
 
-      const newStock = (rm?.current_stock || 0) - consumed
+      // Reduce raw material stock
+      const newStock = Math.max(0, (rm?.current_stock || 0) - consumed)
       const updateData = { current_stock: newStock }
-
       if (rm?.name === 'Shrinking Paper' && rm?.current_stock_kg > 0 && rm?.current_stock > 0) {
         const kgPerPiece = rm.current_stock_kg / rm.current_stock
         updateData.current_stock_kg = Math.max(0, (rm.current_stock_kg || 0) - (consumed * kgPerPiece))
       }
-
-      await supabase.from('products')
-        .update(updateData)
-        .eq('id', bomItem.raw_material_id)
-        .eq('tenant_id', tenantId)
+      await supabase.from('products').update(updateData).eq('id', bomItem.raw_material_id).eq('tenant_id', tenantId)
     }
 
-    await supabase.from('products')
-      .update({ current_stock: (product?.current_stock || 0) + qty })
-      .eq('id', selectedProduct)
+    const totalCost = totalRawMaterialCost + totalOverhead
+    const costPerUnit = qty > 0 ? totalCost / qty : 0
+
+    // Update production entry with actual cost
+    await supabase.from('production_entries')
+      .update({ total_cost: totalCost, cost_per_unit: costPerUnit })
+      .eq('id', prodEntry.id)
       .eq('tenant_id', tenantId)
 
-    setSuccess({ product: product?.name, qty, totalOverhead })
+    // Increase finished good stock and update average cost
+    const currentStock = product?.current_stock || 0
+    const currentAvgCost = product?.average_cost || 0
+    const newAvgCost = currentStock > 0
+      ? ((currentStock * currentAvgCost) + totalCost) / (currentStock + qty)
+      : costPerUnit
+
+    await supabase.from('products').update({
+      current_stock: currentStock + qty,
+      average_cost: newAvgCost
+    }).eq('id', selectedProduct).eq('tenant_id', tenantId)
+
+    // Post journal entry
+    // DR 1201 Finished Goods Inventory
+    // CR 1200 Raw Materials Inventory (raw material cost)
+    // CR 5002 Production Overhead (overhead cost)
+    try {
+      const { data: je } = await supabase.from('journal_entries').insert([{
+        tenant_id: tenantId,
+        entry_date: new Date().toISOString().split('T')[0],
+        reference_type: 'production',
+        reference_id: prodEntry.id,
+        narration: `Production: ${product?.name} × ${qty} units — Cost Rs.${totalCost.toLocaleString()}`,
+        total_amount: totalCost,
+        created_by: 'admin'
+      }]).select().single()
+
+      if (je) {
+        const lines = [
+          { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1201', account_name: 'Inventory - Finished Goods', debit: totalCost, credit: 0 },
+        ]
+        if (totalRawMaterialCost > 0) {
+          lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '1200', account_name: 'Inventory - Raw Materials', debit: 0, credit: totalRawMaterialCost })
+        }
+        if (totalOverhead > 0) {
+          lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '5002', account_name: 'Production Overhead', debit: 0, credit: totalOverhead })
+        }
+        await supabase.from('journal_entry_lines').insert(lines)
+        await supabase.from('production_entries').update({ journal_entry_id: je.id }).eq('id', prodEntry.id)
+      }
+    } catch (err) { console.error('Journal error:', err) }
+
+    setSuccess({ product: product?.name, qty, totalOverhead, totalRawMaterialCost, totalCost, costPerUnit })
     setSelectedProduct('')
     setQuantity('')
     setBom([])
@@ -547,7 +600,10 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Production Recorded!</p>
           <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.product} × {success.qty} units produced</p>
-          <p style={{ fontSize: '13px', color: '#2e7d32', margin: 0 }}>Overhead: Rs. {success.totalOverhead.toLocaleString()}</p>
+          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Raw Material Cost: Rs. {success.totalRawMaterialCost?.toLocaleString()}</p>
+          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Overhead: Rs. {success.totalOverhead?.toLocaleString()}</p>
+          <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>Total Cost: Rs. {success.totalCost?.toLocaleString()}</p>
+          <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Cost per Unit: Rs. {Number(success.costPerUnit).toFixed(2)}</p>
           <button onClick={() => setSuccess(null)}
             style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
             New Production
@@ -566,9 +622,19 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
           </select>
         </div>
 
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+          <div>
+            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Quantity to Produce *</label>
+            <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="e.g. 100" style={inp} />
+          </div>
+          <div>
+            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Overhead per Unit (Rs.)</label>
+            <input type="number" value={overhead} onChange={e => setOverhead(Number(e.target.value) || 0)} placeholder="20" style={inp} />
+          </div>
+        </div>
         <div style={{ marginBottom: '16px' }}>
-          <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Quantity to Produce *</label>
-          <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="e.g. 100" style={inp} />
+          <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Notes (optional)</label>
+          <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="e.g. Morning batch..." style={inp} />
         </div>
 
         {selectedProduct && qty > 0 && bom.length > 0 && (
@@ -619,6 +685,7 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
 function ProductManagement({ products, onRefresh, tenantId }) {
   const [showForm, setShowForm] = useState(false)
   const [editProduct, setEditProduct] = useState(null)
+  const [manageBom, setManageBom] = useState(null)
   const [form, setForm] = useState({
     name: '', product_type: 'trading', unit: 'pcs',
     sale_price: 0, purchase_price: 0, is_saleable: true, notes: ''
@@ -680,6 +747,15 @@ function ProductManagement({ products, onRefresh, tenantId }) {
           + Add Product
         </button>
       </div>
+
+      {manageBom && (
+        <BOMEditor
+          product={manageBom}
+          products={products}
+          tenantId={tenantId}
+          onClose={() => setManageBom(null)}
+        />
+      )}
 
       {showForm && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #e3f0ff' }}>
@@ -782,9 +858,15 @@ function ProductManagement({ products, onRefresh, tenantId }) {
                       </td>
                       <td style={{ padding: '10px 14px' }}>
                         <button onClick={() => openEditForm(p)}
-                          style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                          style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', marginRight: '4px' }}>
                           ✏️ Edit
                         </button>
+                        {p.product_type === 'finished_good' && (
+                          <button onClick={() => setManageBom(p)}
+                            style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                            🧪 BOM
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -797,6 +879,121 @@ function ProductManagement({ products, onRefresh, tenantId }) {
     </div>
   )
 }
+// ─── BOM EDITOR ────────────────────────────────────────────────────
+function BOMEditor({ product, products, tenantId, onClose }) {
+  const [bom, setBom] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [addRawMaterial, setAddRawMaterial] = useState('')
+  const [addQty, setAddQty] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const rawMaterials = products.filter(p => p.product_type === 'raw_material')
+
+  useEffect(() => { fetchBom() }, [])
+
+  async function fetchBom() {
+    setLoading(true)
+    const { data } = await supabase.from('bill_of_materials')
+      .select('*, raw_material:raw_material_id(*)')
+      .eq('tenant_id', tenantId)
+      .eq('finished_good_id', product.id)
+    setBom(data || [])
+    setLoading(false)
+  }
+
+  async function addBomItem() {
+    if (!addRawMaterial) return alert('Select a raw material')
+    if (!addQty || Number(addQty) <= 0) return alert('Enter quantity per unit')
+    setSaving(true)
+    const { error } = await supabase.from('bill_of_materials').insert([{
+      tenant_id: tenantId,
+      finished_good_id: product.id,
+      raw_material_id: addRawMaterial,
+      quantity_required: Number(addQty),
+      unit: 'pcs'
+    }])
+    if (error) { alert('Error: ' + error.message); setSaving(false); return }
+    setAddRawMaterial('')
+    setAddQty('')
+    fetchBom()
+    setSaving(false)
+  }
+
+  async function deleteBomItem(id) {
+    if (!window.confirm('Remove this item from BOM?')) return
+    await supabase.from('bill_of_materials').delete().eq('id', id)
+    fetchBom()
+  }
+
+  const inp = { width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #e8f5e9' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div>
+          <h4 style={{ margin: '0 0 4px', color: '#1a7a4a', fontSize: '15px' }}>🧪 Bill of Materials — {product.name}</h4>
+          <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Define raw materials needed to produce 1 unit</p>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}>✕</button>
+      </div>
+
+      {loading ? (
+        <p style={{ color: '#888', fontSize: '13px' }}>Loading...</p>
+      ) : bom.length === 0 ? (
+        <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '16px', textAlign: 'center', marginBottom: '16px' }}>
+          <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>No raw materials defined yet. Add below.</p>
+        </div>
+      ) : (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Current BOM (per 1 unit)</p>
+          {bom.map(item => (
+            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px' }}>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{item.raw_material?.name}</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                  Stock: {Number(item.raw_material?.current_stock || 0).toLocaleString()} pcs available
+                </p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
+                  {item.quantity_required} pcs per unit
+                </span>
+                <button onClick={() => deleteBomItem(item.id)}
+                  style={{ padding: '4px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                  ✕ Remove
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', marginBottom: '10px' }}>+ Add Raw Material</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', alignItems: 'end' }}>
+          <div>
+            <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Raw Material</label>
+            <select value={addRawMaterial} onChange={e => setAddRawMaterial(e.target.value)} style={inp}>
+              <option value="">-- Select --</option>
+              {rawMaterials.map(p => (
+                <option key={p.id} value={p.id}>{p.name} (Stock: {Number(p.current_stock).toLocaleString()})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Qty per Unit</label>
+            <input type="number" value={addQty} onChange={e => setAddQty(e.target.value)} placeholder="1" style={inp} />
+          </div>
+          <button onClick={addBomItem} disabled={saving}
+            style={{ padding: '10px 16px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+            {saving ? '...' : '+ Add'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 
 // ─── STOCK HISTORY ─────────────────────────────────────────────────
 function StockHistory({ products, tenantId }) {
