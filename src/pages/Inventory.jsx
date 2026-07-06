@@ -885,6 +885,9 @@ function BOMEditor({ product, products, tenantId, onClose }) {
   const [loading, setLoading] = useState(true)
   const [addRawMaterial, setAddRawMaterial] = useState('')
   const [addQty, setAddQty] = useState('')
+  const [addCostType, setAddCostType] = useState('raw_material')
+  const [addCostPerUnit, setAddCostPerUnit] = useState('')
+  const [addDescription, setAddDescription] = useState('')
   const [saving, setSaving] = useState(false)
 
   const rawMaterials = products.filter(p => p.product_type === 'raw_material')
@@ -902,20 +905,30 @@ function BOMEditor({ product, products, tenantId, onClose }) {
   }
 
   async function addBomItem() {
-    if (!addRawMaterial) return alert('Select a raw material')
-    if (!addQty || Number(addQty) <= 0) return alert('Enter quantity per unit')
+    if (addCostType === 'raw_material') {
+      if (!addRawMaterial) return alert('Select a raw material')
+      if (!addQty || Number(addQty) <= 0) return alert('Enter quantity per unit')
+    } else {
+      if (!addCostPerUnit || Number(addCostPerUnit) <= 0) return alert('Enter cost per unit')
+      if (!addDescription) return alert('Enter description e.g. Bottle filling labour')
+    }
     setSaving(true)
     const { error } = await supabase.from('bill_of_materials').insert([{
       tenant_id: tenantId,
       finished_good_id: product.id,
-      raw_material_id: addRawMaterial,
-      quantity_per_unit: Number(addQty),
-      quantity_required: Number(addQty),
+      raw_material_id: addCostType === 'raw_material' ? addRawMaterial : null,
+      quantity_per_unit: addCostType === 'raw_material' ? Number(addQty) : 1,
+      quantity_required: addCostType === 'raw_material' ? Number(addQty) : 1,
+      cost_type: addCostType,
+      cost_per_unit: addCostType === 'raw_material' ? 0 : Number(addCostPerUnit),
+      description: addDescription || null,
       unit: 'pcs'
     }])
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
     setAddRawMaterial('')
     setAddQty('')
+    setAddCostPerUnit('')
+    setAddDescription('')
     fetchBom()
     setSaving(false)
   }
@@ -940,32 +953,68 @@ function BOMEditor({ product, products, tenantId, onClose }) {
 
       {loading ? (
         <p style={{ color: '#888', fontSize: '13px' }}>Loading...</p>
-      ) : bom.length === 0 ? (
+      ) {bom.length === 0 ? (
         <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '16px', textAlign: 'center', marginBottom: '16px' }}>
-          <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>No raw materials defined yet. Add below.</p>
+          <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>No items defined yet. Add raw materials and cost components below.</p>
         </div>
       ) : (
         <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Current BOM (per 1 unit)</p>
-          {bom.map(item => (
-            <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px' }}>
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{item.raw_material?.name}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                  Stock: {Number(item.raw_material?.current_stock || 0).toLocaleString()} pcs available
-                </p>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
-                  {item.quantity_per_unit || item.quantity_required} pcs per unit
-                </span>
-                <button onClick={() => deleteBomItem(item.id)}
-                  style={{ padding: '4px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                  ✕ Remove
-                </button>
-              </div>
+          {/* Raw Materials */}
+          {bom.filter(i => !i.cost_type || i.cost_type === 'raw_material').length > 0 && (
+            <>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#0f4c81', marginBottom: '6px', textTransform: 'uppercase' }}>🧪 Raw Materials</p>
+              {bom.filter(i => !i.cost_type || i.cost_type === 'raw_material').map(item => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#e3f0ff', borderRadius: '8px', marginBottom: '6px' }}>
+                  <div>
+                    <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{item.raw_material?.name}</p>
+                    <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>Stock: {Number(item.raw_material?.current_stock || 0).toLocaleString()} pcs</p>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>{item.quantity_per_unit || item.quantity_required} pcs/unit</span>
+                    <button onClick={() => deleteBomItem(item.id)} style={{ padding: '4px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>✕</button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
+
+          {/* Cost Components */}
+          {bom.filter(i => i.cost_type && i.cost_type !== 'raw_material').length > 0 && (
+            <>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#e65100', marginBottom: '6px', marginTop: '10px', textTransform: 'uppercase' }}>💼 Labour & Overhead</p>
+              {bom.filter(i => i.cost_type && i.cost_type !== 'raw_material').map(item => {
+                const typeLabel = item.cost_type === 'labour' ? '👷 Labour' : item.cost_type === 'fixed_overhead' ? '🏭 Fixed Overhead' : '⚡ Variable Overhead'
+                const typeColor = item.cost_type === 'labour' ? '#9c27b0' : item.cost_type === 'fixed_overhead' ? '#e65100' : '#0f4c81'
+                return (
+                  <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#fff3e0', borderRadius: '8px', marginBottom: '6px' }}>
+                    <div>
+                      <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{item.description}</p>
+                      <span style={{ fontSize: '10px', background: '#fff', color: typeColor, padding: '2px 6px', borderRadius: '4px', fontWeight: '700' }}>{typeLabel}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#e65100' }}>Rs. {Number(item.cost_per_unit).toLocaleString()}/unit</span>
+                      <button onClick={() => deleteBomItem(item.id)} style={{ padding: '4px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>✕</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </>
+          )}
+
+          {/* Total Cost per Unit */}
+          <div style={{ background: '#e8f5e9', borderRadius: '8px', padding: '10px 14px', marginTop: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>Estimated Cost per Unit</span>
+              <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a7a4a' }}>
+                Rs. {bom.reduce((sum, item) => {
+                  if (!item.cost_type || item.cost_type === 'raw_material') {
+                    return sum + (item.quantity_per_unit || item.quantity_required || 0) * Number(item.raw_material?.average_cost || item.raw_material?.purchase_price || 0)
+                  }
+                  return sum + Number(item.cost_per_unit || 0)
+                }, 0).toLocaleString()}
+              </span>
             </div>
-          ))}
+          </div>
         </div>
       )}
 
