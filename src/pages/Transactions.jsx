@@ -160,7 +160,6 @@ export default function Transactions({ tenantId }) {
         .eq('tenant_id', tenantId)
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
-        .eq('is_voided', showVoided)
         .order('created_at', { ascending: false })
       data?.forEach(a => all.push({
         id: a.id, type: 'salary_advance', table: 'salary_advances',
