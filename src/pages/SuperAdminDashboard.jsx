@@ -4,9 +4,9 @@ import { supabase } from '../supabase'
 export default function SuperAdminDashboard({ onLogout }) {
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('clients')
   const [showAddForm, setShowAddForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editTenant, setEditTenant] = useState(null) // for edit modal
   const [form, setForm] = useState({
     tenant_code: '', business_name: '', admin_password: '',
     plan: 'basic', setup_fee: '', monthly_fee: '', notes: ''
@@ -43,7 +43,6 @@ export default function SuperAdminDashboard({ onLogout }) {
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-    // ✅ Use tenant UUID not tenant_code
     const tenantUUID = newTenant.id
     await createDefaultCOA(tenantUUID)
     await createDefaultSettings(tenantUUID, form.business_name)
@@ -57,7 +56,6 @@ export default function SuperAdminDashboard({ onLogout }) {
 
   async function createDefaultCOA(tenantId) {
     const accounts = [
-      // Assets — Current
       { tenant_id: tenantId, account_code: '1001', account_name: 'Cash in Hand', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1002', account_name: 'JazzCash Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1003', account_name: 'Bank Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
@@ -65,32 +63,26 @@ export default function SuperAdminDashboard({ onLogout }) {
       { tenant_id: tenantId, account_code: '1200', account_name: 'Inventory - Raw Materials', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1201', account_name: 'Inventory - Finished Goods', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1300', account_name: 'Prepaid Expenses', account_type: 'asset', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
-      // Assets — Fixed
       { tenant_id: tenantId, account_code: '1500', account_name: 'Vehicle - Delivery', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1501', account_name: 'Machinery & Equipment', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1502', account_name: 'Accumulated Depreciation', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
-      // Liabilities
       { tenant_id: tenantId, account_code: '2001', account_name: 'Accounts Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '2100', account_name: 'Salary Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '2200', account_name: 'Advance from Customers', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '2300', account_name: 'Tax Payable', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
-      // Equity
       { tenant_id: tenantId, account_code: '3001', account_name: 'Owner Capital', account_type: 'equity', account_subtype: 'capital', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '3002', account_name: 'Owner Drawings', account_type: 'equity', account_subtype: 'drawings', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '3003', account_name: 'Retained Earnings', account_type: 'equity', account_subtype: 'capital', is_system: false, is_active: true, opening_balance: 0 },
-      // Revenue
       { tenant_id: tenantId, account_code: '4001', account_name: 'Water Sales - 19L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '4002', account_name: 'Water Sales - Half Litre', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '4003', account_name: 'Water Sales - 1.5L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '4004', account_name: 'Other Sales', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '4100', account_name: 'Delivery Charges', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '4200', account_name: 'Other Income', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
-      // Cost of Goods Sold
       { tenant_id: tenantId, account_code: '5001', account_name: 'Raw Material Cost', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '5002', account_name: 'Production Overhead', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '5003', account_name: 'Cost of Goods Sold', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '5004', account_name: 'Raw Material Consumed', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
-      // Expenses
       { tenant_id: tenantId, account_code: '6001', account_name: 'Rider Salaries', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6002', account_name: 'Salary Advances', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6003', account_name: 'Rider Field Expenses', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
@@ -140,6 +132,59 @@ export default function SuperAdminDashboard({ onLogout }) {
     }).eq('id', tenant.id)
     fetchTenants()
     alert('✅ Payment recorded!')
+  }
+
+  async function resetPassword(tenant) {
+    const newPass = prompt(`Reset password for ${tenant.business_name}\nEnter new password:`)
+    if (!newPass || newPass.trim().length < 4) return alert('Password must be at least 4 characters')
+    await supabase.from('tenants').update({ admin_password: newPass.trim() }).eq('id', tenant.id)
+    alert(`✅ Password reset!\n\nBusiness ID: ${tenant.tenant_code}\nNew Password: ${newPass.trim()}`)
+    fetchTenants()
+  }
+
+  async function changeBusinessId(tenant) {
+    const newId = prompt(`Change Business ID for ${tenant.business_name}\nCurrent ID: ${tenant.tenant_code}\nEnter new Business ID:`)
+    if (!newId || newId.trim().length < 3) return alert('Business ID must be at least 3 characters')
+    const cleanId = newId.trim().toUpperCase()
+    // Check if already exists
+    const { data: existing } = await supabase.from('tenants').select('id').eq('tenant_code', cleanId).single()
+    if (existing) return alert(`Business ID "${cleanId}" is already taken. Choose a different one.`)
+    await supabase.from('tenants').update({ tenant_code: cleanId }).eq('id', tenant.id)
+    alert(`✅ Business ID changed!\n\nNew Business ID: ${cleanId}\nPassword: unchanged\n\nShare new ID with client.`)
+    fetchTenants()
+  }
+
+  async function deleteTenant(tenant) {
+    if (!window.confirm(`DELETE ${tenant.business_name}?\n\nThis will permanently delete ALL data. This cannot be undone.`)) return
+    if (!window.confirm(`Final confirmation — delete ${tenant.business_name} permanently?`)) return
+
+    const tid = tenant.id
+    await supabase.from('bill_of_materials').delete().eq('tenant_id', tid)
+    const { data: prodEntries } = await supabase.from('production_entries').select('id').eq('tenant_id', tid)
+    if (prodEntries?.length > 0) {
+      await supabase.from('production_consumption').delete().in('production_entry_id', prodEntries.map(p => p.id))
+    }
+    await supabase.from('production_entries').delete().eq('tenant_id', tid)
+    await supabase.from('journal_entry_lines').delete().eq('tenant_id', tid)
+    await supabase.from('journal_entries').delete().eq('tenant_id', tid)
+    await supabase.from('deliveries').delete().eq('tenant_id', tid)
+    await supabase.from('payments').delete().eq('tenant_id', tid)
+    await supabase.from('orders').delete().eq('tenant_id', tid)
+    await supabase.from('expenses').delete().eq('tenant_id', tid)
+    await supabase.from('office_expenses').delete().eq('tenant_id', tid)
+    await supabase.from('cash_transfers').delete().eq('tenant_id', tid)
+    await supabase.from('salary_advances').delete().eq('tenant_id', tid)
+    await supabase.from('salary_payments').delete().eq('tenant_id', tid)
+    await supabase.from('stock_purchases').delete().eq('tenant_id', tid)
+    await supabase.from('customers').delete().eq('tenant_id', tid)
+    await supabase.from('riders').delete().eq('tenant_id', tid)
+    await supabase.from('products').delete().eq('tenant_id', tid)
+    await supabase.from('chart_of_accounts').delete().eq('tenant_id', tid)
+    await supabase.from('business_settings').delete().eq('tenant_id', tid)
+    await supabase.from('tenants').delete().eq('id', tid)
+
+    alert(`✅ ${tenant.business_name} deleted successfully.`)
+    fetchTenants()
   }
 
   const totalMonthly = tenants.filter(t => t.is_active && t.tenant_code !== 'SW001').reduce((s, t) => s + Number(t.monthly_fee || 0), 0)
@@ -267,7 +312,7 @@ export default function SuperAdminDashboard({ onLogout }) {
                 <thead>
                   <tr style={{ background: '#f8f9fa' }}>
                     {['Business ID', 'Business Name', 'Plan', 'Setup Fee', 'Monthly Fee', 'Next Due', 'Status', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '700', borderBottom: '2px solid #eee', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '700', borderBottom: '2px solid #eee', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
@@ -298,23 +343,40 @@ export default function SuperAdminDashboard({ onLogout }) {
                           {isOverdue && <span style={{ display: 'block', fontSize: '10px', color: '#f44336' }}>OVERDUE</span>}
                         </td>
                         <td style={{ padding: '14px' }}>
-                          <span onClick={() => t.tenant_code !== 'SW001' && toggleActive(t)}
-                            style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', cursor: t.tenant_code === 'SW001' ? 'default' : 'pointer', background: t.is_active ? '#e8f5e9' : '#ffebee', color: t.is_active ? '#1a7a4a' : '#c62828' }}>
-                            {t.is_active ? 'Active' : 'Inactive'}
-                          </span>
+                          {t.tenant_code === 'SW001' ? (
+                            <span style={{ fontSize: '11px', background: '#e8f5e9', color: '#1a7a4a', padding: '4px 10px', borderRadius: '20px', fontWeight: '600' }}>Your Business</span>
+                          ) : (
+                            <span onClick={() => toggleActive(t)}
+                              style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', background: t.is_active ? '#e8f5e9' : '#ffebee', color: t.is_active ? '#1a7a4a' : '#c62828' }}>
+                              {t.is_active ? '✅ Active' : '❌ Inactive'}
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '14px' }}>
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            {t.tenant_code !== 'SW001' && (
+                          {t.tenant_code !== 'SW001' && (
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
                               <button onClick={() => recordPayment(t)}
-                                style={{ padding: '6px 12px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                                style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 💰 Payment
                               </button>
-                            )}
-                            {t.tenant_code === 'SW001' && (
-                              <span style={{ fontSize: '11px', color: '#aaa' }}>Your Business</span>
-                            )}
-                          </div>
+                              <button onClick={() => resetPassword(t)}
+                                style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                🔑 Password
+                              </button>
+                              <button onClick={() => changeBusinessId(t)}
+                                style={{ padding: '5px 10px', background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                🏢 Change ID
+                              </button>
+                              <button onClick={() => toggleActive(t)}
+                                style={{ padding: '5px 10px', background: t.is_active ? '#fff8e1' : '#e8f5e9', color: t.is_active ? '#f57f17' : '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                {t.is_active ? '⏸ Deactivate' : '▶ Activate'}
+                              </button>
+                              <button onClick={() => deleteTenant(t)}
+                                style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                                🗑️ Delete
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
