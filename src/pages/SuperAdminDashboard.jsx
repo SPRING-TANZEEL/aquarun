@@ -26,7 +26,8 @@ export default function SuperAdminDashboard({ onLogout }) {
       return alert('Business ID, Name and Password are required')
     }
     setSaving(true)
-    const { error } = await supabase.from('tenants').insert([{
+
+    const { data: newTenant, error } = await supabase.from('tenants').insert([{
       tenant_code: form.tenant_code.toUpperCase(),
       business_name: form.business_name,
       admin_password: form.admin_password,
@@ -38,38 +39,74 @@ export default function SuperAdminDashboard({ onLogout }) {
       is_active: true,
       setup_date: new Date().toISOString().split('T')[0],
       next_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    }])
+    }]).select().single()
+
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-    // Create default chart of accounts for new tenant
-    await createDefaultCOA(form.tenant_code.toUpperCase())
-    await createDefaultSettings(form.tenant_code.toUpperCase(), form.business_name)
+    // ✅ Use tenant UUID not tenant_code
+    const tenantUUID = newTenant.id
+    await createDefaultCOA(tenantUUID)
+    await createDefaultSettings(tenantUUID, form.business_name)
 
     setForm({ tenant_code: '', business_name: '', admin_password: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: '' })
     setShowAddForm(false)
     fetchTenants()
     setSaving(false)
-    alert('✅ Client created successfully! Business ID: ' + form.tenant_code.toUpperCase())
+    alert('✅ Client created! Business ID: ' + form.tenant_code.toUpperCase())
   }
 
   async function createDefaultCOA(tenantId) {
     const accounts = [
-      { account_code: '1001', account_name: 'Cash in Hand', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '1002', account_name: 'JazzCash Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '1003', account_name: 'Bank Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '1100', account_name: 'Accounts Receivable', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '2001', account_name: 'Accounts Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '3001', account_name: 'Owner Capital', account_type: 'equity', account_subtype: 'capital', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '3002', account_name: 'Owner Drawings', account_type: 'equity', account_subtype: 'drawings', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '4001', account_name: 'Water Sales - 19L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '4002', account_name: 'Water Sales - Half Litre', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '4003', account_name: 'Other Sales', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '6001', account_name: 'Rider Salaries', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '6003', account_name: 'Rider Field Expenses', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '6004', account_name: 'Rent', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '6005', account_name: 'Electricity', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '6006', account_name: 'Fuel', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
-      { account_code: '6009', account_name: 'Other Expenses', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0, tenant_id: tenantId },
+      // Assets — Current
+      { tenant_id: tenantId, account_code: '1001', account_name: 'Cash in Hand', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1002', account_name: 'JazzCash Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1003', account_name: 'Bank Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1100', account_name: 'Accounts Receivable', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1200', account_name: 'Inventory - Raw Materials', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1201', account_name: 'Inventory - Finished Goods', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1300', account_name: 'Prepaid Expenses', account_type: 'asset', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
+      // Assets — Fixed
+      { tenant_id: tenantId, account_code: '1500', account_name: 'Vehicle - Delivery', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1501', account_name: 'Machinery & Equipment', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1502', account_name: 'Accumulated Depreciation', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
+      // Liabilities
+      { tenant_id: tenantId, account_code: '2001', account_name: 'Accounts Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '2100', account_name: 'Salary Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '2200', account_name: 'Advance from Customers', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '2300', account_name: 'Tax Payable', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
+      // Equity
+      { tenant_id: tenantId, account_code: '3001', account_name: 'Owner Capital', account_type: 'equity', account_subtype: 'capital', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '3002', account_name: 'Owner Drawings', account_type: 'equity', account_subtype: 'drawings', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '3003', account_name: 'Retained Earnings', account_type: 'equity', account_subtype: 'capital', is_system: false, is_active: true, opening_balance: 0 },
+      // Revenue
+      { tenant_id: tenantId, account_code: '4001', account_name: 'Water Sales - 19L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '4002', account_name: 'Water Sales - Half Litre', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '4003', account_name: 'Water Sales - 1.5L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '4004', account_name: 'Other Sales', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '4100', account_name: 'Delivery Charges', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '4200', account_name: 'Other Income', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
+      // Cost of Goods Sold
+      { tenant_id: tenantId, account_code: '5001', account_name: 'Raw Material Cost', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '5002', account_name: 'Production Overhead', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '5003', account_name: 'Cost of Goods Sold', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '5004', account_name: 'Raw Material Consumed', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+      // Expenses
+      { tenant_id: tenantId, account_code: '6001', account_name: 'Rider Salaries', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6002', account_name: 'Salary Advances', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6003', account_name: 'Rider Field Expenses', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6004', account_name: 'Rent', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6005', account_name: 'Electricity', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6006', account_name: 'Fuel - Office', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6007', account_name: 'Maintenance', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6008', account_name: 'Supplies', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6009', account_name: 'Other Expenses', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6010', account_name: 'Water Testing Fees', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6011', account_name: 'Vehicle Running Cost', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6012', account_name: 'Depreciation', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6013', account_name: 'Telephone & Internet', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6014', account_name: 'Bank Charges', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6015', account_name: 'Printing & Stationery', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6016', account_name: 'Advertising & Marketing', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
     ]
     await supabase.from('chart_of_accounts').insert(accounts)
   }
@@ -113,7 +150,7 @@ export default function SuperAdminDashboard({ onLogout }) {
     return new Date(t.next_due_date) < new Date()
   }).length
 
-  const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid #e8eaed', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px' }
+  const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid #e8eaed', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px', color: '#333', background: 'white' }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f0f2f5', fontFamily: "'Segoe UI', sans-serif" }}>
@@ -121,67 +158,65 @@ export default function SuperAdminDashboard({ onLogout }) {
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f4c81)', color: 'white', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '28px' }}>💧</span>
+          <div style={{ fontSize: '28px' }}>💧</div>
           <div>
-            <p style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>AquaRun Super Admin</p>
-            <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>Client Management & Billing</p>
+            <p style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>AquaRun SuperAdmin</p>
+            <p style={{ fontSize: '12px', opacity: 0.6, margin: 0 }}>Client Management Portal</p>
           </div>
         </div>
         <button onClick={onLogout}
-          style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+          style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
           Logout
         </button>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 20px' }}>
 
-        {/* Summary Cards */}
+        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
           {[
-            { label: 'Total Clients', value: totalClients, color: '#0f4c81', bg: '#e3f0ff', icon: '👥' },
-            { label: 'Active Clients', value: activeClients, color: '#1a7a4a', bg: '#e8f5e9', icon: '✅' },
-            { label: 'Overdue', value: overdueClients, color: '#f44336', bg: '#ffebee', icon: '⚠️' },
-            { label: 'Monthly Recurring', value: 'Rs. ' + totalMonthly.toLocaleString(), color: '#9c27b0', bg: '#f3e5f5', icon: '💰' },
-          ].map(card => (
-            <div key={card.label} style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', borderLeft: `4px solid ${card.color}` }}>
-              <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px' }}>{card.icon} {card.label}</p>
-              <p style={{ fontSize: '24px', fontWeight: '700', color: card.color, margin: 0 }}>{card.value}</p>
+            { label: 'Total Clients', value: totalClients, icon: '🏢', color: '#0f4c81' },
+            { label: 'Active Clients', value: activeClients, icon: '✅', color: '#1a7a4a' },
+            { label: 'Monthly Revenue', value: `Rs. ${totalMonthly.toLocaleString()}`, icon: '💰', color: '#9c27b0' },
+            { label: 'Overdue', value: overdueClients, icon: '⚠️', color: '#f44336' },
+          ].map(s => (
+            <div key={s.label} style={{ background: 'white', borderRadius: '12px', padding: '18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', borderTop: `4px solid ${s.color}` }}>
+              <p style={{ fontSize: '11px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</p>
+              <p style={{ fontSize: '28px', margin: '0 0 2px' }}>{s.icon}</p>
+              <p style={{ fontSize: '22px', fontWeight: '700', color: s.color, margin: 0 }}>{s.value}</p>
             </div>
           ))}
         </div>
 
-        {/* Client List */}
-        <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+        {/* Main Card */}
+        <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: '20px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <div>
-              <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Client Management</h2>
-              <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Manage all AquaRun clients and their subscriptions</p>
-            </div>
+            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>🏢 Client Accounts</h2>
             <button onClick={() => setShowAddForm(!showAddForm)}
-              style={{ padding: '10px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700' }}>
-              + Add New Client
+              style={{ padding: '10px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
+              {showAddForm ? '✕ Cancel' : '+ Add New Client'}
             </button>
           </div>
 
-          {/* Add Client Form */}
+          {/* Add Form */}
           {showAddForm && (
-            <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '20px', marginBottom: '20px', border: '2px solid #e3f0ff' }}>
-              <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 16px' }}>➕ New Client Setup</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+            <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '20px', marginBottom: '20px', border: '1px solid #e8eaed' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>New Client Setup</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Business ID * (e.g. PP002)</label>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Business ID * <span style={{ color: '#888', fontWeight: '400' }}>(e.g. ABC001)</span></label>
                   <input value={form.tenant_code} onChange={e => setForm({ ...form, tenant_code: e.target.value.toUpperCase() })}
-                    placeholder="PP002" style={inp} />
+                    placeholder="ABC001" style={inp} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Business Name *</label>
                   <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
-                    placeholder="Pure Pani Lahore" style={inp} />
+                    placeholder="ABC Water Company" style={inp} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Admin Password *</label>
                   <input value={form.admin_password} onChange={e => setForm({ ...form, admin_password: e.target.value })}
-                    placeholder="Set their password" style={inp} />
+                    placeholder="Strong password" style={inp} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Plan</label>
@@ -194,18 +229,23 @@ export default function SuperAdminDashboard({ onLogout }) {
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Setup Fee (Rs.)</label>
                   <input type="number" value={form.setup_fee} onChange={e => setForm({ ...form, setup_fee: e.target.value })}
-                    placeholder="20000" style={inp} />
+                    placeholder="15000" style={inp} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Monthly Fee (Rs.)</label>
                   <input type="number" value={form.monthly_fee} onChange={e => setForm({ ...form, monthly_fee: e.target.value })}
-                    placeholder="3000" style={inp} />
+                    placeholder="2000" style={inp} />
                 </div>
               </div>
-              <div>
+              <div style={{ marginBottom: '16px' }}>
                 <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Notes</label>
                 <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                   placeholder="Client contact, location, any notes..." style={inp} />
+              </div>
+              <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600', margin: 0 }}>
+                  ✅ Full Chart of Accounts (42 accounts) will be created automatically
+                </p>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={() => setShowAddForm(false)}
@@ -286,7 +326,7 @@ export default function SuperAdminDashboard({ onLogout }) {
         </div>
 
         {/* Login Credentials Helper */}
-        <div style={{ background: '#1a1a2e', borderRadius: '12px', padding: '20px', marginTop: '20px', color: 'white' }}>
+        <div style={{ background: '#1a1a2e', borderRadius: '12px', padding: '20px', color: 'white' }}>
           <p style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 12px' }}>📋 How to Share Login with New Client</p>
           <p style={{ fontSize: '12px', opacity: 0.7, margin: '0 0 12px' }}>Send this WhatsApp message to your new client:</p>
           <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '8px', padding: '14px', fontSize: '12px', lineHeight: 1.8, fontFamily: 'monospace' }}>
@@ -300,7 +340,6 @@ export default function SuperAdminDashboard({ onLogout }) {
             Support: +92 323 7919338
           </div>
         </div>
-
       </div>
     </div>
   )
