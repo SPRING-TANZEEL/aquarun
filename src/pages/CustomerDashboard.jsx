@@ -1,6 +1,93 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
+// ── PAY BILL MODAL — outside main component to prevent re-render focus loss ──
+function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAmount, payBillSending, payBillDone, submitPayBill, onClose }) {
+  return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '480px', padding: '28px 24px', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
+        {!payBillDone ? (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💳 Pay Your Bill</h3>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
+            </div>
+
+            {settings.jazzcash_number_1 && (
+              <div style={{ background: '#f3e5f5', border: '1px solid #e1bee7', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 10px' }}>📱 Send payment to JazzCash:</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: settings.jazzcash_number_2 ? '8px' : '0' }}>
+                  <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_1 || 'Account'}</span>
+                  <span style={{ fontSize: '18px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_1}</span>
+                </div>
+                {settings.jazzcash_number_2 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_2 || 'Account 2'}</span>
+                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_2}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Amount to Pay (Rs.)</p>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+              <button onClick={() => setPayBillAmount(String(balance))}
+                style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: payBillAmount === String(balance) ? '#7b1fa2' : '#eee', borderRadius: '10px', cursor: 'pointer', background: payBillAmount === String(balance) ? '#7b1fa2' : '#f8f9fa', color: payBillAmount === String(balance) ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
+                Full: Rs. {balance.toLocaleString()}
+              </button>
+              <button onClick={() => setPayBillAmount('')}
+                style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: payBillAmount !== String(balance) && payBillAmount !== '' ? '#7b1fa2' : '#eee', borderRadius: '10px', cursor: 'pointer', background: payBillAmount !== String(balance) && payBillAmount !== '' ? '#7b1fa2' : '#f8f9fa', color: payBillAmount !== String(balance) && payBillAmount !== '' ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
+                Other Amount
+              </button>
+            </div>
+            <input
+              type="number"
+              value={payBillAmount}
+              onChange={e => setPayBillAmount(e.target.value)}
+              placeholder={`e.g. ${balance}`}
+              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#7b1fa2', marginBottom: '16px' }}
+            />
+
+            <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
+              <p style={{ fontSize: '12px', color: '#f57f17', fontWeight: '600', margin: '0 0 4px' }}>📸 Important</p>
+              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending JazzCash payment, tap the button below and send a screenshot to our WhatsApp to confirm your payment.</p>
+            </div>
+
+            <button onClick={submitPayBill} disabled={payBillSending}
+              style={{ width: '100%', padding: '16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px' }}>
+              {payBillSending ? 'Recording...' : `✓ I've Sent Rs. ${Number(payBillAmount || 0).toLocaleString()} via JazzCash`}
+            </button>
+            <button onClick={onClose}
+              style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <p style={{ fontSize: '52px', margin: '0 0 16px' }}>✅</p>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#333', margin: '0 0 8px' }}>Payment Recorded!</h3>
+            <p style={{ fontSize: '14px', color: '#888', margin: '0 0 24px', lineHeight: 1.6 }}>
+              Your payment of <strong>Rs. {Number(payBillAmount).toLocaleString()}</strong> has been recorded.<br />
+              Please send your JazzCash screenshot to WhatsApp to confirm.
+            </p>
+            {settings.whatsapp_number && (
+              <a href={`https://wa.me/92${settings.whatsapp_number?.replace(/^0/, '')}?text=Assalam o Alaikum! I have sent JazzCash payment of Rs. ${Number(payBillAmount).toLocaleString()}. My account ID is ${customer.customer_code}. Please confirm my payment.`}
+                target="_blank" rel="noreferrer"
+                style={{ display: 'block', width: '100%', padding: '16px', background: '#25d366', color: 'white', borderRadius: '12px', fontSize: '16px', fontWeight: '700', textDecoration: 'none', textAlign: 'center', marginBottom: '12px', boxSizing: 'border-box' }}>
+                💬 Send Screenshot on WhatsApp
+              </a>
+            )}
+            <button onClick={onClose}
+              style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>
+              Close
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function CustomerDashboard({ customer, onLogout }) {
   const tenantId = customer.tenant_id
   const [activeTab, setActiveTab] = useState('home')
@@ -81,7 +168,6 @@ export default function CustomerDashboard({ customer, onLogout }) {
   async function submitPayBill() {
     if (!payBillAmount || Number(payBillAmount) <= 0) return alert('Please enter amount')
     setPayBillSending(true)
-    // Save as pending payment — admin will confirm after screenshot
     await supabase.from('payments').insert([{
       tenant_id: tenantId,
       customer_id: customer.id,
@@ -94,96 +180,12 @@ export default function CustomerDashboard({ customer, onLogout }) {
     }])
     setPayBillSending(false)
     setPayBillDone(true)
+    fetchPayments()
   }
 
   const balance = Number(customer.balance || 0)
   const totalBottles19l = deliveries.reduce((s, d) => s + Number(d.qty_19l || 0), 0)
   const totalSpent = deliveries.reduce((s, d) => s + Number(d.total_amount || 0), 0)
-
-  // Pay Bill Modal
-  const PayBillModal = () => (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
-      <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '480px', padding: '28px 24px', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
-        {!payBillDone ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💳 Pay Your Bill</h3>
-              <button onClick={() => setShowPayBill(false)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
-            </div>
-
-            {/* JazzCash accounts */}
-            {settings.jazzcash_number_1 && (
-              <div style={{ background: '#f3e5f5', border: '1px solid #e1bee7', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 10px' }}>📱 Send payment to JazzCash:</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: settings.jazzcash_number_2 ? '8px' : '0' }}>
-                  <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_1 || 'Account'}</span>
-                  <span style={{ fontSize: '18px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_1}</span>
-                </div>
-                {settings.jazzcash_number_2 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_2 || 'Account 2'}</span>
-                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_2}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Amount selection */}
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Amount to Pay (Rs.)</p>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <button onClick={() => setPayBillAmount(String(balance))}
-                style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: payBillAmount === String(balance) ? '#7b1fa2' : '#eee', borderRadius: '10px', cursor: 'pointer', background: payBillAmount === String(balance) ? '#7b1fa2' : '#f8f9fa', color: payBillAmount === String(balance) ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
-                Full: Rs. {balance.toLocaleString()}
-              </button>
-              <button onClick={() => setPayBillAmount('')}
-                style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: payBillAmount !== String(balance) && payBillAmount !== '' ? '#7b1fa2' : '#eee', borderRadius: '10px', cursor: 'pointer', background: payBillAmount !== String(balance) && payBillAmount !== '' ? '#7b1fa2' : '#f8f9fa', color: payBillAmount !== String(balance) && payBillAmount !== '' ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
-                Other Amount
-              </button>
-            </div>
-            <input type="number" value={payBillAmount} onChange={e => setPayBillAmount(e.target.value)}
-              placeholder={`e.g. ${balance}`}
-              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#7b1fa2', marginBottom: '16px' }} />
-
-            <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
-              <p style={{ fontSize: '12px', color: '#f57f17', fontWeight: '600', margin: '0 0 4px' }}>📸 Important</p>
-              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending JazzCash payment, tap the button below and send a screenshot to our WhatsApp to confirm your payment.</p>
-            </div>
-
-            <button onClick={submitPayBill} disabled={payBillSending}
-              style={{ width: '100%', padding: '16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '16px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px' }}>
-              {payBillSending ? 'Recording...' : `✓ I've Sent Rs. ${Number(payBillAmount || 0).toLocaleString()} via JazzCash`}
-            </button>
-            <button onClick={() => setShowPayBill(false)}
-              style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>
-              Cancel
-            </button>
-          </>
-        ) : (
-          <>
-            <div style={{ textAlign: 'center', padding: '20px 0' }}>
-              <p style={{ fontSize: '52px', margin: '0 0 16px' }}>✅</p>
-              <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#333', margin: '0 0 8px' }}>Payment Recorded!</h3>
-              <p style={{ fontSize: '14px', color: '#888', margin: '0 0 24px', lineHeight: 1.6 }}>
-                Your payment of <strong>Rs. {Number(payBillAmount).toLocaleString()}</strong> has been recorded.<br />
-                Please send your JazzCash screenshot to WhatsApp to confirm.
-              </p>
-              {settings.whatsapp_number && (
-                <a href={`https://wa.me/92${settings.whatsapp_number?.replace(/^0/, '')}?text=Assalam o Alaikum! I have sent JazzCash payment of Rs. ${Number(payBillAmount).toLocaleString()}. My account ID is ${customer.customer_code}. Please confirm my payment.`}
-                  target="_blank" rel="noreferrer"
-                  style={{ display: 'block', width: '100%', padding: '16px', background: '#25d366', color: 'white', borderRadius: '12px', fontSize: '16px', fontWeight: '700', textDecoration: 'none', textAlign: 'center', marginBottom: '12px', boxSizing: 'border-box' }}>
-                  💬 Send Screenshot on WhatsApp
-                </a>
-              )}
-              <button onClick={() => { setShowPayBill(false); setPayBillDone(false) }}
-                style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>
-                Close
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  )
 
   const TABS = [
     { key: 'home', icon: '🏠', label: 'Home' },
@@ -215,7 +217,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
   if (!isMobile) {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fa', fontFamily: "'Inter', sans-serif" }}>
-        {showPayBill && <PayBillModal />}
+        {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} payBillAmount={payBillAmount} setPayBillAmount={setPayBillAmount} payBillSending={payBillSending} payBillDone={payBillDone} submitPayBill={submitPayBill} onClose={() => { setShowPayBill(false); setPayBillDone(false) }} />}
 
         {/* TOP NAV */}
         <div style={{ background: '#0f4c81', padding: '0 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
@@ -254,15 +256,14 @@ export default function CustomerDashboard({ customer, onLogout }) {
           {/* HOME */}
           {activeTab === 'home' && (
             <div>
-              {/* Balance + Stats Row */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '20px', marginBottom: '24px' }}>
                 <div style={{ gridColumn: '1 / 2', background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', borderRadius: '16px', padding: '24px', color: 'white' }}>
                   <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Advance Credit' : 'Account Clear'}</p>
                   <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px', letterSpacing: '-1px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-                  <p style={{ fontSize: '12px', opacity: 0.6, margin: '0 0 12px' }}>{balance > 0 ? 'Please pay at earliest' : balance < 0 ? 'You have advance credit' : 'No outstanding amount'}</p>
+                  <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>{balance > 0 ? 'Please pay at earliest' : balance < 0 ? 'You have advance credit' : 'No outstanding amount'}</p>
                   {balance > 0 && (
                     <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
-                      style={{ width: '100%', padding: '12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                      style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
                       💳 Pay Your Bill
                     </button>
                   )}
@@ -285,7 +286,6 @@ export default function CustomerDashboard({ customer, onLogout }) {
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                {/* Rates */}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Your Bottle Rates</h3>
                   <div style={{ display: 'flex', gap: '16px' }}>
@@ -308,7 +308,6 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   </div>
                 </div>
 
-                {/* Contact */}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Contact Us</h3>
                   {settings.complaint_number && (
@@ -340,38 +339,27 @@ export default function CustomerDashboard({ customer, onLogout }) {
               <div>
                 <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>📦 Place Order</h2>
                 <p style={{ fontSize: '14px', color: '#888', margin: '0 0 24px' }}>Request your next water delivery</p>
-
                 {orderSuccess && (
                   <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '12px', padding: '16px', marginBottom: '20px' }}>
                     <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Order Placed!</p>
                     <p style={{ fontSize: '13px', color: '#2e7d32', margin: 0 }}>Your order has been submitted. Our rider will deliver soon.</p>
                   </div>
                 )}
-
                 <div style={{ background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#555', marginBottom: '20px' }}>Select Bottles</p>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <div>
-                      <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>19 Litre</p>
-                      <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p>
-                    </div>
+                    <div><p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>19 Litre</p><p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p></div>
                     {numBtn(orderForm.qty_19l, 'qty_19l')}
                   </div>
                   {customer.rate_half_litre > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <div>
-                        <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>Half Litre</p>
-                        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_half_litre} each</p>
-                      </div>
+                      <div><p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>Half Litre</p><p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_half_litre} each</p></div>
                       {numBtn(orderForm.qty_half_litre, 'qty_half_litre')}
                     </div>
                   )}
                   {customer.rate_1_5l > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <div>
-                        <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>1.5 Litre</p>
-                        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_1_5l} each</p>
-                      </div>
+                      <div><p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>1.5 Litre</p><p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_1_5l} each</p></div>
                       {numBtn(orderForm.qty_1_5l, 'qty_1_5l')}
                     </div>
                   )}
@@ -382,14 +370,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
                       style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
                   </div>
                 </div>
-
                 <button onClick={placeOrder} disabled={placingOrder}
                   style={{ width: '100%', padding: '16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
                   {placingOrder ? 'Placing Order...' : '✓ Place Order'}
                 </button>
               </div>
-
-              {/* Order Summary + History */}
               <div>
                 {(orderForm.qty_19l > 0 || orderForm.qty_half_litre > 0 || orderForm.qty_1_5l > 0) && (
                   <div style={{ background: '#e8f5e9', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
@@ -399,21 +384,16 @@ export default function CustomerDashboard({ customer, onLogout }) {
                     {orderForm.qty_1_5l > 0 && <p style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>1.5L × {orderForm.qty_1_5l} = Rs. {(orderForm.qty_1_5l * customer.rate_1_5l).toLocaleString()}</p>}
                     <div style={{ borderTop: '1px solid #c8e6c9', marginTop: '10px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a' }}>Estimated Total</span>
-                      <span style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a' }}>
-                        Rs. {((orderForm.qty_19l * customer.rate_19l) + (orderForm.qty_half_litre * customer.rate_half_litre) + (orderForm.qty_1_5l * customer.rate_1_5l)).toLocaleString()}
-                      </span>
+                      <span style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {((orderForm.qty_19l * customer.rate_19l) + (orderForm.qty_half_litre * customer.rate_half_litre) + (orderForm.qty_1_5l * customer.rate_1_5l)).toLocaleString()}</span>
                     </div>
                   </div>
                 )}
-
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Recent Orders</p>
                   {orders.length === 0 ? <p style={{ color: '#888', fontSize: '14px' }}>No orders yet</p> : orders.slice(0, 5).map(o => (
                     <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                       <div>
-                        <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>
-                          {o.qty_19l > 0 ? `19L×${o.qty_19l} ` : ''}{o.qty_half_litre > 0 ? `Half×${o.qty_half_litre} ` : ''}{o.qty_1_5l > 0 ? `1.5L×${o.qty_1_5l}` : ''}
-                        </p>
+                        <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{o.qty_19l > 0 ? `19L×${o.qty_19l} ` : ''}{o.qty_half_litre > 0 ? `Half×${o.qty_half_litre} ` : ''}{o.qty_1_5l > 0 ? `1.5L×${o.qty_1_5l}` : ''}</p>
                         <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{new Date(o.created_at).toLocaleDateString('en-PK')}</p>
                       </div>
                       <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: o.status === 'completed' ? '#e8f5e9' : o.status === 'assigned' ? '#e3f0ff' : o.status === 'cancelled' ? '#ffebee' : '#fff3e0', color: o.status === 'completed' ? '#2e7d32' : o.status === 'assigned' ? '#0f4c81' : o.status === 'cancelled' ? '#c62828' : '#e65100' }}>
@@ -448,12 +428,8 @@ export default function CustomerDashboard({ customer, onLogout }) {
                     <tbody>
                       {deliveries.map((d, i) => (
                         <tr key={d.id} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
-                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#555' }}>
-                            {new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                          </td>
-                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#333' }}>
-                            {d.qty_19l > 0 ? `19L×${d.qty_19l} ` : ''}{d.qty_half_litre > 0 ? `Half×${d.qty_half_litre} ` : ''}{d.qty_1_5l > 0 ? `1.5L×${d.qty_1_5l}` : ''}
-                          </td>
+                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#555' }}>{new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#333' }}>{d.qty_19l > 0 ? `19L×${d.qty_19l} ` : ''}{d.qty_half_litre > 0 ? `Half×${d.qty_half_litre} ` : ''}{d.qty_1_5l > 0 ? `1.5L×${d.qty_1_5l}` : ''}</td>
                           <td style={{ padding: '14px 20px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>Rs. {Number(d.total_amount).toLocaleString()}</td>
                           <td style={{ padding: '14px 20px' }}>
                             <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: d.payment_method === 'cash' ? '#e8f5e9' : d.payment_method === 'jazzcash' ? '#f3e5f5' : '#fff3e0', color: d.payment_method === 'cash' ? '#2e7d32' : d.payment_method === 'jazzcash' ? '#7b1fa2' : '#e65100' }}>
@@ -481,7 +457,13 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', borderRadius: '16px', padding: '28px', marginBottom: '20px' }}>
                     <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Advance Credit' : 'Account Clear'}</p>
                     <p style={{ fontSize: '48px', fontWeight: '700', margin: '0 0 6px', letterSpacing: '-2px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-                    <p style={{ fontSize: '12px', opacity: 0.6, margin: 0 }}>ID: {customer.customer_code}</p>
+                    <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>ID: {customer.customer_code}</p>
+                    {balance > 0 && (
+                      <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
+                        style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                        💳 Pay Your Bill
+                      </button>
+                    )}
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                     <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
@@ -509,8 +491,6 @@ export default function CustomerDashboard({ customer, onLogout }) {
                     </div>
                   )}
                 </div>
-
-                {/* Payment History */}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Payment History</p>
                   {payments.length === 0 ? (
@@ -539,7 +519,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
   // ── MOBILE LAYOUT ───────────────────────────────────────────────
   return (
     <div style={{ maxWidth: '430px', margin: '0 auto', minHeight: '100vh', background: '#f5f7fa', position: 'relative', paddingBottom: '80px', width: '100%' }}>
-      {showPayBill && <PayBillModal />}
+      {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} payBillAmount={payBillAmount} setPayBillAmount={setPayBillAmount} payBillSending={payBillSending} payBillDone={payBillDone} submitPayBill={submitPayBill} onClose={() => { setShowPayBill(false); setPayBillDone(false) }} />}
 
       {/* TOP NAV */}
       <div style={{ background: '#0f4c81', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -654,11 +634,17 @@ export default function CustomerDashboard({ customer, onLogout }) {
         {activeTab === 'account' && (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>💰 Account Statement</h3>
-            <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', textAlign: 'center' }}>
+            <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', borderRadius: '12px', padding: '20px', marginBottom: '12px', textAlign: 'center' }}>
               <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Advance Credit' : 'Account Clear'}</p>
               <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
               <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>ID: {customer.customer_code}</p>
             </div>
+            {balance > 0 && (
+              <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
+                style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                💳 Pay Your Bill
+              </button>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div style={{ background: 'white', borderRadius: '10px', padding: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Total Spent</p><p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {totalSpent.toLocaleString()}</p></div>
               <div style={{ background: 'white', borderRadius: '10px', padding: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Payments Made</p><p style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>{payments.length}</p></div>
