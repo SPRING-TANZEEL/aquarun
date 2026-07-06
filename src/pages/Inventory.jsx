@@ -909,6 +909,7 @@ function BOMEditor({ product, products, tenantId, onClose }) {
       tenant_id: tenantId,
       finished_good_id: product.id,
       raw_material_id: addRawMaterial,
+      quantity_per_unit: Number(addQty),
       quantity_required: Number(addQty),
       unit: 'pcs'
     }])
@@ -956,7 +957,7 @@ function BOMEditor({ product, products, tenantId, onClose }) {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
-                  {item.quantity_required} pcs per unit
+                  {item.quantity_per_unit || item.quantity_required} pcs per unit
                 </span>
                 <button onClick={() => deleteBomItem(item.id)}
                   style={{ padding: '4px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
