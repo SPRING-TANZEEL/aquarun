@@ -239,10 +239,25 @@ function TrialBalance({ tenantId }) {
       .select('*')
       .eq('tenant_id', tenantId)
       .eq('is_active', true).order('account_code')
+    // Get journal entry IDs for this tenant and date range first
+    const { data: journalEntries } = await supabase.from('journal_entries')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .gte('entry_date', dateFrom)
+      .lte('entry_date', dateTo)
+
+    const entryIds = journalEntries?.map(e => e.id) || []
+
+    if (entryIds.length === 0) {
+      setData({ revenue: {}, cogs: {}, expenses: {}, totalRevenue: 0, totalCogs: 0, grossProfit: 0, totalExpenses: 0, netProfit: 0 })
+      setLoading(false)
+      return
+    }
+
     const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, journal_entries!inner(entry_date, tenant_id)')
-      .eq('journal_entries.tenant_id', tenantId)
-      .gte('journal_entries.entry_date', dateFrom).lte('journal_entries.entry_date', dateTo)
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .in('journal_entry_id', entryIds)
 
     const balances = {}
     lines?.forEach(l => {
@@ -356,20 +371,35 @@ function IncomeStatement({ tenantId }) {
 
   async function fetchData() {
     setLoading(true)
-    const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, account:account_code(account_name, account_type, account_subtype), journal_entries!inner(entry_date, tenant_id)')
-      .eq('journal_entries.tenant_id', tenantId)
-      .gte('journal_entries.entry_date', dateFrom)
-      .lte('journal_entries.entry_date', dateTo)
+
+    // Fetch COA separately to get account types
+    const { data: coaData } = await supabase.from('chart_of_accounts')
+      .select('account_code, account_name, account_type, account_subtype')
+      .eq('tenant_id', tenantId)
+    const coaMap = {}
+    coaData?.forEach(a => { coaMap[a.account_code] = a })
+
+    const { data: journalEntries } = await supabase.from('journal_entries')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .gte('entry_date', dateFrom)
+      .lte('entry_date', dateTo)
+
+    const entryIds = journalEntries?.map(e => e.id) || []
+
+    const { data: lines } = entryIds.length > 0
+      ? await supabase.from('journal_entry_lines').select('*').eq('tenant_id', tenantId).in('journal_entry_id', entryIds)
+      : { data: [] }
 
     const revenue = {}
     const cogs = {}
     const expenses = {}
 
     lines?.forEach(l => {
-      const type = l.account?.account_type
-      const subtype = l.account?.account_subtype
-      const name = l.account?.account_name || l.account_name
+      const acc = coaMap[l.account_code]
+      const type = acc?.account_type
+      const subtype = acc?.account_subtype
+      const name = acc?.account_name || l.account_name
       const code = l.account_code
       const net = Number(l.credit || 0) - Number(l.debit || 0)
 
@@ -490,16 +520,30 @@ function BalanceSheet({ tenantId }) {
 
   async function fetchData() {
     setLoading(true)
-    const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, account:account_code(account_name, account_type, account_subtype), journal_entries!inner(entry_date, tenant_id)')
-      .eq('journal_entries.tenant_id', tenantId)
-      .lte('journal_entries.entry_date', asOf)
+
+    // Fetch COA separately to get account types
+    const { data: coaData } = await supabase.from('chart_of_accounts')
+      .select('account_code, account_name, account_type, account_subtype')
+      .eq('tenant_id', tenantId)
+    const coaMap = {}
+    coaData?.forEach(a => { coaMap[a.account_code] = a })
+
+    const { data: journalEntries } = await supabase.from('journal_entries')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .lte('entry_date', asOf)
+
+    const entryIds = journalEntries?.map(e => e.id) || []
+
+    const { data: lines } = entryIds.length > 0
+      ? await supabase.from('journal_entry_lines').select('*').eq('tenant_id', tenantId).in('journal_entry_id', entryIds)
+      : { data: [] }
 
     const balances = {}
     lines?.forEach(l => {
       const code = l.account_code
-      const type = l.account?.account_type
-      const name = l.account?.account_name || l.account_name
+      const type = coaMap[l.account_code]?.account_type
+      const name = coaMap[l.account_code]?.account_name || l.account_name
       if (!balances[code]) balances[code] = { name, type, debit: 0, credit: 0 }
       balances[code].debit += Number(l.debit || 0)
       balances[code].credit += Number(l.credit || 0)
