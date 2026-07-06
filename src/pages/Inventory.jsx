@@ -477,6 +477,7 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
     if (!quantity || qty <= 0) return alert('Please enter quantity to produce')
 
     for (const bomItem of bom) {
+      if (bomItem.cost_type && bomItem.cost_type !== 'raw_material') continue
       const { required, available, sufficient, rm } = getRawMaterialRequired(bomItem)
       if (!sufficient) {
         return alert(`Insufficient stock!\n${rm?.name}: Need ${required}, Available ${available}`)
@@ -503,9 +504,21 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
     if (prodError) { alert('Error: ' + prodError.message); setSaving(false); return }
 
     let totalRawMaterialCost = 0
+    let totalLabourCost = 0
+    let totalOverheadFromBOM = 0
 
     for (const bomItem of bom) {
-      const consumed = bomItem.quantity_per_unit * qty
+      const costType = bomItem.cost_type || 'raw_material'
+
+      if (costType !== 'raw_material') {
+        // Labour or overhead — fixed cost per unit
+        const lineCost = Number(bomItem.cost_per_unit || 0) * qty
+        if (costType === 'labour') totalLabourCost += lineCost
+        else totalOverheadFromBOM += lineCost
+        continue
+      }
+
+      const consumed = (bomItem.quantity_per_unit || bomItem.quantity_required || 0) * qty
       const rm = products.find(p => p.id === bomItem.raw_material_id)
       const unitCost = Number(rm?.average_cost || rm?.purchase_price || 0)
       const lineCost = consumed * unitCost
@@ -531,7 +544,7 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
       await supabase.from('products').update(updateData).eq('id', bomItem.raw_material_id).eq('tenant_id', tenantId)
     }
 
-    const totalCost = totalRawMaterialCost + totalOverhead
+    const totalCost = totalRawMaterialCost + totalLabourCost + totalOverheadFromBOM + totalOverhead
     const costPerUnit = qty > 0 ? totalCost / qty : 0
 
     // Update production entry with actual cost
@@ -574,15 +587,18 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
         if (totalRawMaterialCost > 0) {
           lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '1200', account_name: 'Inventory - Raw Materials', debit: 0, credit: totalRawMaterialCost })
         }
-        if (totalOverhead > 0) {
-          lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '5002', account_name: 'Production Overhead', debit: 0, credit: totalOverhead })
+        if (totalLabourCost > 0) {
+          lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '6001', account_name: 'Rider Salaries', debit: 0, credit: totalLabourCost })
+        }
+        if (totalOverheadFromBOM + totalOverhead > 0) {
+          lines.push({ tenant_id: tenantId, journal_entry_id: je.id, account_code: '5002', account_name: 'Production Overhead', debit: 0, credit: totalOverheadFromBOM + totalOverhead })
         }
         await supabase.from('journal_entry_lines').insert(lines)
         await supabase.from('production_entries').update({ journal_entry_id: je.id }).eq('id', prodEntry.id)
       }
     } catch (err) { console.error('Journal error:', err) }
 
-    setSuccess({ product: product?.name, qty, totalOverhead, totalRawMaterialCost, totalCost, costPerUnit })
+    setSuccess({ product: product?.name, qty, totalOverhead, totalRawMaterialCost, totalLabourCost, totalOverheadFromBOM, totalCost, costPerUnit })
     setSelectedProduct('')
     setQuantity('')
     setBom([])
@@ -600,8 +616,9 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Production Recorded!</p>
           <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.product} × {success.qty} units produced</p>
-          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Raw Material Cost: Rs. {success.totalRawMaterialCost?.toLocaleString()}</p>
-          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Overhead: Rs. {success.totalOverhead?.toLocaleString()}</p>
+          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Raw Material: Rs. {success.totalRawMaterialCost?.toLocaleString()}</p>
+          {success.totalLabourCost > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Labour: Rs. {success.totalLabourCost?.toLocaleString()}</p>}
+          {(success.totalOverheadFromBOM + success.totalOverhead) > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Overhead: Rs. {(success.totalOverheadFromBOM + success.totalOverhead)?.toLocaleString()}</p>}
           <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>Total Cost: Rs. {success.totalCost?.toLocaleString()}</p>
           <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Cost per Unit: Rs. {Number(success.costPerUnit).toFixed(2)}</p>
           <button onClick={() => setSuccess(null)}
@@ -640,7 +657,7 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
         {selectedProduct && qty > 0 && bom.length > 0 && (
           <div style={{ background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Raw Material Requirements</p>
-            {bom.map(item => {
+            {bom.filter(i => !i.cost_type || i.cost_type === 'raw_material').map(item => {
               const { required, available, sufficient } = getRawMaterialRequired(item)
               return (
                 <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #eee' }}>
@@ -664,9 +681,24 @@ function ProductionEntry({ products, onRefresh, tenantId }) {
               )
             })}
             <div style={{ marginTop: '12px', padding: '10px', background: 'white', borderRadius: '8px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: '13px', color: '#555' }}>Overhead ({qty} × Rs. {OVERHEAD_PER_UNIT})</span>
-                <span style={{ fontSize: '14px', fontWeight: '700', color: '#e65100' }}>Rs. {(qty * OVERHEAD_PER_UNIT).toLocaleString()}</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <span style={{ fontSize: '13px', color: '#555' }}>Manual Overhead ({qty} × Rs. {overhead})</span>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#e65100' }}>Rs. {(qty * overhead).toLocaleString()}</span>
+              </div>
+              {bom.filter(i => i.cost_type && i.cost_type !== 'raw_material').map(item => (
+                <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span style={{ fontSize: '12px', color: '#888' }}>{item.description} ({qty} × Rs. {item.cost_per_unit})</span>
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#e65100' }}>Rs. {(qty * Number(item.cost_per_unit)).toLocaleString()}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #eee', paddingTop: '6px', marginTop: '4px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>Estimated Total Cost</span>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
+                  Rs. {(bom.filter(i => !i.cost_type || i.cost_type === 'raw_material').reduce((s, item) => {
+                    const rm = products.find(p => p.id === item.raw_material_id)
+                    return s + (item.quantity_per_unit || 0) * qty * Number(rm?.average_cost || rm?.purchase_price || 0)
+                  }, 0) + bom.filter(i => i.cost_type && i.cost_type !== 'raw_material').reduce((s, i) => s + Number(i.cost_per_unit || 0) * qty, 0) + qty * overhead).toLocaleString()}
+                </span>
               </div>
             </div>
           </div>
@@ -1019,26 +1051,63 @@ function BOMEditor({ product, products, tenantId, onClose }) {
       )}
 
       <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
-        <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', marginBottom: '10px' }}>+ Add Raw Material</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', alignItems: 'end' }}>
-          <div>
-            <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Raw Material</label>
-            <select value={addRawMaterial} onChange={e => setAddRawMaterial(e.target.value)} style={inp}>
-              <option value="">-- Select --</option>
-              {rawMaterials.map(p => (
-                <option key={p.id} value={p.id}>{p.name} (Stock: {Number(p.current_stock).toLocaleString()})</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Qty per Unit</label>
-            <input type="number" value={addQty} onChange={e => setAddQty(e.target.value)} placeholder="1" style={inp} />
-          </div>
-          <button onClick={addBomItem} disabled={saving}
-            style={{ padding: '10px 16px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-            {saving ? '...' : '+ Add'}
-          </button>
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', marginBottom: '10px' }}>+ Add Item to BOM</p>
+
+        {/* Cost Type Toggle */}
+        <div style={{ display: 'flex', gap: '6px', marginBottom: '12px' }}>
+          {[
+            { key: 'raw_material', label: '🧪 Raw Material' },
+            { key: 'labour', label: '👷 Labour' },
+            { key: 'fixed_overhead', label: '🏭 Fixed Overhead' },
+            { key: 'variable_overhead', label: '⚡ Variable Overhead' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setAddCostType(t.key)}
+              style={{ flex: 1, padding: '8px 4px', border: '2px solid', borderColor: addCostType === t.key ? '#0f4c81' : '#ddd', borderRadius: '8px', cursor: 'pointer', background: addCostType === t.key ? '#0f4c81' : 'white', color: addCostType === t.key ? 'white' : '#555', fontWeight: addCostType === t.key ? '700' : '400', fontSize: '11px', textAlign: 'center' }}>
+              {t.label}
+            </button>
+          ))}
         </div>
+
+        {addCostType === 'raw_material' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', alignItems: 'end' }}>
+            <div>
+              <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Raw Material</label>
+              <select value={addRawMaterial} onChange={e => setAddRawMaterial(e.target.value)} style={inp}>
+                <option value="">-- Select --</option>
+                {rawMaterials.map(p => (
+                  <option key={p.id} value={p.id}>{p.name} (Stock: {Number(p.current_stock).toLocaleString()})</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Qty per Unit</label>
+              <input type="number" value={addQty} onChange={e => setAddQty(e.target.value)} placeholder="1" style={inp} />
+            </div>
+            <button onClick={addBomItem} disabled={saving}
+              style={{ padding: '10px 16px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+              {saving ? '...' : '+ Add'}
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr auto', gap: '10px', alignItems: 'end' }}>
+            <div>
+              <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>
+                Description * <span style={{ color: '#888', fontWeight: '400' }}>e.g. {addCostType === 'labour' ? 'Bottle filling labour' : addCostType === 'fixed_overhead' ? 'Factory rent allocation' : 'Electricity per bottle'}</span>
+              </label>
+              <input value={addDescription} onChange={e => setAddDescription(e.target.value)}
+                placeholder={addCostType === 'labour' ? 'e.g. Filling & capping labour' : addCostType === 'fixed_overhead' ? 'e.g. Monthly rent ÷ bottles' : 'e.g. Electricity per bottle'}
+                style={inp} />
+            </div>
+            <div>
+              <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Cost per Unit (Rs.)</label>
+              <input type="number" value={addCostPerUnit} onChange={e => setAddCostPerUnit(e.target.value)} placeholder="5" style={inp} />
+            </div>
+            <button onClick={addBomItem} disabled={saving}
+              style={{ padding: '10px 16px', background: '#e65100', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+              {saving ? '...' : '+ Add'}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
