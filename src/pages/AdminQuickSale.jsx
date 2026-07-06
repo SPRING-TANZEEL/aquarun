@@ -29,7 +29,9 @@ export default function AdminQuickSale({ tenantId }) {
     const q = {}
     const r = {}
     data?.forEach(p => {
-      q[p.id] = 0
+      // Default 19L to quantity 1, others to 0
+      const is19l = p.name.includes('19')
+      q[p.id] = is19l ? 1 : 0
       r[p.id] = Number(p.sale_price) || 0
     })
     setQuantities(q)
