@@ -140,7 +140,7 @@ export default function AdminQuickSale({ tenantId }) {
   const inp = {
     width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0',
     borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-    background: 'white'
+    background: 'white', color: '#333', caretColor: '#0f4c81'
   }
 
   const card = {
@@ -341,7 +341,7 @@ export default function AdminQuickSale({ tenantId }) {
                 {qtyHalf > 0 && (
                   <input type="number" value={rateHalf || ''} onChange={e => setRateHalf(Number(e.target.value) || 0)}
                     placeholder="Rate"
-                    style={{ width: '75px', padding: '7px 8px', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '13px', fontWeight: '700', outline: 'none', textAlign: 'center' }} />
+                     style={{ width: '75px', padding: '7px 8px', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '13px', fontWeight: '700', outline: 'none', textAlign: 'center', color: '#333', background: 'white' }} />
                 )}
                 <SmallNumBtn val={qtyHalf} onDec={() => setQtyHalf(Math.max(0, qtyHalf - 1))} onInc={() => setQtyHalf(qtyHalf + 1)} />
               </div>
