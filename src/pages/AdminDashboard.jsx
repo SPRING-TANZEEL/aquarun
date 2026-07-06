@@ -18,7 +18,7 @@ import Accounts from './Accounts'
 const menuItems = [
   { key: 'dashboard', icon: '📊', label: 'Dashboard' },
   { key: 'customers', icon: '👥', label: 'Customers' },
-  { key: 'quicksale', icon: '⚡', label: 'Quick Sale & Receive Payment' },
+  { key: 'quicksale', icon: '⚡', label: 'Quick Sale & Payment' },
   { key: 'orders', icon: '📦', label: 'Orders' },
   { key: 'riders', icon: '🚴', label: 'Riders' },
   { key: 'cashtransfer', icon: '💸', label: 'Cash Transfers' },
