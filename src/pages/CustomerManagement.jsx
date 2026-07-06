@@ -168,12 +168,12 @@ export default function CustomerManagement({ tenantId }) {
       alert('Customer updated!')
     } else {
       const customerCode = 'AQ-' + Math.floor(10000 + Math.random() * 90000)
-      const { error } = await supabase.from('customers').insert([{
+      const { data: savedCustomer, error } = await supabase.from('customers').insert([{
         ...cleanForm,
         tenant_id: tenantId,
         customer_code: customerCode,
         balance: Number(form.opening_balance) || 0,
-      }])
+      }]).select().single()
       if (error) { 
         console.error('Insert error:', error)
         alert('Error: ' + error.message)
@@ -187,6 +187,7 @@ export default function CustomerManagement({ tenantId }) {
           tenant_id: tenantId,
           entry_date: new Date().toISOString().split('T')[0],
           reference_type: 'opening_balance',
+          reference_id: savedCustomer?.id,
           narration: `Opening balance — ${cleanForm.full_name}`,
           total_amount: Number(form.opening_balance),
           created_by: 'system'
