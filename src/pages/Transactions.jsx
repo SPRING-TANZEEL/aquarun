@@ -32,7 +32,7 @@ export default function Transactions({ tenantId }) {
 
     if (activeType === 'all' || activeType === 'deliveries') {
       const { data } = await supabase.from('deliveries')
-        .select('*, customers(full_name, customer_code), riders(full_name)')
+        .select('*, notes, customers(full_name, customer_code), riders(full_name)')
         .eq('tenant_id', tenantId)
         .gte('delivered_at', dateFrom + 'T00:00:00')
         .lte('delivered_at', dateTo + 'T23:59:59')
@@ -41,7 +41,11 @@ export default function Transactions({ tenantId }) {
       data?.forEach(d => all.push({
         id: d.id, type: 'delivery', table: 'deliveries',
         date: d.delivered_at,
-        description: `Delivery — ${d.qty_19l || 0}×19L ${d.qty_half_litre || 0}×Half ${d.qty_1_5l || 0}×1.5L`,
+         description: d.notes || [
+          d.qty_19l > 0 ? `🍶 19L ×${d.qty_19l} @ Rs.${d.rate_applied}` : '',
+          d.qty_half_litre > 0 ? `💧 Half ×${d.qty_half_litre}` : '',
+          d.qty_1_5l > 0 ? `🧴 1.5L ×${d.qty_1_5l}` : ''
+        ].filter(Boolean).join(' · '),
         party: d.customers?.full_name || 'Walk-in',
         party_code: d.customers?.customer_code || '—',
         rider: d.riders?.full_name || '—',
