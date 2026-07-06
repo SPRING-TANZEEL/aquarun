@@ -288,11 +288,9 @@ export default function Transactions({ tenantId }) {
     alert('✅ Transaction voided. All balances have been reversed.')
   }
 
-  async function restoreTransaction() {
-    if (!window.confirm('Restore this transaction? All balances will be re-applied.')) return
-    setProcessing(true)
-
-    const tx = selectedTx
+  async function restoreTransaction(tx) {
+    if (!window.confirm(`Restore this transaction?\n\n${tx.description}\nRs. ${tx.amount.toLocaleString()}\n\nAll balances will be re-applied.`)) return
+    setProcessing(true) 
 
     await supabase.from(tx.table).update({
       is_voided: false,
@@ -410,11 +408,18 @@ export default function Transactions({ tenantId }) {
               placeholder="Search customer, rider, description..."
               style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 14px', background: showVoided ? '#ffebee' : '#f0f4ff', borderRadius: '8px', cursor: 'pointer', border: '1px solid ' + (showVoided ? '#ffcdd2' : '#c8d8ff') }}
-            onClick={() => setShowVoided(!showVoided)}>
-            <span style={{ fontSize: '13px', color: showVoided ? '#c62828' : '#0f4c81', fontWeight: '600' }}>
-              {showVoided ? '🗑️ Showing Voided' : '✅ Showing Active'}
-            </span>
+          <div>
+            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Status Filter</label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button onClick={() => setShowVoided(false)}
+                style={{ padding: '8px 14px', border: '2px solid', borderColor: !showVoided ? '#1a7a4a' : '#eee', borderRadius: '8px', cursor: 'pointer', background: !showVoided ? '#1a7a4a' : 'white', color: !showVoided ? 'white' : '#555', fontSize: '12px', fontWeight: '700' }}>
+                ✅ Active
+              </button>
+              <button onClick={() => setShowVoided(true)}
+                style={{ padding: '8px 14px', border: '2px solid', borderColor: showVoided ? '#c62828' : '#eee', borderRadius: '8px', cursor: 'pointer', background: showVoided ? '#c62828' : 'white', color: showVoided ? 'white' : '#555', fontSize: '12px', fontWeight: '700' }}>
+                🗑️ Voided
+              </button>
+            </div>
           </div>
           <button onClick={fetchTransactions}
             style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
@@ -545,7 +550,7 @@ export default function Transactions({ tenantId }) {
                     </td>
                     <td style={{ padding: '10px 14px' }}>
                       {tx.is_voided ? (
-                        <button onClick={() => { setSelectedTx(tx); restoreTransaction() }}
+                         <button onClick={() => restoreTransaction(tx)}
                           style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
                           ↩️ Restore
                         </button>
