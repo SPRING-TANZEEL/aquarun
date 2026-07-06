@@ -985,7 +985,7 @@ function BOMEditor({ product, products, tenantId, onClose }) {
 
       {loading ? (
         <p style={{ color: '#888', fontSize: '13px' }}>Loading...</p>
-      ) {bom.length === 0 ? (
+      ) : bom.length === 0 ? (
         <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '16px', textAlign: 'center', marginBottom: '16px' }}>
           <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>No items defined yet. Add raw materials and cost components below.</p>
         </div>
