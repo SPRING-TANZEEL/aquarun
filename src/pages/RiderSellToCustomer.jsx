@@ -81,6 +81,14 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const amount = Number(payAmount)
     const isJazz = payMethod === 'jazzcash'
 
+    if (!isOnline) {
+      // Offline — just show success, sync later
+      setPaySuccess({ name: payCustomer.full_name, amount, method: payMethod, newBalance: Number(payCustomer.balance || 0) - amount, jazzPending: payMethod === 'jazzcash', savedOffline: true })
+      setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
+      setPaySaving(false)
+      return
+    }
+
     const { data: savedPayment, error } = await supabase.from('payments').insert([{
       tenant_id: tenantId,
       customer_id: payCustomer.id,
@@ -300,7 +308,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         <div>
           {!isOnline && (
             <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
-              <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>📵 Offline — payment receipt requires internet connection</p>
+              <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>📵 Offline — payment will be saved but customer balance will update when internet is restored</p>
             </div>
           )}
 
@@ -419,9 +427,9 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 <span style={{ fontSize: '28px', fontWeight: '800', color: '#0f4c81' }}>Rs. {Number(payAmount).toLocaleString()}</span>
               </div>
             )}
-            <button onClick={receivePayment} disabled={paySaving || !isOnline}
-              style={{ width: '100%', padding: '16px', background: payMethod === 'cash' ? '#1a7a4a' : '#9c27b0', color: 'white', border: 'none', borderRadius: '10px', cursor: paySaving || !isOnline ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', opacity: !isOnline ? 0.5 : 1 }}>
-              {paySaving ? 'Saving...' : !isOnline ? '📵 Requires Internet' : `✓ ${payMethod === 'cash' ? '💵 Receive Cash' : '📱 Record JazzCash'} — Rs. ${Number(payAmount || 0).toLocaleString()}`}
+            <button onClick={receivePayment} disabled={paySaving}
+              style={{ width: '100%', padding: '16px', background: payMethod === 'cash' ? '#1a7a4a' : '#9c27b0', color: 'white', border: 'none', borderRadius: '10px', cursor: paySaving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700' }}>
+              {paySaving ? 'Saving...' : `✓ ${payMethod === 'cash' ? '💵 Receive Cash' : '📱 Record JazzCash'} — Rs. ${Number(payAmount || 0).toLocaleString()}`}
             </button>
           </div>
         </div>
