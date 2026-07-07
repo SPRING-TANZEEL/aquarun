@@ -250,8 +250,8 @@ export default function RiderManagement({ tenantId }) {
       )}
 
       {/* Riders Table */}
-      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
           <thead>
             <tr style={{ background: '#f8f9fa' }}>
               {['Name', 'Role', 'Salary Type', 'Rate / Salary', 'PIN', 'Status', 'Action'].map(h => (

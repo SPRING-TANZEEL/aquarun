@@ -24,6 +24,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
+  const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(false)
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
@@ -63,7 +64,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
       amount: Number(amount),
       description,
       payment_method: paymentMethod,
-      expense_date: new Date().toISOString().split('T')[0]
+      expense_date: expenseDate
     }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
@@ -74,6 +75,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
       await postOfficeExpenseJournal(saved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
+    setExpenseDate(new Date().toISOString().split('T')[0])
     setSuccess(true)
     setCategory(null)
     setAmount('')
@@ -150,6 +152,15 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
 
         {/* Amount */}
         <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Amount (Rs.)</p>
+        <div style={{ marginBottom: '12px' }}>
+          <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Expense Date</label>
+          <input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)}
+            max={new Date().toISOString().split('T')[0]}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
+          {expenseDate !== new Date().toISOString().split('T')[0] && (
+            <p style={{ fontSize: '11px', color: '#e65100', fontWeight: '600', margin: '4px 0 0' }}>⚠️ Back-dated entry</p>
+          )}
+        </div>
         <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
           placeholder="0"
           style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px' }} />
