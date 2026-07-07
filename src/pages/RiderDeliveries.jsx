@@ -17,9 +17,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
   const [cashReceived, setCashReceived] = useState('')
+  const [bottlesReturned, setBottlesReturned] = useState(0)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [filter, setFilter] = useState('today')
+  const [generatingSchedule, setGeneratingSchedule] = useState(false)
+  const [scheduleGenerated, setScheduleGenerated] = useState(false)
 
   useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady, tenantId])
 
@@ -30,7 +33,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       if (isOnline) {
         let query = supabase
           .from('orders')
-          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l)')
+          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, google_maps_link)')
           .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
@@ -65,6 +68,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     setSelectedRate(order.customers?.rate_19l || 100)
     setPaymentMethod(null)
     setCashReceived('')
+    setBottlesReturned(0)
     setSuccess(null)
   }
 
@@ -72,6 +76,61 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     return (qty19l * (selectedRate || 0)) +
       (qtyHalf * (selectedOrder?.customers?.rate_half_litre || 0)) +
       (qty15l * (selectedOrder?.customers?.rate_1_5l || 0))
+  }
+
+  // ── GENERATE TODAY'S SCHEDULED ORDERS ──
+  async function generateTodaySchedule() {
+    if (!isOnline) return alert('Internet required')
+    setGeneratingSchedule(true)
+
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+    const todayName = dayNames[new Date().getDay()]
+    const today = new Date().toISOString().split('T')[0]
+
+    const { data: scheduledCustomers } = await supabase.from('customers')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .eq('schedule_active', true)
+      .contains('delivery_days', [todayName])
+
+    if (!scheduledCustomers || scheduledCustomers.length === 0) {
+      setGeneratingSchedule(false)
+      alert(`No customers scheduled for ${todayName}`)
+      return
+    }
+
+    let created = 0
+    let skipped = 0
+
+    for (const customer of scheduledCustomers) {
+      const { data: existing } = await supabase.from('orders')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('customer_id', customer.id)
+        .eq('delivery_date', today)
+        .neq('status', 'cancelled')
+
+      if (existing && existing.length > 0) { skipped++; continue }
+
+      await supabase.from('orders').insert([{
+        tenant_id: tenantId,
+        customer_id: customer.id,
+        rider_id: rider.id,
+        qty_19l: Number(customer.default_qty_19l) || 1,
+        qty_half_litre: Number(customer.default_qty_half) || 0,
+        qty_1_5l: Number(customer.default_qty_1_5l) || 0,
+        delivery_date: today,
+        status: 'assigned',
+        notes: 'Auto — Recurring schedule'
+      }])
+      created++
+    }
+
+    setGeneratingSchedule(false)
+    setScheduleGenerated(true)
+    alert(`✅ ${created} orders created · ${skipped} already existed`)
+    fetchOrders()
   }
 
   async function completeDelivery() {
@@ -88,7 +147,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
 
     setSaving(true)
 
-    // Silently capture GPS location
     let deliveryLat = null
     let deliveryLng = null
     try {
@@ -97,11 +155,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       )
       deliveryLat = position.coords.latitude
       deliveryLng = position.coords.longitude
-    } catch (err) {
-      console.log('GPS not available:', err.message)
-    }
+    } catch (err) { console.log('GPS not available:', err.message) }
 
-    setSaving(true)
     const isJazz = paymentMethod === 'jazzcash'
     const isCredit = paymentMethod === 'credit'
     const isCash = paymentMethod === 'cash'
@@ -124,7 +179,10 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       credit_amount: creditPortion,
       jazzcash_confirmed: false,
       delivered_at: now,
-      is_voided: false
+      is_voided: false,
+      delivery_lat: deliveryLat,
+      delivery_lng: deliveryLng,
+      bottles_returned: bottlesReturned
     }
 
     if (isOnline) {
@@ -141,11 +199,32 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
         await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedOrder.customer_id)
       }
 
-      // Auto-post journal entry
+      // ✅ Update our_bottles_placed
+      // + qty delivered - bottles returned by customer
+      const currentBottles = Number(selectedOrder.customers?.our_bottles_placed || 0)
+      const newBottlesWithCustomer = Math.max(0, currentBottles + qty19l - bottlesReturned)
+      await supabase.from('customers')
+        .update({ our_bottles_placed: newBottlesWithCustomer })
+        .eq('id', selectedOrder.customer_id)
+        .eq('tenant_id', tenantId)
+
       try {
         const { postDeliveryJournal } = await import('../accountingEngine')
         await postDeliveryJournal(savedDelivery, selectedOrder.customer_id, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
+
+      if (deliveryLat && deliveryLng && selectedOrder.customer_id) {
+        const { data: cust } = await supabase.from('customers')
+          .select('latitude, longitude')
+          .eq('id', selectedOrder.customer_id)
+          .eq('tenant_id', tenantId)
+          .single()
+        if (cust && !cust.latitude) {
+          await supabase.from('customers').update({
+            latitude: String(deliveryLat), longitude: String(deliveryLng)
+          }).eq('id', selectedOrder.customer_id).eq('tenant_id', tenantId)
+        }
+      }
 
     } else {
       await savePendingDelivery(deliveryData)
@@ -159,19 +238,22 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     setSuccess({
       customer: selectedOrder.customers?.full_name,
       total, received, creditPortion, paymentMethod,
+      bottlesReturned, qty19l,
+      newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
       savedOffline: !isOnline
     })
     setSelectedOrder(null)
     setPaymentMethod(null)
     setCashReceived('')
+    setBottlesReturned(0)
     fetchOrders()
     setSaving(false)
   }
 
-  function numBtn(val, setVal) {
+  function numBtn(val, setVal, min = 0) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <button onClick={() => setVal(Math.max(0, val - 1))}
+        <button onClick={() => setVal(Math.max(min, val - 1))}
           style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
         <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center' }}>{val}</span>
         <button onClick={() => setVal(val + 1)}
@@ -182,6 +264,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
 
   const total = totalAmount()
   const cashReceivedNum = Number(cashReceived) || 0
+  const ourBottles = Number(selectedOrder?.customers?.our_bottles_placed || 0)
 
   return (
     <div>
@@ -195,15 +278,14 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
           <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Delivery Completed!</p>
-          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>
-            {success.customer} — Total: Rs. {success.total.toLocaleString()}
-          </p>
+          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Rs. {success.total.toLocaleString()}</p>
           {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Cash: Rs. {success.received.toLocaleString()}</p>}
           {success.creditPortion > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: '0 0 2px' }}>Credit: Rs. {success.creditPortion.toLocaleString()}</p>}
+          <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>
+            🫙 Delivered: {success.qty19l} · Returned: {success.bottlesReturned} · Our bottles now with customer: {success.newBottlesWithCustomer}
+          </p>
           {success.savedOffline && (
-            <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>
-              📵 Saved offline — will sync when internet available
-            </p>
+            <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>📵 Saved offline — will sync later</p>
           )}
           <button onClick={() => setSuccess(null)}
             style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
@@ -214,20 +296,40 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
 
       {selectedOrder ? (
         <div>
-          <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 2px' }}>{selectedOrder.customers?.full_name}</p>
-              <p style={{ fontSize: '12px', opacity: 0.8, margin: 0 }}>{selectedOrder.customers?.mobile}</p>
-              {selectedOrder.notes && <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0' }}>📝 {selectedOrder.notes}</p>}
+          {/* Customer header */}
+          <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ flex: 1 }}>
+                <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 4px' }}>{selectedOrder.customers?.full_name}</p>
+                {selectedOrder.customers?.address && (
+                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>📍 {selectedOrder.customers.address}</p>
+                )}
+                <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>📞 {selectedOrder.customers?.mobile}</p>
+                {selectedOrder.notes && (
+                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0' }}>📝 {selectedOrder.notes}</p>
+                )}
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
+                <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 2px' }}>Outstanding</p>
+                <p style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 6px', color: selectedOrder.customers?.balance > 0 ? '#ffcdd2' : '#c8e6c9' }}>
+                  Rs. {Number(selectedOrder.customers?.balance || 0).toLocaleString()}
+                </p>
+                {ourBottles > 0 && (
+                  <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '6px', padding: '4px 8px' }}>
+                    <p style={{ fontSize: '11px', opacity: 0.9, margin: 0 }}>🫙 {ourBottles} our bottles</p>
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 2px' }}>Outstanding</p>
-              <p style={{ fontSize: '18px', fontWeight: '700', margin: 0, color: selectedOrder.customers?.balance > 0 ? '#ffcdd2' : '#c8e6c9' }}>
-                Rs. {Number(selectedOrder.customers?.balance || 0).toLocaleString()}
-              </p>
-            </div>
+            {selectedOrder.customers?.google_maps_link && (
+              <a href={selectedOrder.customers.google_maps_link} target="_blank" rel="noreferrer"
+                style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', background: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
+                🗺️ Open in Maps
+              </a>
+            )}
           </div>
 
+          {/* Bottles to deliver */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '14px' }}>Bottles to Deliver</p>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -257,6 +359,25 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
             )}
           </div>
 
+          {/* ✅ BOTTLES RETURNED */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                  Customer currently has: <strong>{ourBottles}</strong> of our bottles
+                </p>
+                {bottlesReturned > 0 && (
+                  <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
+                    After delivery: {Math.max(0, ourBottles + qty19l - bottlesReturned)} our bottles with customer
+                  </p>
+                )}
+              </div>
+              {numBtn(bottlesReturned, setBottlesReturned)}
+            </div>
+          </div>
+
+          {/* Rate */}
           {qty19l > 0 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Rate — 19L</p>
@@ -271,6 +392,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
             </div>
           )}
 
+          {/* Payment */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -296,7 +418,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
                 <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Cash Received</label>
                 <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)}
                   placeholder={total.toString()}
-                  style={{ width: '100%', padding: '12px', border: '2px solid #c8e0ff', borderRadius: '8px', fontSize: '20px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center' }} />
+                  style={{ width: '100%', padding: '12px', border: '2px solid #c8e0ff', borderRadius: '8px', fontSize: '20px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333' }} />
                 <button onClick={() => setCashReceived(String(total))}
                   style={{ marginTop: '8px', padding: '6px 14px', background: '#e3f0ff', border: '1px solid #c8e0ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
                   Full: Rs. {total.toLocaleString()}
@@ -317,7 +439,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
                 )}
               </div>
             )}
-
             {paymentMethod === 'jazzcash' && (
               <div style={{ marginTop: '10px', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
                 <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ JazzCash goes directly to office. Admin will confirm.</p>
@@ -325,18 +446,17 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
             )}
           </div>
 
+          {/* Total & Complete */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
               <p style={{ fontSize: '16px', color: '#555', margin: 0 }}>Total Amount</p>
               <p style={{ fontSize: '28px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {total.toLocaleString()}</p>
             </div>
             {!isOnline && (
-              <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>
-                📵 Will save offline and sync later
-              </p>
+              <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>📵 Will save offline and sync later</p>
             )}
             <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={() => { setSelectedOrder(null); setCashReceived('') }}
+              <button onClick={() => { setSelectedOrder(null); setCashReceived(''); setBottlesReturned(0) }}
                 style={{ flex: 1, padding: '14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
                 ← Back
               </button>
@@ -349,6 +469,23 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
         </div>
       ) : (
         <div>
+          {/* Schedule Generator */}
+          <div style={{ background: scheduleGenerated ? '#e8f5e9' : '#f0f7ff', border: `1px solid ${scheduleGenerated ? '#4caf50' : '#c8d8ff'}`, borderRadius: '10px', padding: '12px 16px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: scheduleGenerated ? '#1a7a4a' : '#0f4c81', margin: '0 0 2px' }}>
+                {scheduleGenerated ? '✅ Schedule Generated' : '📅 Recurring Schedule'}
+              </p>
+              <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'short' })}
+              </p>
+            </div>
+            <button onClick={generateTodaySchedule} disabled={generatingSchedule || scheduleGenerated}
+              style={{ padding: '8px 14px', background: scheduleGenerated ? 'white' : '#0f4c81', color: scheduleGenerated ? '#1a7a4a' : 'white', border: scheduleGenerated ? '1px solid #4caf50' : 'none', borderRadius: '8px', cursor: scheduleGenerated ? 'default' : 'pointer', fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap' }}>
+              {generatingSchedule ? '⏳...' : scheduleGenerated ? '✅ Done' : '⚡ Generate'}
+            </button>
+          </div>
+
+          {/* Filter tabs */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
             {[
               { key: 'today', label: "Today's Orders" },
@@ -371,31 +508,41 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>{orders.length} delivery pending</p>
-              {orders.map(o => (
-                <div key={o.id} onClick={() => selectOrder(o)}
-                  style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', cursor: 'pointer', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ fontWeight: '700', fontSize: '15px', margin: '0 0 4px', color: '#333' }}>{o.customers?.full_name}</p>
-                    <p style={{ fontSize: '12px', color: '#888', margin: '0 0 6px' }}>{o.customers?.mobile}</p>
-                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                      {o.qty_19l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>19L × {o.qty_19l}</span>}
-                      {o.qty_half_litre > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>Half × {o.qty_half_litre}</span>}
-                      {o.qty_1_5l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>1.5L × {o.qty_1_5l}</span>}
+              <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>{orders.length} deliveries pending</p>
+              {orders.map((o, idx) => {
+                const balance = Number(o.customers?.balance || 0)
+                const ourBottles = Number(o.customers?.our_bottles_placed || 0)
+                return (
+                  <div key={o.id} onClick={() => selectOrder(o)}
+                    style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', cursor: 'pointer', border: '1px solid #eee' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
+                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#0f4c81', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>{idx + 1}</span>
+                          <p style={{ fontWeight: '700', fontSize: '15px', margin: 0, color: '#333' }}>{o.customers?.full_name}</p>
+                        </div>
+                        {o.customers?.address && (
+                          <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px 30px' }}>📍 {o.customers.address}</p>
+                        )}
+                        <p style={{ fontSize: '12px', color: '#888', margin: '0 0 6px 30px' }}>📞 {o.customers?.mobile}</p>
+                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginLeft: '30px' }}>
+                          {o.qty_19l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🍶 {o.qty_19l} × 19L</span>}
+                          {o.qty_half_litre > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>💧 {o.qty_half_litre} × Half</span>}
+                          {o.qty_1_5l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🧴 {o.qty_1_5l} × 1.5L</span>}
+                          {ourBottles > 0 && <span style={{ fontSize: '12px', background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🫙 {ourBottles} bottles</span>}
+                        </div>
+                        {o.notes && <p style={{ fontSize: '11px', color: '#aaa', margin: '4px 0 0 30px' }}>{o.notes}</p>}
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '10px' }}>
+                        <p style={{ fontSize: '13px', color: balance > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: '0 0 4px' }}>
+                          {balance > 0 ? `Rs. ${balance.toLocaleString()}` : balance < 0 ? `Adv ${Math.abs(balance).toLocaleString()}` : 'Clear'}
+                        </p>
+                        <span style={{ fontSize: '20px', color: '#ccc' }}>›</span>
+                      </div>
                     </div>
-                    {o.notes && <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>📝 {o.notes}</p>}
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: '12px', color: o.customers?.balance > 0 ? '#f44336' : '#4caf50', fontWeight: '600', margin: '0 0 4px' }}>
-                      Rs. {Number(o.customers?.balance || 0).toLocaleString()}
-                    </p>
-                    <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
-                      {o.delivery_date ? new Date(o.delivery_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }) : ''}
-                    </p>
-                    <span style={{ fontSize: '20px', color: '#ccc' }}>›</span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+const DAY_LABELS = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' }
+
 export default function CustomerManagement({ tenantId }) {
   const [customers, setCustomers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -14,7 +17,13 @@ export default function CustomerManagement({ tenantId }) {
     own_bottles: 0, our_bottles_placed: 0,
     opening_balance: 0, customer_password: '',
     google_maps_link: '', latitude: '', longitude: '',
-    is_active: true
+    is_active: true,
+    // Delivery schedule
+    schedule_active: false,
+    delivery_days: [],
+    default_qty_19l: 1,
+    default_qty_half: 0,
+    default_qty_1_5l: 0,
   })
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState({})
@@ -49,7 +58,12 @@ export default function CustomerManagement({ tenantId }) {
       opening_balance: 0,
       customer_password: generatePassword(),
       google_maps_link: '', latitude: '', longitude: '',
-      is_active: true
+      is_active: true,
+      schedule_active: false,
+      delivery_days: [],
+      default_qty_19l: 1,
+      default_qty_half: 0,
+      default_qty_1_5l: 0,
     })
     setShowForm(true)
   }
@@ -70,9 +84,23 @@ export default function CustomerManagement({ tenantId }) {
       google_maps_link: c.google_maps_link || '',
       latitude: c.latitude || '',
       longitude: c.longitude || '',
-      is_active: c.is_active
+      is_active: c.is_active,
+      schedule_active: c.schedule_active || false,
+      delivery_days: c.delivery_days || [],
+      default_qty_19l: Number(c.default_qty_19l) || 1,
+      default_qty_half: Number(c.default_qty_half) || 0,
+      default_qty_1_5l: Number(c.default_qty_1_5l) || 0,
     })
     setShowForm(true)
+  }
+
+  function toggleDay(day) {
+    const days = form.delivery_days || []
+    if (days.includes(day)) {
+      setForm(f => ({ ...f, delivery_days: days.filter(d => d !== day) }))
+    } else {
+      setForm(f => ({ ...f, delivery_days: [...days, day] }))
+    }
   }
 
   function extractCoordinates(link) {
@@ -104,7 +132,6 @@ export default function CustomerManagement({ tenantId }) {
     if (!form.customer_password) return alert('Password is required')
     setSaving(true)
 
-    // Force clean ALL fields — no empty strings allowed
     const cleanForm = {
       full_name: String(form.full_name || '').trim(),
       mobile: String(form.mobile || '').trim(),
@@ -121,12 +148,14 @@ export default function CustomerManagement({ tenantId }) {
       latitude: String(form.latitude || '').trim(),
       longitude: String(form.longitude || '').trim(),
       is_active: form.is_active === false ? false : true,
+      schedule_active: form.schedule_active || false,
+      delivery_days: form.delivery_days || [],
+      default_qty_19l: Number(form.default_qty_19l) || 1,
+      default_qty_half: Number(form.default_qty_half) || 0,
+      default_qty_1_5l: Number(form.default_qty_1_5l) || 0,
     }
 
-    console.log('Saving customer with data:', cleanForm)
-
     if (editCustomer) {
-      // Recalculate balance = opening_balance + (all credit deliveries) - (all payments)
       const { data: deliveryData } = await supabase.from('deliveries')
         .select('credit_amount, total_amount, payment_method, jazzcash_confirmed')
         .eq('customer_id', editCustomer.id)
@@ -140,48 +169,31 @@ export default function CustomerManagement({ tenantId }) {
         .eq('is_voided', false)
 
       let balance = cleanForm.opening_balance
-
       deliveryData?.forEach(d => {
         if (d.payment_method === 'credit') balance += Number(d.total_amount)
         else if (d.payment_method === 'cash') balance += Number(d.credit_amount || 0)
         else if (d.payment_method === 'jazzcash' && !d.jazzcash_confirmed) balance += Number(d.total_amount)
       })
-
       paymentData?.forEach(p => {
         if (p.payment_method === 'cash') balance -= Number(p.amount)
         else if (p.payment_method === 'jazzcash' && p.jazzcash_confirmed) balance -= Number(p.amount)
       })
 
       const { error } = await supabase.from('customers').update({
-        ...cleanForm,
-        balance: balance,
-        updated_at: new Date().toISOString()
-      })
-        .eq('id', editCustomer.id)
-        .eq('tenant_id', tenantId)
-      if (error) { 
-        console.error('Update error:', error)
-        alert('Error: ' + error.message)
-        setSaving(false)
-        return
-      }
+        ...cleanForm, balance, updated_at: new Date().toISOString()
+      }).eq('id', editCustomer.id).eq('tenant_id', tenantId)
+
+      if (error) { alert('Error: ' + error.message); setSaving(false); return }
       alert('Customer updated!')
     } else {
       const customerCode = 'AQ-' + Math.floor(10000 + Math.random() * 90000)
       const { data: savedCustomer, error } = await supabase.from('customers').insert([{
-        ...cleanForm,
-        tenant_id: tenantId,
-        customer_code: customerCode,
+        ...cleanForm, tenant_id: tenantId, customer_code: customerCode,
         balance: Number(form.opening_balance) || 0,
       }]).select().single()
-      if (error) { 
-        console.error('Insert error:', error)
-        alert('Error: ' + error.message)
-        setSaving(false)
-        return
-      }
 
-      // Post opening balance journal entry if opening balance > 0
+      if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
       if (Number(form.opening_balance) > 0) {
         const { data: je } = await supabase.from('journal_entries').insert([{
           tenant_id: tenantId,
@@ -211,20 +223,13 @@ export default function CustomerManagement({ tenantId }) {
   }
 
   async function toggleActive(c) {
-    await supabase.from('customers')
-      .update({ is_active: !c.is_active })
-      .eq('id', c.id)
-      .eq('tenant_id', tenantId)
+    await supabase.from('customers').update({ is_active: !c.is_active }).eq('id', c.id).eq('tenant_id', tenantId)
     fetchCustomers()
   }
 
   async function resetPassword(c) {
     const newPass = generatePassword()
-    await supabase.from('customers').update({
-      customer_password: newPass, password_plain: newPass
-    })
-      .eq('id', c.id)
-      .eq('tenant_id', tenantId)
+    await supabase.from('customers').update({ customer_password: newPass, password_plain: newPass }).eq('id', c.id).eq('tenant_id', tenantId)
     alert(`New password for ${c.full_name}:\n\nPassword: ${newPass}\n\nShare this with the customer.`)
     fetchCustomers()
   }
@@ -248,17 +253,16 @@ export default function CustomerManagement({ tenantId }) {
       filter === 'inactive' ? !c.is_active :
       filter === 'outstanding' ? balance > 0 :
       filter === 'advance' ? balance < 0 :
-      filter === 'clear' ? balance === 0 : true
+      filter === 'clear' ? balance === 0 :
+      filter === 'scheduled' ? c.schedule_active : true
     return matchSearch && matchFilter
   })
 
-  const inp = {
-    width: '100%', padding: '10px 12px', border: '1px solid #ddd',
-    borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
-  }
+  const inp = { width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }
 
   const totalReceivable = customers.filter(c => Number(c.balance) > 0).reduce((s, c) => s + Number(c.balance), 0)
   const totalAdvance = customers.filter(c => Number(c.balance) < 0).reduce((s, c) => s + Math.abs(Number(c.balance)), 0)
+  const scheduledCount = customers.filter(c => c.schedule_active).length
 
   return (
     <div>
@@ -272,7 +276,7 @@ export default function CustomerManagement({ tenantId }) {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
         <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #0f4c81' }}>
           <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Total Customers</p>
           <p style={{ fontSize: '22px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{customers.filter(c => c.is_active).length}</p>
@@ -284,6 +288,10 @@ export default function CustomerManagement({ tenantId }) {
         <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #1a7a4a' }}>
           <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Advance Credits</p>
           <p style={{ fontSize: '22px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {totalAdvance.toLocaleString()}</p>
+        </div>
+        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #f59e0b' }}>
+          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Scheduled</p>
+          <p style={{ fontSize: '22px', fontWeight: '700', color: '#f59e0b', margin: 0 }}>{scheduledCount}</p>
         </div>
       </div>
 
@@ -299,15 +307,13 @@ export default function CustomerManagement({ tenantId }) {
             { key: 'outstanding', label: '🔴 Owe' },
             { key: 'advance', label: '🟢 Advance' },
             { key: 'clear', label: '⚪ Clear' },
+            { key: 'scheduled', label: '📅 Scheduled' },
             { key: 'inactive', label: '❌ Inactive' },
           ].map(f => (
             <button key={f.key} onClick={() => setFilter(f.key)}
-              style={{
-                padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer',
-                background: filter === f.key ? '#0f4c81' : '#f0f0f0',
-                color: filter === f.key ? 'white' : '#555',
-                fontWeight: filter === f.key ? '700' : '400', fontSize: '12px'
-              }}>{f.label}</button>
+              style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: filter === f.key ? '#0f4c81' : '#f0f0f0', color: filter === f.key ? 'white' : '#555', fontWeight: filter === f.key ? '700' : '400', fontSize: '12px' }}>
+              {f.label}
+            </button>
           ))}
         </div>
       </div>
@@ -326,18 +332,15 @@ export default function CustomerManagement({ tenantId }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '14px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Full Name *</label>
-              <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })}
-                placeholder="Customer name" style={inp} />
+              <input value={form.full_name} onChange={e => setForm({ ...form, full_name: e.target.value })} placeholder="Customer name" style={inp} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Mobile *</label>
-              <input value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })}
-                placeholder="03xx-xxxxxxx" style={inp} />
+              <input value={form.mobile} onChange={e => setForm({ ...form, mobile: e.target.value })} placeholder="03xx-xxxxxxx" style={inp} />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Address</label>
-              <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })}
-                placeholder="Customer address" style={inp} />
+              <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="Customer address" style={inp} />
             </div>
           </div>
 
@@ -366,7 +369,7 @@ export default function CustomerManagement({ tenantId }) {
               </div>
             </div>
             <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>
-              💡 Customer uses their <strong>Customer ID</strong> and <strong>Password</strong> to login to the customer app. Share these after saving.
+              💡 Customer uses their <strong>Customer ID</strong> and <strong>Password</strong> to login to the customer app.
             </p>
           </div>
 
@@ -399,7 +402,7 @@ export default function CustomerManagement({ tenantId }) {
                 style={inp} />
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Our Bottles Placed</label>
+              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Our Bottles Placed (Opening)</label>
               <input type="number" value={form.our_bottles_placed}
                 onChange={e => setForm({ ...form, our_bottles_placed: e.target.value === '' ? '' : Number(e.target.value) })}
                 onBlur={e => setForm({ ...form, our_bottles_placed: cleanNumeric(e.target.value) })}
@@ -419,6 +422,71 @@ export default function CustomerManagement({ tenantId }) {
                 💡 Positive = customer owes you · Negative = customer paid in advance
               </p>
             </div>
+          </div>
+
+          {/* ── DELIVERY SCHEDULE ── */}
+          <div style={{ background: '#f0fff4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>📅 Recurring Delivery Schedule</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Orders will auto-generate on selected days each week</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', color: form.schedule_active ? '#1a7a4a' : '#aaa', fontWeight: '600' }}>
+                  {form.schedule_active ? 'Active' : 'Inactive'}
+                </span>
+                <div onClick={() => setForm(f => ({ ...f, schedule_active: !f.schedule_active }))}
+                  style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.schedule_active ? '#1a7a4a' : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.schedule_active ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                </div>
+              </div>
+            </div>
+
+            {form.schedule_active && (
+              <>
+                {/* Day selector */}
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Delivery Days</p>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
+                  {DAYS.map(day => (
+                    <button key={day} type="button" onClick={() => toggleDay(day)}
+                      style={{ padding: '8px 12px', border: '2px solid', borderColor: (form.delivery_days || []).includes(day) ? '#1a7a4a' : '#ddd', borderRadius: '8px', cursor: 'pointer', background: (form.delivery_days || []).includes(day) ? '#1a7a4a' : 'white', color: (form.delivery_days || []).includes(day) ? 'white' : '#555', fontWeight: '700', fontSize: '13px' }}>
+                      {DAY_LABELS[day]}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Default quantities */}
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Default Quantities per Delivery</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px' }}>19L Bottles</label>
+                    <input type="number" value={form.default_qty_19l}
+                      onChange={e => setForm(f => ({ ...f, default_qty_19l: Number(e.target.value) || 0 }))}
+                      style={{ ...inp, textAlign: 'center' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px' }}>Half Litre</label>
+                    <input type="number" value={form.default_qty_half}
+                      onChange={e => setForm(f => ({ ...f, default_qty_half: Number(e.target.value) || 0 }))}
+                      style={{ ...inp, textAlign: 'center' }} />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px' }}>1.5 Litre</label>
+                    <input type="number" value={form.default_qty_1_5l}
+                      onChange={e => setForm(f => ({ ...f, default_qty_1_5l: Number(e.target.value) || 0 }))}
+                      style={{ ...inp, textAlign: 'center' }} />
+                  </div>
+                </div>
+
+                {(form.delivery_days || []).length > 0 && (
+                  <div style={{ marginTop: '10px', background: '#dcfce7', borderRadius: '6px', padding: '8px 12px' }}>
+                    <p style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>
+                      📦 {form.default_qty_19l} × 19L will be ordered every {(form.delivery_days || []).map(d => DAY_LABELS[d]).join(', ')}
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           {/* Google Maps */}
@@ -451,7 +519,7 @@ export default function CustomerManagement({ tenantId }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
-                {['Customer', 'Mobile', 'Rate 19L', 'Bottles', 'Balance', 'Login Details', 'Status', 'Action'].map(h => (
+                {['Customer', 'Mobile', 'Rate 19L', 'Bottles', 'Balance', 'Schedule', 'Login Details', 'Status', 'Action'].map(h => (
                   <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee' }}>{h}</th>
                 ))}
               </tr>
@@ -477,6 +545,21 @@ export default function CustomerManagement({ tenantId }) {
                       <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: balDisplay.bg, color: balDisplay.color, whiteSpace: 'nowrap' }}>
                         {balDisplay.label}
                       </span>
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      {c.schedule_active && (c.delivery_days || []).length > 0 ? (
+                        <div>
+                          <p style={{ fontSize: '11px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>📅 Active</p>
+                          <p style={{ fontSize: '10px', color: '#888', margin: 0 }}>
+                            {(c.delivery_days || []).map(d => DAY_LABELS[d]).join(', ')}
+                          </p>
+                          <p style={{ fontSize: '10px', color: '#555', margin: '2px 0 0' }}>
+                            {c.default_qty_19l || 1} × 19L
+                          </p>
+                        </div>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: '#ccc' }}>No schedule</span>
+                      )}
                     </td>
                     <td style={{ padding: '12px 14px' }}>
                       <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>ID: <strong style={{ color: '#0f4c81' }}>{c.customer_code}</strong></p>
