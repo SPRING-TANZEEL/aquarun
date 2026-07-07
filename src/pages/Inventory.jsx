@@ -1183,7 +1183,7 @@ function StockHistory({ products, tenantId }) {
       {loading ? (
         <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
       ) : activeTab === 'purchases' ? (
-        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           {purchases.length === 0 ? (
             <p style={{ padding: '40px', textAlign: 'center', color: '#888' }}>No purchases for this period.</p>
           ) : (
