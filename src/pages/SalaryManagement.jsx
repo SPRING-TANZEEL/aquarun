@@ -21,6 +21,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
   const [payAmount, setPayAmount] = useState('')
   const [payNote, setPayNote] = useState('')
   const [payMethod, setPayMethod] = useState('cash')
+  const [payDate, setPayDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (tenantId) fetchData() }, [selectedMonth, tenantId])
@@ -131,7 +132,8 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       total_advances: summary?.totalAdvances || 0,
       amount_paid: Number(payAmount),
       payment_method: payMethod,
-      notes: payNote
+      notes: payNote,
+      payment_date: payDate
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
@@ -145,6 +147,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     setPayAmount('')
     setPayNote('')
     setPayMethod('cash')
+    setPayDate(new Date().toISOString().split('T')[0])
     setSaving(false)
     fetchData()
   }
@@ -291,12 +294,23 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                         style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '16px', fontWeight: '700', outline: 'none', boxSizing: 'border-box' }} />
                     </div>
                     <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Note (optional)</label>
-                      <input value={payNote} onChange={e => setPayNote(e.target.value)}
-                        placeholder="e.g. Month end payment"
-                        style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+                      <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Payment Date</label>
+                      <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)}
+                        max={new Date().toISOString().split('T')[0]}
+                        style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
                     </div>
                   </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Note (optional)</label>
+                    <input value={payNote} onChange={e => setPayNote(e.target.value)}
+                      placeholder="e.g. Month end payment"
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
+                  </div>
+                  {payDate !== new Date().toISOString().split('T')[0] && (
+                    <div style={{ background: '#fff3e0', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
+                      <p style={{ fontSize: '11px', color: '#e65100', fontWeight: '600', margin: 0 }}>⚠️ Back-dated entry — {new Date(payDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                    </div>
+                  )}
 
                   <div style={{ background: '#fff3e0', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
                     <p style={{ fontSize: '11px', color: '#e65100', margin: 0 }}>
