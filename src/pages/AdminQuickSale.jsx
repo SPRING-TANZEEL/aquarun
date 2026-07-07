@@ -19,6 +19,7 @@ export default function AdminQuickSale({ tenantId }) {
   const [success, setSuccess] = useState(null)
   const [notes, setNotes] = useState('')
   const [customerName, setCustomerName] = useState('')
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0])
   const [customerSearch, setCustomerSearch] = useState('')
   const [customerResults, setCustomerResults] = useState([])
   const [selectedCustomer, setSelectedCustomer] = useState(null)
@@ -192,7 +193,7 @@ export default function AdminQuickSale({ tenantId }) {
       amount_received: paymentMethod === 'credit' ? 0 : paymentMethod === 'jazzcash' ? 0 : total,
       credit_amount: paymentMethod === 'credit' ? total : 0,
       jazzcash_confirmed: false,
-      delivered_at: new Date().toISOString(),
+      delivered_at: new Date(saleDate).toISOString(),
       is_voided: false,
       notes: [walkinName !== 'Walk-in Customer' ? `Customer: ${walkinName}` : '', descParts.join(' | '), notes].filter(Boolean).join(' — ')
     }
@@ -262,6 +263,7 @@ export default function AdminQuickSale({ tenantId }) {
     setQtyHalf(0); setRateHalf(0)
     setQty15l(0); setRate15l(0)
     setPaymentMethod('cash'); setNotes(''); setCustomerName('')
+    setSaleDate(new Date().toISOString().split('T')[0])
     setSelectedCustomer(null); setCustomerSearch('')
     const q = {}; extraProducts.forEach(p => { q[p.id] = 0 }); setExtraQuantities(q)
     await fetchExtraProducts()
@@ -553,11 +555,22 @@ export default function AdminQuickSale({ tenantId }) {
               )}
             </div>
 
-            {/* Notes */}
-            <div style={card}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
-              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
-            </div>
+            {/* Sale Date */}
+      <div style={card}>
+        <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sale Date</p>
+        <input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)}
+          max={new Date().toISOString().split('T')[0]}
+          style={{ ...inp, fontSize: '15px' }} />
+        {saleDate !== new Date().toISOString().split('T')[0] && (
+          <p style={{ fontSize: '11px', color: '#e65100', margin: '6px 0 0', fontWeight: '600' }}>⚠️ Back-dated entry — {new Date(saleDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+        )}
+      </div>
+
+      {/* Notes */}
+      <div style={card}>
+        <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
+        <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
+      </div>
 
             {/* Total & Submit */}
             <div style={{ ...card, border: '2px solid #e3f0ff' }}>
