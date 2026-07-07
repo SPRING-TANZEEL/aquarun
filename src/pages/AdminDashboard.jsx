@@ -98,6 +98,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
   const [businessLogo, setBusinessLogo] = useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [scheduleNotif, setScheduleNotif] = useState(null)
 
   const adminUser = user
 
@@ -110,6 +111,56 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
   useEffect(() => { if (tenantId) fetchDashboard() }, [period, tenantId])
 
+  async function autoGenerateSchedule() {
+    try {
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const todayName = dayNames[new Date().getDay()]
+      const today = new Date().toISOString().split('T')[0]
+
+      // Get scheduled customers for today
+      const { data: scheduledCustomers } = await supabase.from('customers')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .eq('schedule_active', true)
+        .contains('delivery_days', [todayName])
+
+      if (!scheduledCustomers || scheduledCustomers.length === 0) return
+
+      let created = 0
+      for (const customer of scheduledCustomers) {
+        // Skip if order already exists today
+        const { data: existing } = await supabase.from('orders')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('customer_id', customer.id)
+          .eq('delivery_date', today)
+          .neq('status', 'cancelled')
+
+        if (existing && existing.length > 0) continue
+
+        await supabase.from('orders').insert([{
+          tenant_id: tenantId,
+          customer_id: customer.id,
+          qty_19l: Number(customer.default_qty_19l) || 1,
+          qty_half_litre: Number(customer.default_qty_half) || 0,
+          qty_1_5l: Number(customer.default_qty_1_5l) || 0,
+          delivery_date: today,
+          status: 'pending',
+          notes: 'Auto — Recurring schedule'
+        }])
+        created++
+      }
+
+      if (created > 0) {
+        setScheduleNotif(`📅 ${created} recurring order${created > 1 ? 's' : ''} auto-generated for today`)
+        setTimeout(() => setScheduleNotif(null), 8000)
+      }
+    } catch (err) {
+      console.error('Auto schedule error:', err)
+    }
+  }
+
   async function fetchBusiness() {
     const { data } = await supabase.from('business_settings')
       .select('*')
@@ -118,6 +169,8 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     if (map.business_name) setBusinessName(map.business_name)
     if (map.business_logo) setBusinessLogo(map.business_logo)
+    // Auto-generate recurring orders on login
+    autoGenerateSchedule()
     if (map.setup_completed !== 'true') setShowSetupWizard(true)
   }
 
@@ -501,7 +554,13 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
           {/* EXECUTIVE DASHBOARD */}
           {activePage === 'dashboard' && (
-            <div>
+        <div>
+          {scheduleNotif && (
+            <div style={{ background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <p style={{ fontSize: '13px', fontWeight: '600', color: '#1a7a4a', margin: 0 }}>{scheduleNotif}</p>
+              <button onClick={() => setScheduleNotif(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: '16px' }}>✕</button>
+            </div>
+          )}
               <div style={{ marginBottom: '16px' }}>
                 <h2 style={{ fontSize: isMobile ? '16px' : '20px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 4px' }}>Executive Summary</h2>
                 <p style={{ fontSize: '12px', color: '#888', margin: '0 0 12px' }}>Comparing {dates?.label} vs {dates?.prevLabel}</p>
