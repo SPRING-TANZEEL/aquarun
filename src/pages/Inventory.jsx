@@ -1187,7 +1187,7 @@ function StockHistory({ products, tenantId }) {
           {purchases.length === 0 ? (
             <p style={{ padding: '40px', textAlign: 'center', color: '#888' }}>No purchases for this period.</p>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
               <thead>
                 <tr style={{ background: '#f8f9fa' }}>
                   {['Date', 'Product', 'Quantity', 'Price/Unit', 'Total Cost', 'Paid From', 'Supplier'].map(h => (
