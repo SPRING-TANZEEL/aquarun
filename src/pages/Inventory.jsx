@@ -853,8 +853,8 @@ function ProductManagement({ products, onRefresh, tenantId }) {
         return (
           <div key={type} style={{ marginBottom: '20px' }}>
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>{typeLabel}</p>
-            <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa' }}>
                     {['Name', 'Stock', 'Opening', 'Sale Price', 'Purchase Price', 'In Portal', 'Action'].map(h => (
