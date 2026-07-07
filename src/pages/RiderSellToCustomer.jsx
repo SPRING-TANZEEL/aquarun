@@ -16,10 +16,10 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
   const [cashReceived, setCashReceived] = useState('')
+  const [bottlesReturned, setBottlesReturned] = useState(0)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [step, setStep] = useState(1)
-  const [bottlesReturned, setBottlesReturned] = useState(0)
 
   // Payment receipt state
   const [paySearch, setPaySearch] = useState('')
@@ -65,6 +65,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setSelectedRate(c.rate_19l || 100)
     setSearch('')
     setSearchResults([])
+    setBottlesReturned(0)
     setStep(2)
   }
 
@@ -83,7 +84,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const isJazz = payMethod === 'jazzcash'
 
     if (!isOnline) {
-      // Offline — just show success, sync later
       setPaySuccess({ name: payCustomer.full_name, amount, method: payMethod, newBalance: Number(payCustomer.balance || 0) - amount, jazzPending: payMethod === 'jazzcash', savedOffline: true })
       setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
       setPaySaving(false)
@@ -104,26 +104,16 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
     if (error) { alert('Error: ' + error.message); setPaySaving(false); return }
 
-    // Cash: reduce customer balance + post journal
     if (!isJazz) {
       const newBalance = Number(payCustomer.balance || 0) - amount
-      await supabase.from('customers')
-        .update({ balance: newBalance })
-        .eq('id', payCustomer.id)
-        .eq('tenant_id', tenantId)
-
-      // Journal: DR Cash in Hand (1001), CR Accounts Receivable (1100)
+      await supabase.from('customers').update({ balance: newBalance }).eq('id', payCustomer.id).eq('tenant_id', tenantId)
       try {
         const { data: je } = await supabase.from('journal_entries').insert([{
-          tenant_id: tenantId,
-          entry_date: new Date().toISOString().split('T')[0],
-          reference_type: 'payment',
-          reference_id: savedPayment.id,
+          tenant_id: tenantId, entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'payment', reference_id: savedPayment.id,
           narration: `Payment received — ${payCustomer.full_name} — Cash — Rider: ${rider.full_name}`,
-          total_amount: amount,
-          created_by: rider.full_name
+          total_amount: amount, created_by: rider.full_name
         }]).select().single()
-
         if (je) {
           await supabase.from('journal_entry_lines').insert([
             { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1001', account_name: 'Cash in Hand', debit: amount, credit: 0 },
@@ -133,19 +123,14 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       } catch (err) { console.error('Journal error:', err) }
     }
 
-    // JazzCash: goes to admin, no balance update until confirmed
     if (isJazz) {
       try {
         const { data: je } = await supabase.from('journal_entries').insert([{
-          tenant_id: tenantId,
-          entry_date: new Date().toISOString().split('T')[0],
-          reference_type: 'payment',
-          reference_id: savedPayment.id,
+          tenant_id: tenantId, entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'payment', reference_id: savedPayment.id,
           narration: `JazzCash payment pending — ${payCustomer.full_name} — Rider: ${rider.full_name}`,
-          total_amount: amount,
-          created_by: rider.full_name
+          total_amount: amount, created_by: rider.full_name
         }]).select().single()
-
         if (je) {
           await supabase.from('journal_entry_lines').insert([
             { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1002', account_name: 'JazzCash Account', debit: amount, credit: 0 },
@@ -155,17 +140,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       } catch (err) { console.error('Journal error:', err) }
     }
 
-    setPaySuccess({
-      name: payCustomer.full_name,
-      amount,
-      method: payMethod,
-      newBalance: !isJazz ? Number(payCustomer.balance || 0) - amount : payCustomer.balance,
-      jazzPending: isJazz
-    })
-    setPayCustomer(null)
-    setPaySearch('')
-    setPayAmount('')
-    setPayNotes('')
+    setPaySuccess({ name: payCustomer.full_name, amount, method: payMethod, newBalance: !isJazz ? Number(payCustomer.balance || 0) - amount : payCustomer.balance, jazzPending: isJazz })
+    setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
     setPaySaving(false)
   }
 
@@ -189,8 +165,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const creditPortion = isCredit ? total : isCash ? (total - received) : 0
     const now = new Date().toISOString()
 
-    let deliveryLat = null
-    let deliveryLng = null
+    let deliveryLat = null, deliveryLng = null
     try {
       const position = await new Promise((resolve, reject) =>
         navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
@@ -229,7 +204,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id)
       }
 
-      // Update our bottles with customer
+      // ✅ Update our_bottles_placed
       const currentBottles = Number(selectedCustomer.our_bottles_placed || 0)
       const newBottles = Math.max(0, currentBottles + qty19l - bottlesReturned)
       await supabase.from('customers')
@@ -244,8 +219,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
       if (deliveryLat && deliveryLng && selectedCustomer.id) {
         const { data: cust } = await supabase.from('customers')
-          .select('latitude, longitude')
-          .eq('id', selectedCustomer.id).eq('tenant_id', tenantId).single()
+          .select('latitude, longitude').eq('id', selectedCustomer.id).eq('tenant_id', tenantId).single()
         if (cust && !cust.latitude) {
           await supabase.from('customers').update({
             latitude: String(deliveryLat), longitude: String(deliveryLng)
@@ -260,7 +234,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       }
     }
 
-    setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, savedOffline: !isOnline })
+    setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, bottlesReturned, savedOffline: !isOnline })
     setSelectedCustomer(null)
     setQty19l(1); setQtyHalf(0); setQty15l(0)
     setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
@@ -270,10 +244,10 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setSaving(false)
   }
 
-  function numBtn(val, setVal) {
+  function numBtn(val, setVal, min = 0) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <button onClick={() => setVal(Math.max(0, val - 1))}
+        <button onClick={() => setVal(Math.max(min, val - 1))}
           style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
         <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center' }}>{val}</span>
         <button onClick={() => setVal(val + 1)}
@@ -289,7 +263,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     <div>
       <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '12px' }}>🏪 Sell & Receive</h2>
 
-      {/* Sub Tab Toggle — 3 tabs */}
+      {/* Sub Tabs */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
         <button onClick={() => { setSubTab('customer'); setSuccess(null) }}
           style={{ flex: 1, padding: '10px 6px', border: '2px solid', borderColor: subTab === 'customer' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: subTab === 'customer' ? '#0f4c81' : 'white', color: subTab === 'customer' ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
@@ -311,18 +285,17 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         </button>
       </div>
 
-      {/* Quick Sale */}
+      {/* ── QUICK SALE ── */}
       {subTab === 'quicksale' && <RiderQuickSale rider={rider} tenantId={tenantId} />}
 
-      {/* Receive Payment */}
+      {/* ── RECEIVE PAYMENT ── */}
       {subTab === 'payment' && (
         <div>
           {!isOnline && (
             <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
-              <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>📵 Offline — payment will be saved but customer balance will update when internet is restored</p>
+              <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>📵 Offline — payment will be saved but balance updates when internet restored</p>
             </div>
           )}
-
           {paySuccess && (
             <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
               <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Payment Received!</p>
@@ -330,15 +303,11 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>
                 Rs. {paySuccess.amount.toLocaleString()} — {paySuccess.method === 'jazzcash' ? '📱 JazzCash' : '💵 Cash'}
               </p>
-              {paySuccess.jazzPending && (
-                <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>
-                  ⚠️ JazzCash — admin will confirm and update balance
-                </p>
-              )}
+              {paySuccess.jazzPending && <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>⚠️ JazzCash — admin will confirm</p>}
               {!paySuccess.jazzPending && (
                 <p style={{ fontSize: '12px', color: '#555', margin: '4px 0 0' }}>
                   New balance: <strong style={{ color: paySuccess.newBalance > 0 ? '#f44336' : '#1a7a4a' }}>
-                    Rs. {Math.abs(paySuccess.newBalance).toLocaleString()} {paySuccess.newBalance > 0 ? 'still owed' : paySuccess.newBalance < 0 ? 'advance' : '✅ clear'}
+                    Rs. {Math.abs(paySuccess.newBalance).toLocaleString()} {paySuccess.newBalance > 0 ? 'still owed' : '✅ clear'}
                   </strong>
                 </p>
               )}
@@ -378,12 +347,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                       <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile}</p>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '14px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: 0 }}>
-                        Rs. {Math.abs(Number(c.balance)).toLocaleString()}
-                      </p>
-                      <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
-                        {Number(c.balance) > 0 ? 'owes' : 'advance'}
-                      </p>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: 0 }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
+                      <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{Number(c.balance) > 0 ? 'owes' : 'advance'}</p>
                     </div>
                   </div>
                 ))}
@@ -392,33 +357,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           </div>
 
           {/* Payment Method */}
-          
-          {/* Bottles Returned */}
-              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
-                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                      Our bottles with customer: <strong>{Number(selectedCustomer?.our_bottles_placed || 0)}</strong>
-                    </p>
-                    {bottlesReturned > 0 && (
-                      <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
-                        After delivery: {Math.max(0, Number(selectedCustomer?.our_bottles_placed || 0) + qty19l - bottlesReturned)} our bottles
-                      </p>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
-                      style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
-                    <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
-                    <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
-                      style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               {[
                 { key: 'cash', label: 'نقد', sublabel: 'Cash — goes to rider', color: '#1a7a4a' },
@@ -436,8 +376,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           {/* Amount */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Amount Received (Rs.)</p>
-            <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
-              placeholder="0"
+            <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0"
               style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '28px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#0f4c81' }} />
             {payCustomer && Number(payCustomer.balance) > 0 && (
               <button onClick={() => setPayAmount(String(payCustomer.balance))}
@@ -450,8 +389,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           {/* Notes */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Notes (optional)</p>
-            <input value={payNotes} onChange={e => setPayNotes(e.target.value)}
-              placeholder="e.g. Monthly payment..."
+            <input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder="e.g. Monthly payment..."
               style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
           </div>
 
@@ -471,7 +409,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         </div>
       )}
 
-      {/* Sell to Customer */}
+      {/* ── SELL TO CUSTOMER ── */}
       {subTab === 'customer' && (
         <div>
           {!isOnline && (
@@ -486,6 +424,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Rs. {success.total.toLocaleString()}</p>
               {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Cash: Rs. {success.received.toLocaleString()}</p>}
               {success.creditPortion > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: '0 0 2px' }}>Credit: Rs. {success.creditPortion.toLocaleString()}</p>}
+              {success.bottlesReturned > 0 && <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>🫙 {success.bottlesReturned} empty bottles returned</p>}
               {success.savedOffline && <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>📵 Saved offline — will sync later</p>}
               <button onClick={() => setSuccess(null)}
                 style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
@@ -494,6 +433,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
             </div>
           )}
 
+          {/* Step 1 — Search */}
           {step === 1 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Search Customer</p>
@@ -506,12 +446,15 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   <div>
                     <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{c.full_name}</p>
                     <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
+                    {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <p style={{ fontSize: '13px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#4caf50', margin: '0 0 2px' }}>
                       Rs. {Math.abs(Number(c.balance)).toLocaleString()}
                     </p>
-                    <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{Number(c.balance) > 0 ? 'owes' : Number(c.balance) < 0 ? 'advance' : 'clear'}</p>
+                    {Number(c.our_bottles_placed) > 0 && (
+                      <p style={{ fontSize: '10px', color: '#e65100', margin: 0 }}>🫙 {c.our_bottles_placed} bottles</p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -521,21 +464,28 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
             </div>
           )}
 
+          {/* Step 2 — Sale Form */}
           {step === 2 && selectedCustomer && (
             <div>
+              {/* Customer header */}
               <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 2px' }}>{selectedCustomer.full_name}</p>
-                  <p style={{ fontSize: '12px', opacity: 0.8, margin: 0 }}>{selectedCustomer.mobile} · {selectedCustomer.customer_code}</p>
+                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>{selectedCustomer.mobile} · {selectedCustomer.customer_code}</p>
+                  {selectedCustomer.address && <p style={{ fontSize: '11px', opacity: 0.7, margin: 0 }}>📍 {selectedCustomer.address}</p>}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 2px' }}>Balance</p>
-                  <p style={{ fontSize: '16px', fontWeight: '700', margin: 0, color: selectedCustomer.balance > 0 ? '#ffcdd2' : '#c8e6c9' }}>
+                  <p style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: selectedCustomer.balance > 0 ? '#ffcdd2' : '#c8e6c9' }}>
                     Rs. {Number(selectedCustomer.balance || 0).toLocaleString()}
                   </p>
+                  {Number(selectedCustomer.our_bottles_placed) > 0 && (
+                    <p style={{ fontSize: '11px', opacity: 0.8, margin: 0 }}>🫙 {selectedCustomer.our_bottles_placed} our bottles</p>
+                  )}
                 </div>
               </div>
 
+              {/* Bottles to deliver */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '14px' }}>Bottles</p>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
@@ -556,6 +506,31 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 )}
               </div>
 
+              {/* ✅ EMPTY BOTTLES RETURNED — correct position */}
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                      Our bottles with customer: <strong>{Number(selectedCustomer.our_bottles_placed || 0)}</strong>
+                    </p>
+                    {bottlesReturned > 0 && (
+                      <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
+                        After delivery: {Math.max(0, Number(selectedCustomer.our_bottles_placed || 0) + qty19l - bottlesReturned)} our bottles
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
+                      style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
+                    <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
+                    <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
+                      style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Rate */}
               {qty19l > 0 && (
                 <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                   <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Rate — 19L</p>
@@ -579,6 +554,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 </div>
               )}
 
+              {/* Payment Method */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
@@ -632,16 +608,15 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 )}
               </div>
 
+              {/* Total & Complete */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                   <p style={{ fontSize: '16px', color: '#555', margin: 0 }}>Total</p>
                   <p style={{ fontSize: '28px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {total.toLocaleString()}</p>
                 </div>
-                {!isOnline && (
-                  <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>📵 Will save offline</p>
-                )}
+                {!isOnline && <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>📵 Will save offline</p>}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => { setStep(1); setSelectedCustomer(null); if (onClearPreSelected) onClearPreSelected() }}
+                  <button onClick={() => { setStep(1); setSelectedCustomer(null); setBottlesReturned(0); if (onClearPreSelected) onClearPreSelected() }}
                     style={{ flex: 1, padding: '14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
                     ← Back
                   </button>
