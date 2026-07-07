@@ -19,6 +19,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [step, setStep] = useState(1)
+  const [bottlesReturned, setBottlesReturned] = useState(0)
 
   // Payment receipt state
   const [paySearch, setPaySearch] = useState('')
@@ -214,7 +215,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       delivered_at: now,
       is_voided: false,
       delivery_lat: deliveryLat,
-      delivery_lng: deliveryLng
+      delivery_lng: deliveryLng,
+      bottles_returned: bottlesReturned
     }
 
     if (isOnline) {
@@ -226,6 +228,14 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         const newBalance = Number(selectedCustomer.balance) + creditPortion
         await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id)
       }
+
+      // Update our bottles with customer
+      const currentBottles = Number(selectedCustomer.our_bottles_placed || 0)
+      const newBottles = Math.max(0, currentBottles + qty19l - bottlesReturned)
+      await supabase.from('customers')
+        .update({ our_bottles_placed: newBottles })
+        .eq('id', selectedCustomer.id)
+        .eq('tenant_id', tenantId)
 
       try {
         const { postDeliveryJournal } = await import('../accountingEngine')
@@ -254,6 +264,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setSelectedCustomer(null)
     setQty19l(1); setQtyHalf(0); setQty15l(0)
     setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
+    setBottlesReturned(0)
     setStep(1)
     if (onClearPreSelected) onClearPreSelected()
     setSaving(false)
@@ -381,6 +392,30 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           </div>
 
           {/* Payment Method */}
+          {/* Bottles Returned */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                  Our bottles with customer: <strong>{Number(selectedCustomer?.our_bottles_placed || 0)}</strong>
+                </p>
+                {bottlesReturned > 0 && (
+                  <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
+                    After delivery: {Math.max(0, Number(selectedCustomer?.our_bottles_placed || 0) + qty19l - bottlesReturned)} our bottles
+                  </p>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
+                <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
+                <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
+              </div>
+            </div>
+          </div>
+
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
