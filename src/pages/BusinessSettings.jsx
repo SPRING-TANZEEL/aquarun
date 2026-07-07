@@ -142,14 +142,15 @@ export default function BusinessSettings({ tenantId }) {
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Configure your AquaRun system</p>
       </div>
 
-      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', flexDirection: isMobile ? 'column' : 'row' }}>
 
         {/* SIDEBAR */}
         <div style={{
           width: isMobile ? '100%' : '200px', flexShrink: 0,
           background: 'white', borderRadius: '12px', padding: '8px',
           boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0',
-          display: isMobile ? 'flex' : 'block', flexWrap: 'wrap', gap: '4px'
+          display: 'flex', flexWrap: 'wrap', gap: '4px',
+          flexDirection: isMobile ? 'row' : 'column'
         }}>
           {MENU_ITEMS.map(item => (
             <button key={item.key} onClick={() => setActiveMenu(item.key)}
@@ -170,7 +171,7 @@ export default function BusinessSettings({ tenantId }) {
         </div>
 
         {/* CONTENT */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
 
           {/* BUSINESS PROFILE */}
           {activeMenu === 'business' && (
