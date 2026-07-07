@@ -96,7 +96,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState({})
-  const [orderForm, setOrderForm] = useState({ qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, notes: '' })
+  const [orderForm, setOrderForm] = useState({ qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, notes: '', delivery_date: new Date().toISOString().split('T')[0] })
   const [placingOrder, setPlacingOrder] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -154,12 +154,12 @@ export default function CustomerDashboard({ customer, onLogout }) {
       tenant_id: tenantId, customer_id: customer.id,
       qty_19l, qty_half_litre, qty_1_5l,
       notes: orderForm.notes,
-      delivery_date: new Date().toISOString().split('T')[0],
+      delivery_date: orderForm.delivery_date || new Date().toISOString().split('T')[0],
       status: 'pending'
     }])
     if (error) { alert('Error: ' + error.message); setPlacingOrder(false); return }
     setOrderSuccess(true)
-    setOrderForm({ qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, notes: '' })
+    setOrderForm({ qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, notes: '', delivery_date: new Date().toISOString().split('T')[0] })
     fetchOrders()
     setPlacingOrder(false)
     setTimeout(() => setOrderSuccess(false), 4000)
@@ -365,6 +365,13 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   )}
                   <div>
                     <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '8px', fontWeight: '600' }}>Special Instructions</label>
+                      <div style={{ marginBottom: '12px' }}>
+                      <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Delivery Date *</label>
+                      <input type="date" value={orderForm.delivery_date}
+                        onChange={e => setOrderForm(f => ({ ...f, delivery_date: e.target.value }))}
+                        min={new Date().toISOString().split('T')[0]}
+                        style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+                    </div>
                     <input value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))}
                       placeholder="e.g. Please deliver in the morning..."
                       style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
@@ -590,6 +597,13 @@ export default function CustomerDashboard({ customer, onLogout }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><div><p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>19 Litre</p><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p></div>{numBtn(orderForm.qty_19l, 'qty_19l')}</div>
               {customer.rate_half_litre > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><div><p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>Half Litre</p><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_half_litre} each</p></div>{numBtn(orderForm.qty_half_litre, 'qty_half_litre')}</div>}
               {customer.rate_1_5l > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><div><p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>1.5 Litre</p><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_1_5l} each</p></div>{numBtn(orderForm.qty_1_5l, 'qty_1_5l')}</div>}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Delivery Date *</label>
+                <input type="date" value={orderForm.delivery_date}
+                  onChange={e => setOrderForm(f => ({ ...f, delivery_date: e.target.value }))}
+                  min={new Date().toISOString().split('T')[0]}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+              </div>
               <input value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} placeholder="Special instructions..." style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
             </div>
             {(orderForm.qty_19l > 0 || orderForm.qty_half_litre > 0 || orderForm.qty_1_5l > 0) && (
