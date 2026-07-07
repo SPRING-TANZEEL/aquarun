@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-// ── PAY BILL MODAL — outside main component to prevent re-render focus loss ──
 function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAmount, payBillSending, payBillDone, submitPayBill, onClose }) {
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
@@ -12,7 +11,6 @@ function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAm
               <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💳 Pay Your Bill</h3>
               <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
             </div>
-
             {settings.jazzcash_number_1 && (
               <div style={{ background: '#f3e5f5', border: '1px solid #e1bee7', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 10px' }}>📱 Send payment to JazzCash:</p>
@@ -28,7 +26,6 @@ function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAm
                 )}
               </div>
             )}
-
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Amount to Pay (Rs.)</p>
             <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
               <button onClick={() => setPayBillAmount(String(balance))}
@@ -40,27 +37,18 @@ function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAm
                 Other Amount
               </button>
             </div>
-            <input
-              type="number"
-              value={payBillAmount}
-              onChange={e => setPayBillAmount(e.target.value)}
+            <input type="number" value={payBillAmount} onChange={e => setPayBillAmount(e.target.value)}
               placeholder={`e.g. ${balance}`}
-              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#7b1fa2', marginBottom: '16px' }}
-            />
-
+              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#7b1fa2', marginBottom: '16px' }} />
             <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
               <p style={{ fontSize: '12px', color: '#f57f17', fontWeight: '600', margin: '0 0 4px' }}>📸 Important</p>
-              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending JazzCash payment, tap the button below and send a screenshot to our WhatsApp to confirm your payment.</p>
+              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending JazzCash payment, tap the button below and send a screenshot to our WhatsApp to confirm.</p>
             </div>
-
             <button onClick={submitPayBill} disabled={payBillSending}
               style={{ width: '100%', padding: '16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px' }}>
               {payBillSending ? 'Recording...' : `✓ I've Sent Rs. ${Number(payBillAmount || 0).toLocaleString()} via JazzCash`}
             </button>
-            <button onClick={onClose}
-              style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>
-              Cancel
-            </button>
+            <button onClick={onClose} style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>Cancel</button>
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
@@ -77,10 +65,7 @@ function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAm
                 💬 Send Screenshot on WhatsApp
               </a>
             )}
-            <button onClick={onClose}
-              style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>
-              Close
-            </button>
+            <button onClick={onClose} style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>Close</button>
           </div>
         )}
       </div>
@@ -96,7 +81,8 @@ export default function CustomerDashboard({ customer, onLogout }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState({})
-  const [orderForm, setOrderForm] = useState({ qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, notes: '', delivery_date: new Date().toISOString().split('T')[0] })
+  const [products, setProducts] = useState([])
+  const [orderForm, setOrderForm] = useState({ notes: '', delivery_date: new Date().toISOString().split('T')[0], quantities: {} })
   const [placingOrder, setPlacingOrder] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -114,8 +100,17 @@ export default function CustomerDashboard({ customer, onLogout }) {
 
   async function fetchAll() {
     setLoading(true)
-    await Promise.all([fetchDeliveries(), fetchPayments(), fetchOrders(), fetchSettings()])
+    await Promise.all([fetchDeliveries(), fetchPayments(), fetchOrders(), fetchSettings(), fetchProducts()])
     setLoading(false)
+  }
+
+  async function fetchProducts() {
+    const { data } = await supabase.from('products')
+      .select('*').eq('tenant_id', tenantId).eq('is_active', true).eq('is_saleable', true).order('name')
+    setProducts(data || [])
+    const q = {}
+    data?.forEach(p => { q[p.id] = 0 })
+    setOrderForm(f => ({ ...f, quantities: q }))
   }
 
   async function fetchSettings() {
@@ -147,19 +142,29 @@ export default function CustomerDashboard({ customer, onLogout }) {
   }
 
   async function placeOrder() {
-    const { qty_19l, qty_half_litre, qty_1_5l } = orderForm
-    if (qty_19l === 0 && qty_half_litre === 0 && qty_1_5l === 0) return alert('Please enter at least one bottle quantity')
+    const hasItems = products.some(p => (orderForm.quantities[p.id] || 0) > 0)
+    if (!hasItems) return alert('Please select at least one item')
+    if (!orderForm.delivery_date) return alert('Please select delivery date')
     setPlacingOrder(true)
+
+    const qty19l = products.filter(p => p.name.includes('19')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
+    const qtyHalf = products.filter(p => p.name.toLowerCase().includes('half')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
+    const qty15l = products.filter(p => p.name.includes('1.5')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
+    const customItems = products
+      .filter(p => !p.name.includes('19') && !p.name.toLowerCase().includes('half') && !p.name.includes('1.5') && (orderForm.quantities[p.id] || 0) > 0)
+      .map(p => `${p.name} × ${orderForm.quantities[p.id]}`).join(', ')
+
     const { error } = await supabase.from('orders').insert([{
       tenant_id: tenantId, customer_id: customer.id,
-      qty_19l, qty_half_litre, qty_1_5l,
-      notes: orderForm.notes,
-      delivery_date: orderForm.delivery_date || new Date().toISOString().split('T')[0],
+      qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
+      notes: [orderForm.notes, customItems].filter(Boolean).join(' | '),
+      delivery_date: orderForm.delivery_date,
       status: 'pending'
     }])
     if (error) { alert('Error: ' + error.message); setPlacingOrder(false); return }
     setOrderSuccess(true)
-    setOrderForm({ qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, notes: '', delivery_date: new Date().toISOString().split('T')[0] })
+    const q = {}; products.forEach(p => { q[p.id] = 0 })
+    setOrderForm({ notes: '', delivery_date: new Date().toISOString().split('T')[0], quantities: q })
     fetchOrders()
     setPlacingOrder(false)
     setTimeout(() => setOrderSuccess(false), 4000)
@@ -169,13 +174,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
     if (!payBillAmount || Number(payBillAmount) <= 0) return alert('Please enter amount')
     setPayBillSending(true)
     await supabase.from('payments').insert([{
-      tenant_id: tenantId,
-      customer_id: customer.id,
-      amount: Number(payBillAmount),
-      payment_method: 'jazzcash',
+      tenant_id: tenantId, customer_id: customer.id,
+      amount: Number(payBillAmount), payment_method: 'jazzcash',
       payment_date: new Date().toISOString().split('T')[0],
       jazzcash_confirmed: false,
-      notes: `Customer self-reported JazzCash payment — awaiting screenshot confirmation`,
+      notes: 'Customer self-reported JazzCash payment — awaiting screenshot confirmation',
       is_voided: false
     }])
     setPayBillSending(false)
@@ -186,6 +189,8 @@ export default function CustomerDashboard({ customer, onLogout }) {
   const balance = Number(customer.balance || 0)
   const totalBottles19l = deliveries.reduce((s, d) => s + Number(d.qty_19l || 0), 0)
   const totalSpent = deliveries.reduce((s, d) => s + Number(d.total_amount || 0), 0)
+  const estimatedTotal = products.reduce((s, p) => s + (orderForm.quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+  const hasOrderItems = products.some(p => (orderForm.quantities[p.id] || 0) > 0)
 
   const TABS = [
     { key: 'home', icon: '🏠', label: 'Home' },
@@ -194,13 +199,15 @@ export default function CustomerDashboard({ customer, onLogout }) {
     { key: 'account', icon: '💰', label: 'Account' },
   ]
 
-  function numBtn(val, field) {
+  // Reusable product qty buttons
+  function ProductQtyBtn({ product }) {
+    const qty = orderForm.quantities[product.id] || 0
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button onClick={() => setOrderForm(f => ({ ...f, [field]: Math.max(0, f[field] - 1) }))}
+        <button onClick={() => setOrderForm(f => ({ ...f, quantities: { ...f.quantities, [product.id]: Math.max(0, (f.quantities[product.id] || 0) - 1) } }))}
           style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #ddd', background: '#f5f5f5', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-        <span style={{ fontSize: '26px', fontWeight: '700', minWidth: '36px', textAlign: 'center' }}>{val}</span>
-        <button onClick={() => setOrderForm(f => ({ ...f, [field]: f[field] + 1 }))}
+        <span style={{ fontSize: '26px', fontWeight: '700', minWidth: '36px', textAlign: 'center', color: qty > 0 ? '#0f4c81' : '#ccc' }}>{qty}</span>
+        <button onClick={() => setOrderForm(f => ({ ...f, quantities: { ...f.quantities, [product.id]: (f.quantities[product.id] || 0) + 1 } }))}
           style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
       </div>
     )
@@ -213,13 +220,12 @@ export default function CustomerDashboard({ customer, onLogout }) {
     </div>
   )
 
-  // ── DESKTOP LAYOUT ──────────────────────────────────────────────
+  // ── DESKTOP ──────────────────────────────────────────────────────
   if (!isMobile) {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fa', fontFamily: "'Inter', sans-serif" }}>
         {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} payBillAmount={payBillAmount} setPayBillAmount={setPayBillAmount} payBillSending={payBillSending} payBillDone={payBillDone} submitPayBill={submitPayBill} onClose={() => { setShowPayBill(false); setPayBillDone(false) }} />}
 
-        {/* TOP NAV */}
         <div style={{ background: '#0f4c81', padding: '0 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             {settings.business_logo && <img src={settings.business_logo} alt="logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'contain', background: 'white', padding: '2px' }} />}
@@ -233,14 +239,10 @@ export default function CustomerDashboard({ customer, onLogout }) {
               <p style={{ fontSize: '14px', fontWeight: '600', color: 'white', margin: 0 }}>{customer.full_name}</p>
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)', margin: 0 }}>ID: {customer.customer_code}</p>
             </div>
-            <button onClick={onLogout}
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-              Logout
-            </button>
+            <button onClick={onLogout} style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>Logout</button>
           </div>
         </div>
 
-        {/* TAB BAR */}
         <div style={{ background: 'white', borderBottom: '1px solid #eee', padding: '0 40px', display: 'flex', gap: '4px' }}>
           {TABS.map(tab => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)}
@@ -250,7 +252,6 @@ export default function CustomerDashboard({ customer, onLogout }) {
           ))}
         </div>
 
-        {/* CONTENT */}
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 40px' }}>
 
           {/* HOME */}
@@ -263,28 +264,27 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>{balance > 0 ? 'Please pay at earliest' : balance < 0 ? 'You have advance credit' : 'No outstanding amount'}</p>
                   {balance > 0 && (
                     <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
-                      style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                      style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
                       💳 Pay Your Bill
                     </button>
                   )}
                 </div>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderTop: '4px solid #0f4c81' }}>
-                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Deliveries</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Deliveries</p>
                   <p style={{ fontSize: '36px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>{deliveries.length}</p>
                   <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>Last 30 orders</p>
                 </div>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderTop: '4px solid #1a7a4a' }}>
-                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bottles Received</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Bottles Received</p>
                   <p style={{ fontSize: '36px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>{totalBottles19l}</p>
                   <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>19L bottles total</p>
                 </div>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderTop: '4px solid #9c27b0' }}>
-                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total Spent</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Total Spent</p>
                   <p style={{ fontSize: '36px', fontWeight: '700', color: '#9c27b0', margin: '0 0 4px' }}>Rs. {totalSpent.toLocaleString()}</p>
                   <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>All time</p>
                 </div>
               </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Your Bottle Rates</h3>
@@ -307,25 +307,18 @@ export default function CustomerDashboard({ customer, onLogout }) {
                     )}
                   </div>
                 </div>
-
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Contact Us</h3>
                   {settings.complaint_number && (
                     <a href={`tel:${settings.complaint_number}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f0f7ff', borderRadius: '10px', marginBottom: '10px' }}>
                       <span style={{ fontSize: '24px' }}>📞</span>
-                      <div>
-                        <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Complaint / Support</p>
-                        <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{settings.complaint_number}</p>
-                      </div>
+                      <div><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Complaint / Support</p><p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{settings.complaint_number}</p></div>
                     </a>
                   )}
                   {settings.whatsapp_number && (
                     <a href={`https://wa.me/92${settings.whatsapp_number?.replace(/^0/, '')}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px', padding: '12px', background: '#f0fff4', borderRadius: '10px' }}>
                       <span style={{ fontSize: '24px' }}>💬</span>
-                      <div>
-                        <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>WhatsApp</p>
-                        <p style={{ fontSize: '16px', fontWeight: '700', color: '#25d366', margin: 0 }}>{settings.whatsapp_number}</p>
-                      </div>
+                      <div><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>WhatsApp</p><p style={{ fontSize: '16px', fontWeight: '700', color: '#25d366', margin: 0 }}>{settings.whatsapp_number}</p></div>
                     </a>
                   )}
                 </div>
@@ -333,7 +326,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
             </div>
           )}
 
-          {/* ORDER */}
+          {/* ORDER — desktop */}
           {activeTab === 'order' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
               <div>
@@ -346,32 +339,25 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   </div>
                 )}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#555', marginBottom: '20px' }}>Select Bottles</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <div><p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>19 Litre</p><p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p></div>
-                    {numBtn(orderForm.qty_19l, 'qty_19l')}
-                  </div>
-                  {customer.rate_half_litre > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <div><p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>Half Litre</p><p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_half_litre} each</p></div>
-                      {numBtn(orderForm.qty_half_litre, 'qty_half_litre')}
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#555', marginBottom: '20px' }}>Select Products</p>
+                  {products.length === 0 ? (
+                    <p style={{ color: '#888', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>No products available for ordering</p>
+                  ) : products.map((p, i) => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: i < products.length - 1 ? '20px' : '20px', paddingBottom: i < products.length - 1 ? '20px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                      <div>
+                        <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>{p.name}</p>
+                        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {Number(p.sale_price || 0).toLocaleString()} each</p>
+                      </div>
+                      <ProductQtyBtn product={p} />
                     </div>
-                  )}
-                  {customer.rate_1_5l > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                      <div><p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>1.5 Litre</p><p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_1_5l} each</p></div>
-                      {numBtn(orderForm.qty_1_5l, 'qty_1_5l')}
-                    </div>
-                  )}
-                  <div>
-                    <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '8px', fontWeight: '600' }}>Special Instructions</label>
-                      <div style={{ marginBottom: '12px' }}>
-                      <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Delivery Date *</label>
-                      <input type="date" value={orderForm.delivery_date}
-                        onChange={e => setOrderForm(f => ({ ...f, delivery_date: e.target.value }))}
-                        min={new Date().toISOString().split('T')[0]}
-                        style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
-                    </div>
+                  ))}
+                  <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: '16px' }}>
+                    <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Delivery Date *</label>
+                    <input type="date" value={orderForm.delivery_date}
+                      onChange={e => setOrderForm(f => ({ ...f, delivery_date: e.target.value }))}
+                      min={new Date().toISOString().split('T')[0]}
+                      style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px' }} />
+                    <label style={{ fontSize: '13px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Special Instructions</label>
                     <input value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))}
                       placeholder="e.g. Please deliver in the morning..."
                       style={{ width: '100%', padding: '12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
@@ -383,15 +369,17 @@ export default function CustomerDashboard({ customer, onLogout }) {
                 </button>
               </div>
               <div>
-                {(orderForm.qty_19l > 0 || orderForm.qty_half_litre > 0 || orderForm.qty_1_5l > 0) && (
+                {hasOrderItems && (
                   <div style={{ background: '#e8f5e9', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
                     <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 12px' }}>Order Summary</p>
-                    {orderForm.qty_19l > 0 && <p style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>19L × {orderForm.qty_19l} = Rs. {(orderForm.qty_19l * customer.rate_19l).toLocaleString()}</p>}
-                    {orderForm.qty_half_litre > 0 && <p style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>Half × {orderForm.qty_half_litre} = Rs. {(orderForm.qty_half_litre * customer.rate_half_litre).toLocaleString()}</p>}
-                    {orderForm.qty_1_5l > 0 && <p style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>1.5L × {orderForm.qty_1_5l} = Rs. {(orderForm.qty_1_5l * customer.rate_1_5l).toLocaleString()}</p>}
+                    {products.filter(p => (orderForm.quantities[p.id] || 0) > 0).map(p => (
+                      <p key={p.id} style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>
+                        {p.name} × {orderForm.quantities[p.id]} = Rs. {((orderForm.quantities[p.id] || 0) * Number(p.sale_price || 0)).toLocaleString()}
+                      </p>
+                    ))}
                     <div style={{ borderTop: '1px solid #c8e6c9', marginTop: '10px', paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a' }}>Estimated Total</span>
-                      <span style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {((orderForm.qty_19l * customer.rate_19l) + (orderForm.qty_half_litre * customer.rate_half_litre) + (orderForm.qty_1_5l * customer.rate_1_5l)).toLocaleString()}</span>
+                      <span style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {estimatedTotal.toLocaleString()}</span>
                     </div>
                   </div>
                 )}
@@ -400,8 +388,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   {orders.length === 0 ? <p style={{ color: '#888', fontSize: '14px' }}>No orders yet</p> : orders.slice(0, 5).map(o => (
                     <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                       <div>
-                        <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{o.qty_19l > 0 ? `19L×${o.qty_19l} ` : ''}{o.qty_half_litre > 0 ? `Half×${o.qty_half_litre} ` : ''}{o.qty_1_5l > 0 ? `1.5L×${o.qty_1_5l}` : ''}</p>
-                        <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{new Date(o.created_at).toLocaleDateString('en-PK')}</p>
+                        <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>
+                          {o.qty_19l > 0 ? `19L×${o.qty_19l} ` : ''}{o.qty_half_litre > 0 ? `Half×${o.qty_half_litre} ` : ''}{o.qty_1_5l > 0 ? `1.5L×${o.qty_1_5l}` : ''}
+                          {o.notes && o.notes !== '' ? ` · ${o.notes}` : ''}
+                        </p>
+                        <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{o.delivery_date || new Date(o.created_at).toLocaleDateString('en-PK')}</p>
                       </div>
                       <span style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: o.status === 'completed' ? '#e8f5e9' : o.status === 'assigned' ? '#e3f0ff' : o.status === 'cancelled' ? '#ffebee' : '#fff3e0', color: o.status === 'completed' ? '#2e7d32' : o.status === 'assigned' ? '#0f4c81' : o.status === 'cancelled' ? '#c62828' : '#e65100' }}>
                         {o.status === 'completed' ? '✅ Done' : o.status === 'assigned' ? '🚴 On the way' : o.status === 'cancelled' ? '✕ Cancelled' : '⏳ Pending'}
@@ -413,7 +404,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
             </div>
           )}
 
-          {/* HISTORY */}
+          {/* HISTORY — desktop */}
           {activeTab === 'history' && (
             <div>
               <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#333', margin: '0 0 24px' }}>📋 Delivery History</h2>
@@ -427,8 +418,8 @@ export default function CustomerDashboard({ customer, onLogout }) {
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
-                        {['Date', 'Bottles', 'Amount', 'Payment Method', 'Credit'].map(h => (
-                          <th key={h} style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', color: '#888', fontWeight: '600', borderBottom: '1px solid #eee', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                        {['Date', 'Bottles', 'Amount', 'Payment', 'Credit'].map(h => (
+                          <th key={h} style={{ padding: '14px 20px', textAlign: 'left', fontSize: '12px', color: '#888', fontWeight: '600', borderBottom: '1px solid #eee', textTransform: 'uppercase' }}>{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -455,7 +446,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
             </div>
           )}
 
-          {/* ACCOUNT */}
+          {/* ACCOUNT — desktop */}
           {activeTab === 'account' && (
             <div>
               <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#333', margin: '0 0 24px' }}>💰 Account Statement</h2>
@@ -500,9 +491,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
                 </div>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)' }}>
                   <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>Payment History</p>
-                  {payments.length === 0 ? (
-                    <p style={{ color: '#888', fontSize: '14px' }}>No payments recorded yet</p>
-                  ) : payments.map(p => (
+                  {payments.length === 0 ? <p style={{ color: '#888', fontSize: '14px' }}>No payments recorded yet</p> : payments.map(p => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid #f0f0f0' }}>
                       <div>
                         <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>
@@ -523,12 +512,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
     )
   }
 
-  // ── MOBILE LAYOUT ───────────────────────────────────────────────
+  // ── MOBILE ───────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: '430px', margin: '0 auto', minHeight: '100vh', background: '#f5f7fa', position: 'relative', paddingBottom: '80px', width: '100%' }}>
       {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} payBillAmount={payBillAmount} setPayBillAmount={setPayBillAmount} payBillSending={payBillSending} payBillDone={payBillDone} submitPayBill={submitPayBill} onClose={() => { setShowPayBill(false); setPayBillDone(false) }} />}
 
-      {/* TOP NAV */}
       <div style={{ background: '#0f4c81', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           {settings.business_logo && <img src={settings.business_logo} alt="logo" style={{ width: '36px', height: '36px', borderRadius: '8px', objectFit: 'contain', background: 'white', padding: '2px' }} />}
@@ -542,7 +530,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
 
       <div style={{ padding: '16px' }}>
 
-        {/* HOME */}
+        {/* HOME — mobile */}
         {activeTab === 'home' && (
           <div>
             <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : balance < 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #1a7a4a, #0f4c81)', borderRadius: '16px', padding: '24px', marginBottom: '12px', color: 'white', textAlign: 'center' }}>
@@ -587,44 +575,77 @@ export default function CustomerDashboard({ customer, onLogout }) {
           </div>
         )}
 
-        {/* ORDER */}
+        {/* ORDER — mobile */}
         {activeTab === 'order' && (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '4px' }}>📦 Place Order</h3>
             <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>Request your next water delivery</p>
-            {orderSuccess && <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}><p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Order Placed!</p><p style={{ fontSize: '13px', color: '#2e7d32', margin: 0 }}>Your order has been submitted.</p></div>}
-            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><div><p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>19 Litre</p><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p></div>{numBtn(orderForm.qty_19l, 'qty_19l')}</div>
-              {customer.rate_half_litre > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><div><p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>Half Litre</p><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_half_litre} each</p></div>{numBtn(orderForm.qty_half_litre, 'qty_half_litre')}</div>}
-              {customer.rate_1_5l > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}><div><p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>1.5 Litre</p><p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_1_5l} each</p></div>{numBtn(orderForm.qty_1_5l, 'qty_1_5l')}</div>}
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Delivery Date *</label>
-                <input type="date" value={orderForm.delivery_date}
-                  onChange={e => setOrderForm(f => ({ ...f, delivery_date: e.target.value }))}
-                  min={new Date().toISOString().split('T')[0]}
-                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+            {orderSuccess && (
+              <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+                <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Order Placed!</p>
+                <p style={{ fontSize: '13px', color: '#2e7d32', margin: 0 }}>Your order has been submitted.</p>
               </div>
-              <input value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} placeholder="Special instructions..." style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+            )}
+
+            {/* Products */}
+            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              {products.length === 0 ? (
+                <p style={{ color: '#888', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No products available</p>
+              ) : products.map((p, i) => (
+                <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < products.length - 1 ? '16px' : '0', marginBottom: i < products.length - 1 ? '16px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                  <div>
+                    <p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>{p.name}</p>
+                    <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {Number(p.sale_price || 0).toLocaleString()} each</p>
+                  </div>
+                  <ProductQtyBtn product={p} />
+                </div>
+              ))}
             </div>
-            {(orderForm.qty_19l > 0 || orderForm.qty_half_litre > 0 || orderForm.qty_1_5l > 0) && (
+
+            {/* Delivery Date */}
+            <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Delivery Date *</label>
+              <input type="date" value={orderForm.delivery_date}
+                onChange={e => setOrderForm(f => ({ ...f, delivery_date: e.target.value }))}
+                min={new Date().toISOString().split('T')[0]}
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* Notes */}
+            <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Special Instructions</label>
+              <input value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="e.g. Please deliver in the morning..."
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
+            </div>
+
+            {/* Estimated total */}
+            {hasOrderItems && (
               <div style={{ background: '#e8f5e9', borderRadius: '10px', padding: '14px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a' }}>Estimated Total</span>
-                  <span style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {((orderForm.qty_19l * customer.rate_19l) + (orderForm.qty_half_litre * customer.rate_half_litre) + (orderForm.qty_1_5l * customer.rate_1_5l)).toLocaleString()}</span>
+                  <span style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {estimatedTotal.toLocaleString()}</span>
                 </div>
               </div>
             )}
-            <button onClick={placeOrder} disabled={placingOrder} style={{ width: '100%', padding: '16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
+
+            <button onClick={placeOrder} disabled={placingOrder}
+              style={{ width: '100%', padding: '16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
               {placingOrder ? 'Placing Order...' : '✓ Place Order'}
             </button>
           </div>
         )}
 
-        {/* HISTORY */}
+        {/* HISTORY — mobile */}
         {activeTab === 'history' && (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📋 Delivery History</h3>
-            {deliveries.length === 0 ? <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center' }}><p style={{ fontSize: '32px', margin: '0 0 8px' }}>📦</p><p style={{ color: '#888' }}>No deliveries yet</p></div> : deliveries.map(d => (
+            {deliveries.length === 0 ? (
+              <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
+                <p style={{ fontSize: '32px', margin: '0 0 8px' }}>📦</p>
+                <p style={{ color: '#888' }}>No deliveries yet</p>
+              </div>
+            ) : deliveries.map(d => (
               <div key={d.id} style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                   <div>
@@ -644,7 +665,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
           </div>
         )}
 
-        {/* ACCOUNT */}
+        {/* ACCOUNT — mobile */}
         {activeTab === 'account' && (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>💰 Account Statement</h3>
