@@ -82,7 +82,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState({})
   const [products, setProducts] = useState([])
-  const [orderForm, setOrderForm] = useState({ notes: '', delivery_date: new Date().toISOString().split('T')[0], quantities: {} })
+  const [orderForm, setOrderForm] = useState({ notes: '', delivery_date: new Date().toISOString().split('T')[0], quantities: {}, qty_19l: 1 })
   const [placingOrder, setPlacingOrder] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
@@ -142,16 +142,16 @@ export default function CustomerDashboard({ customer, onLogout }) {
   }
 
   async function placeOrder() {
-    const hasItems = products.some(p => (orderForm.quantities[p.id] || 0) > 0)
+    const hasItems = (orderForm.qty_19l || 0) > 0 || products.some(p => (orderForm.quantities[p.id] || 0) > 0)
     if (!hasItems) return alert('Please select at least one item')
     if (!orderForm.delivery_date) return alert('Please select delivery date')
     setPlacingOrder(true)
 
-    const qty19l = products.filter(p => p.name.includes('19')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
+    const qty19l = orderForm.qty_19l || 0
     const qtyHalf = products.filter(p => p.name.toLowerCase().includes('half')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
     const qty15l = products.filter(p => p.name.includes('1.5')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
     const customItems = products
-      .filter(p => !p.name.includes('19') && !p.name.toLowerCase().includes('half') && !p.name.includes('1.5') && (orderForm.quantities[p.id] || 0) > 0)
+      .filter(p => !p.name.toLowerCase().includes('half') && !p.name.includes('1.5') && (orderForm.quantities[p.id] || 0) > 0)
       .map(p => `${p.name} × ${orderForm.quantities[p.id]}`).join(', ')
 
     const { error } = await supabase.from('orders').insert([{
@@ -164,7 +164,7 @@ export default function CustomerDashboard({ customer, onLogout }) {
     if (error) { alert('Error: ' + error.message); setPlacingOrder(false); return }
     setOrderSuccess(true)
     const q = {}; products.forEach(p => { q[p.id] = 0 })
-    setOrderForm({ notes: '', delivery_date: new Date().toISOString().split('T')[0], quantities: q })
+    setOrderForm({ notes: '', delivery_date: new Date().toISOString().split('T')[0], quantities: q, qty_19l: 1 })
     fetchOrders()
     setPlacingOrder(false)
     setTimeout(() => setOrderSuccess(false), 4000)
@@ -189,8 +189,9 @@ export default function CustomerDashboard({ customer, onLogout }) {
   const balance = Number(customer.balance || 0)
   const totalBottles19l = deliveries.reduce((s, d) => s + Number(d.qty_19l || 0), 0)
   const totalSpent = deliveries.reduce((s, d) => s + Number(d.total_amount || 0), 0)
-  const estimatedTotal = products.reduce((s, p) => s + (orderForm.quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
-  const hasOrderItems = products.some(p => (orderForm.quantities[p.id] || 0) > 0)
+  const estimatedTotal = (orderForm.qty_19l || 0) * Number(customer.rate_19l || 0) +
+    products.reduce((s, p) => s + (orderForm.quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+  const hasOrderItems = (orderForm.qty_19l || 0) > 0 || products.some(p => (orderForm.quantities[p.id] || 0) > 0)
 
   const TABS = [
     { key: 'home', icon: '🏠', label: 'Home' },
@@ -340,10 +341,23 @@ export default function CustomerDashboard({ customer, onLogout }) {
                 )}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#555', marginBottom: '20px' }}>Select Products</p>
-                  {products.length === 0 ? (
-                    <p style={{ color: '#888', fontSize: '14px', padding: '20px 0', textAlign: 'center' }}>No products available for ordering</p>
-                  ) : products.map((p, i) => (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: i < products.length - 1 ? '20px' : '20px', paddingBottom: i < products.length - 1 ? '20px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                  {/* 19L — always hardcoded */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #f0f0f0' }}>
+                    <div>
+                      <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>🍶 19 Litre Bottle</p>
+                      <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <button onClick={() => setOrderForm(f => ({ ...f, qty_19l: Math.max(0, (f.qty_19l || 0) - 1) }))}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #ddd', background: '#f5f5f5', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                      <span style={{ fontSize: '26px', fontWeight: '700', minWidth: '36px', textAlign: 'center', color: (orderForm.qty_19l || 0) > 0 ? '#0f4c81' : '#ccc' }}>{orderForm.qty_19l || 0}</span>
+                      <button onClick={() => setOrderForm(f => ({ ...f, qty_19l: (f.qty_19l || 0) + 1 }))}
+                        style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                    </div>
+                  </div>
+                  {/* Other saleable products */}
+                  {products.map((p, i) => (
+                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: i < products.length - 1 ? '20px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
                       <div>
                         <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>{p.name}</p>
                         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Rs. {Number(p.sale_price || 0).toLocaleString()} each</p>
@@ -372,6 +386,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
                 {hasOrderItems && (
                   <div style={{ background: '#e8f5e9', borderRadius: '16px', padding: '20px', marginBottom: '20px' }}>
                     <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 12px' }}>Order Summary</p>
+                    {(orderForm.qty_19l || 0) > 0 && (
+                      <p style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>
+                        🍶 19L Bottle × {orderForm.qty_19l} = Rs. {((orderForm.qty_19l || 0) * Number(customer.rate_19l || 0)).toLocaleString()}
+                      </p>
+                    )}
                     {products.filter(p => (orderForm.quantities[p.id] || 0) > 0).map(p => (
                       <p key={p.id} style={{ fontSize: '14px', color: '#555', margin: '0 0 6px' }}>
                         {p.name} × {orderForm.quantities[p.id]} = Rs. {((orderForm.quantities[p.id] || 0) * Number(p.sale_price || 0)).toLocaleString()}
@@ -589,9 +608,22 @@ export default function CustomerDashboard({ customer, onLogout }) {
 
             {/* Products */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              {products.length === 0 ? (
-                <p style={{ color: '#888', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>No products available</p>
-              ) : products.map((p, i) => (
+              {/* 19L — always hardcoded */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', marginBottom: products.length > 0 ? '16px' : '0', borderBottom: products.length > 0 ? '1px solid #f0f0f0' : 'none' }}>
+                <div>
+                  <p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>🍶 19 Litre Bottle</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Rs. {customer.rate_19l} each</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button onClick={() => setOrderForm(f => ({ ...f, qty_19l: Math.max(0, (f.qty_19l || 0) - 1) }))}
+                    style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #ddd', background: '#f5f5f5', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                  <span style={{ fontSize: '26px', fontWeight: '700', minWidth: '36px', textAlign: 'center', color: (orderForm.qty_19l || 0) > 0 ? '#0f4c81' : '#ccc' }}>{orderForm.qty_19l || 0}</span>
+                  <button onClick={() => setOrderForm(f => ({ ...f, qty_19l: (f.qty_19l || 0) + 1 }))}
+                    style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                </div>
+              </div>
+              {/* Other saleable products */}
+              {products.map((p, i) => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < products.length - 1 ? '16px' : '0', marginBottom: i < products.length - 1 ? '16px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
                   <div>
                     <p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>{p.name}</p>
