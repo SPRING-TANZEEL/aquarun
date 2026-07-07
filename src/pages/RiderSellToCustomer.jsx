@@ -392,32 +392,33 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           </div>
 
           {/* Payment Method */}
+          
           {/* Bottles Returned */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                  Our bottles with customer: <strong>{Number(selectedCustomer?.our_bottles_placed || 0)}</strong>
-                </p>
-                {bottlesReturned > 0 && (
-                  <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
-                    After delivery: {Math.max(0, Number(selectedCustomer?.our_bottles_placed || 0) + qty19l - bottlesReturned)} our bottles
-                  </p>
-                )}
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
+                      Our bottles with customer: <strong>{Number(selectedCustomer?.our_bottles_placed || 0)}</strong>
+                    </p>
+                    {bottlesReturned > 0 && (
+                      <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
+                        After delivery: {Math.max(0, Number(selectedCustomer?.our_bottles_placed || 0) + qty19l - bottlesReturned)} our bottles
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
+                      style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
+                    <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
+                    <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
+                      style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
+                  </div>
+                </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
-                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
-                <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
-                <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
-                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
-              </div>
-            </div>
-          </div>
 
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               {[
                 { key: 'cash', label: 'نقد', sublabel: 'Cash — goes to rider', color: '#1a7a4a' },
