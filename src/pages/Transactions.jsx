@@ -110,32 +110,23 @@ export default function Transactions({ tenantId }) {
       const { data } = await supabase.from('office_expenses')
         .select('*')
         .eq('tenant_id', tenantId)
-        .gte('created_at', dateFrom + 'T00:00:00')
-        .lte('created_at', dateTo + 'T23:59:59')
+        .gte('expense_date', dateFrom)
+        .lte('expense_date', dateTo)
         .order('created_at', { ascending: false })
 
-      // Fetch rider names separately
-      const riderIds = [...new Set(data?.map(a => a.rider_id).filter(Boolean) || [])]
-      let riderMap = {}
-      if (riderIds.length > 0) {
-        const { data: ridersData } = await supabase.from('riders')
-          .select('id, full_name').in('id', riderIds)
-        ridersData?.forEach(r => { riderMap[r.id] = r.full_name })
-      }
-
       data?.forEach(a => all.push({
-        id: a.id, type: 'salary_advance', table: 'salary_advances',
-        date: a.created_at,
-        description: `Salary Advance — ${a.status} — ${a.requested_from === 'ceo' ? 'from CEO' : 'from Main Rider'}`,
+        id: a.id, type: 'office_expense', table: 'office_expenses',
+        date: a.expense_date || a.created_at,
+        description: `Office Expense — ${a.category}${a.description ? ': ' + a.description : ''}`,
         party: '—',
         party_code: '—',
-        rider: riderMap[a.rider_id] || '—',
-        amount: Number(e.amount),
-        payment_method: 'cash',
-        is_voided: e.is_voided,
-        void_reason: e.void_reason,
-        voided_at: e.voided_at,
-        raw: e
+        rider: '—',
+        amount: Number(a.amount),
+        payment_method: a.payment_method || 'cash',
+        is_voided: false,
+        void_reason: null,
+        voided_at: null,
+        raw: a
       }))
     }
 
