@@ -114,6 +114,47 @@ export default function SuperAdminDashboard({ onLogout }) {
     await supabase.from('business_settings').insert(settings)
   }
 
+
+  async function setTransactionPassword(tenant) {
+    const newPass = prompt("Set Transaction Password for " + tenant.business_name + "\n\nThis password is required to void or restore any transaction.\nShare ONLY with business owner.\n\nEnter new transaction password:")
+    if (!newPass || newPass.trim().length < 4) return alert("Password must be at least 4 characters")
+    const { error } = await supabase.from("tenants").update({ transaction_password: newPass.trim() }).eq("id", tenant.id)
+    if (error) { alert("Error: " + error.message); return }
+    alert("Transaction password set!\n\nBusiness: " + tenant.business_name + "\nPassword: " + newPass.trim() + "\n\nShare ONLY with business owner.")
+  }
+
+  async function deleteTenant(tenant) {
+    if (tenant.tenant_code === "SW001") return alert("Cannot delete your own business")
+    if (!window.confirm("DELETE " + tenant.business_name + "?\n\nThis permanently deletes ALL data. Cannot be undone.")) return
+    if (!window.confirm("Final confirmation - delete " + tenant.business_name + " permanently?")) return
+    const tid = tenant.id
+    try {
+      await supabase.from("bill_of_materials").delete().eq("tenant_id", tid)
+      const { data: pe } = await supabase.from("production_entries").select("id").eq("tenant_id", tid)
+      if (pe?.length > 0) await supabase.from("production_consumption").delete().in("production_entry_id", pe.map(p => p.id))
+      await supabase.from("production_entries").delete().eq("tenant_id", tid)
+      await supabase.from("journal_entry_lines").delete().eq("tenant_id", tid)
+      await supabase.from("journal_entries").delete().eq("tenant_id", tid)
+      await supabase.from("deliveries").delete().eq("tenant_id", tid)
+      await supabase.from("payments").delete().eq("tenant_id", tid)
+      await supabase.from("orders").delete().eq("tenant_id", tid)
+      await supabase.from("expenses").delete().eq("tenant_id", tid)
+      await supabase.from("office_expenses").delete().eq("tenant_id", tid)
+      await supabase.from("cash_transfers").delete().eq("tenant_id", tid)
+      await supabase.from("salary_advances").delete().eq("tenant_id", tid)
+      await supabase.from("salary_payments").delete().eq("tenant_id", tid)
+      await supabase.from("stock_purchases").delete().eq("tenant_id", tid)
+      await supabase.from("customers").delete().eq("tenant_id", tid)
+      await supabase.from("riders").delete().eq("tenant_id", tid)
+      await supabase.from("products").delete().eq("tenant_id", tid)
+      await supabase.from("chart_of_accounts").delete().eq("tenant_id", tid)
+      await supabase.from("business_settings").delete().eq("tenant_id", tid)
+      await supabase.from("tenants").delete().eq("id", tid)
+      alert(tenant.business_name + " deleted successfully.")
+      fetchTenants()
+    } catch (err) { alert("Error: " + err.message) }
+  }
+
   async function toggleActive(tenant) {
     if (tenant.tenant_code === 'SW001') return alert('Cannot deactivate your own business')
     await supabase.from('tenants').update({ is_active: !tenant.is_active }).eq('id', tenant.id)
@@ -362,6 +403,10 @@ export default function SuperAdminDashboard({ onLogout }) {
                               <button onClick={() => resetPassword(t)}
                                 style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
                                 🔑 Password
+                              </button>
+                              <button onClick={() => setTransactionPassword(t)}
+                                style={{ padding: "5px 10px", background: "#fce4ec", color: "#c62828", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "600", whiteSpace: "nowrap" }}>
+                                🔐 Txn Password
                               </button>
                               <button onClick={() => changeBusinessId(t)}
                                 style={{ padding: '5px 10px', background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
