@@ -20,10 +20,11 @@ export default function CustomerManagement({ tenantId }) {
     is_active: true,
     // Delivery schedule
     schedule_active: false,
-    delivery_days: [],
-    default_qty_19l: 1,
-    default_qty_half: 0,
-    default_qty_1_5l: 0,
+      delivery_days: [],
+      default_qty_19l: 1,
+      default_qty_half: 0,
+      default_qty_1_5l: 0,
+      is_tax_applicable: false,
   })
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState({})

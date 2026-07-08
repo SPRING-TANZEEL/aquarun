@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import InvoiceModal from '../components/InvoiceModal'
 
 const RATES_19L = [90, 100, 110, 120, 150, 160, 170, 180]
 
@@ -24,6 +25,9 @@ export default function AdminQuickSale({ tenantId }) {
   const [customerResults, setCustomerResults] = useState([])
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+  const [showInvoice, setShowInvoice] = useState(false)
+  const [lastDelivery, setLastDelivery] = useState(null)
+  const [settings, setSettings] = useState({})
 
   // Payment receipt state
   const [paymentAmount, setPaymentAmount] = useState('')
@@ -34,11 +38,18 @@ export default function AdminQuickSale({ tenantId }) {
   const [paymentNotes, setPaymentNotes] = useState('')
 
   useEffect(() => {
-    if (tenantId) fetchExtraProducts()
+    if (tenantId) { fetchExtraProducts(); fetchSettings() }
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [tenantId])
+
+  async function fetchSettings() {
+    const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
+    const map = {}
+    data?.forEach(s => { map[s.setting_key] = s.setting_value })
+    setSettings(map)
+  }
 
   async function fetchExtraProducts() {
     const { data } = await supabase.from('products')
@@ -84,7 +95,10 @@ export default function AdminQuickSale({ tenantId }) {
   }
 
   const extraTotal = extraProducts.reduce((s, p) => s + (extraQuantities[p.id] || 0) * (extraRates[p.id] || 0), 0)
-  const total = (qty19l * (rate19l || 0)) + (qtyHalf * rateHalf) + (qty15l * rate15l) + extraTotal
+  const subTotal = (qty19l * (rate19l || 0)) + (qtyHalf * rateHalf) + (qty15l * rate15l) + extraTotal
+  const taxRate = selectedCustomer?.is_tax_applicable ? Number(settings.sales_tax_rate || 0) : 0
+  const taxAmount = Math.round(subTotal * taxRate / 100 * 100) / 100
+  const total = subTotal + taxAmount
 
   // ── RECEIVE PAYMENT ─────────────────────────────────────────────
   async function receivePayment() {
@@ -195,7 +209,10 @@ export default function AdminQuickSale({ tenantId }) {
       jazzcash_confirmed: false,
       delivered_at: new Date(saleDate).toISOString(),
       is_voided: false,
-      notes: [walkinName !== 'Walk-in Customer' ? `Customer: ${walkinName}` : '', descParts.join(' | '), notes].filter(Boolean).join(' — ')
+      notes: [walkinName !== 'Walk-in Customer' ? `Customer: ${walkinName}` : '', descParts.join(' | '), notes].filter(Boolean).join(' — '),
+      tax_rate: taxRate,
+      tax_amount: taxAmount,
+      total_with_tax: total
     }
 
     const { data: savedDelivery, error } = await supabase
@@ -258,7 +275,8 @@ export default function AdminQuickSale({ tenantId }) {
       await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
-    setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', ') })
+    setLastDelivery({ ...savedDelivery, tax_amount: taxAmount, total_with_tax: total })
+    setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id })
     setQty19l(1); setRate19l(null)
     setQtyHalf(0); setRateHalf(0)
     setQty15l(0); setRate15l(0)
@@ -351,10 +369,18 @@ export default function AdminQuickSale({ tenantId }) {
               </p>
             </>
           )}
-          <button onClick={() => setSuccess(null)}
-            style={{ marginTop: '8px', padding: '5px 14px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-            {mode === 'sale' ? '+ New Sale' : '+ New Payment'}
-          </button>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+            <button onClick={() => setSuccess(null)}
+              style={{ padding: '5px 14px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+              {mode === 'sale' ? '+ New Sale' : '+ New Payment'}
+            </button>
+            {success?.deliveryId && (
+              <button onClick={() => setShowInvoice(true)}
+                style={{ padding: '5px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                🧾 Print Invoice
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -585,6 +611,12 @@ export default function AdminQuickSale({ tenantId }) {
                   <span style={{ fontWeight: '600' }}>Rs. {row.val.toLocaleString()}</span>
                 </div>
               ))}
+              {taxAmount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#f57f17', marginBottom: '4px', fontWeight: '600' }}>
+                  <span>🧾 Sales Tax ({taxRate}%)</span>
+                  <span>Rs. {taxAmount.toLocaleString()}</span>
+                </div>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #eee', paddingTop: '10px', marginTop: '8px', marginBottom: '14px' }}>
                 <span style={{ fontSize: '16px', fontWeight: '700', color: '#333' }}>Total Amount</span>
                 <span style={{ fontSize: '32px', fontWeight: '800', color: '#0f4c81', letterSpacing: '-1px' }}>Rs. {total.toLocaleString()}</span>
@@ -704,6 +736,13 @@ export default function AdminQuickSale({ tenantId }) {
           </div>
         </div>
       )}
-    </div>
+    {showInvoice && lastDelivery && (
+        <InvoiceModal
+          deliveries={[lastDelivery]}
+          customer={selectedCustomer || { full_name: customerName || 'Walk-in', mobile: '', customer_code: '', address: '' }}
+          settings={settings}
+          onClose={() => setShowInvoice(false)}
+        />
+      )}</div>
   )
 }
