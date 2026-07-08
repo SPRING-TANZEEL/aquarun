@@ -197,4 +197,28 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose }
               </div>
             ))}
             <div style={{ borderTop: '1px dashed #000', marginTop: '6px', paddingTop: '4px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
+                <span>Subtotal</span><span>Rs. {grandSubTotal.toLocaleString()}</span>
+              </div>
+              {grandTax > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '2px' }}>
+                  <span>Tax {settings.sales_tax_rate}%</span><span>Rs. {grandTax.toLocaleString()}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: '700', borderTop: '1px dashed #000', marginTop: '4px', paddingTop: '4px' }}>
+                <span>TOTAL</span><span>Rs. {grandTotal.toLocaleString()}</span>
+              </div>
+              <div style={{ fontSize: '10px', marginTop: '4px' }}>
+                Payment: {deliveries[0]?.payment_method === 'cash' ? 'Cash' : deliveries[0]?.payment_method === 'jazzcash' ? 'JazzCash' : 'Credit'}
+              </div>
+            </div>
+            <div style={{ textAlign: 'center', marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '6px', fontSize: '10px' }}>
+              <p style={{ margin: '0 0 2px' }}>Thank you for your business!</p>
+              {settings.whatsapp_number && <p style={{ margin: 0 }}>WhatsApp: {settings.whatsapp_number}</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
