@@ -427,6 +427,8 @@ export default function CustomerManagement({ tenantId }) {
                 💡 Positive = customer owes you · Negative = customer paid in advance
               </p>
             </div>
+          </div>
+
           {/* Tax */}
           <div style={{ background: '#fff8e1', border: '1.5px solid #ffe082', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -525,6 +527,7 @@ export default function CustomerManagement({ tenantId }) {
             {saving ? 'Saving...' : editCustomer ? '✓ Update Customer' : '✓ Save Customer'}
           </button>
         </div>
+        </div>
       )}
 
       {/* Customer List */}
@@ -616,6 +619,7 @@ export default function CustomerManagement({ tenantId }) {
           </table>
         )}
       </div>
+    </div>
     </div>
   )
 }
