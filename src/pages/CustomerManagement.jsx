@@ -441,20 +441,6 @@ export default function CustomerManagement({ tenantId }) {
             </div>
           </div>
 
-          {/* Tax */}
-          <div style={{ background: '#fff8e1', border: '1.5px solid #ffe082', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: '#f57f17', margin: '0 0 2px' }}>🧾 Sales Tax Applicable</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Tax rate from Settings will apply to this customer's invoices</p>
-              </div>
-              <div onClick={() => setForm(f => ({ ...f, is_tax_applicable: !f.is_tax_applicable }))}
-                style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.is_tax_applicable ? '#f57f17' : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.is_tax_applicable ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-              </div>
-            </div>
-          </div>
-
           {/* ── DELIVERY SCHEDULE ── */}
 
           <div style={{ background: '#f0fff4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>
