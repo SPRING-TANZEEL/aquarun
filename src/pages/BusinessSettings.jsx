@@ -9,6 +9,9 @@ const SETTINGS_CONFIG = [
       { key: 'business_name', label: 'Business Name', placeholder: 'e.g. Spring Water Kamoke' },
       { key: 'business_tagline', label: 'Tagline', placeholder: 'e.g. Pure Water Delivery' },
       { key: 'business_address', label: 'Business Address', placeholder: 'Full address' },
+      { key: 'ntn_number', label: 'NTN Number', placeholder: 'e.g. 1234567-8' },
+      { key: 'strn_number', label: 'STRN Number', placeholder: 'e.g. 12-34-5678-001-87' },
+      { key: 'sales_tax_rate', label: 'Sales Tax Rate (%)', placeholder: 'e.g. 16' },
     ]
   },
   {
@@ -70,6 +73,11 @@ export default function BusinessSettings({ tenantId }) {
       .select('*')
       .eq('tenant_id', tenantId)
     const map = {}
+    // Initialize all keys from SETTINGS_CONFIG as empty
+    SETTINGS_CONFIG.forEach(section => {
+      section.fields.forEach(field => { map[field.key] = '' })
+    })
+    // Overlay with database values
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     setSettings(map)
     if (map.business_logo) setLogoPreview(map.business_logo)

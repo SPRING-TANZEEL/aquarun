@@ -65,7 +65,9 @@ export default function CustomerManagement({ tenantId }) {
       default_qty_19l: 1,
       default_qty_half: 0,
       default_qty_1_5l: 0,
+      is_tax_applicable: false,
     })
+
     setShowForm(true)
   }
 
@@ -91,6 +93,7 @@ export default function CustomerManagement({ tenantId }) {
       default_qty_19l: Number(c.default_qty_19l) || 1,
       default_qty_half: Number(c.default_qty_half) || 0,
       default_qty_1_5l: Number(c.default_qty_1_5l) || 0,
+      is_tax_applicable: c.is_tax_applicable || false,
     })
     setShowForm(true)
   }
@@ -154,6 +157,7 @@ export default function CustomerManagement({ tenantId }) {
       default_qty_19l: Number(form.default_qty_19l) || 1,
       default_qty_half: Number(form.default_qty_half) || 0,
       default_qty_1_5l: Number(form.default_qty_1_5l) || 0,
+      is_tax_applicable: form.is_tax_applicable || false,
     }
 
     if (editCustomer) {
@@ -423,9 +427,36 @@ export default function CustomerManagement({ tenantId }) {
                 💡 Positive = customer owes you · Negative = customer paid in advance
               </p>
             </div>
+          {/* Tax */}
+          <div style={{ background: '#fff8e1', border: '1.5px solid #ffe082', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#f57f17', margin: '0 0 2px' }}>🧾 Sales Tax Applicable</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Tax rate from Settings will apply to this customer's invoices</p>
+              </div>
+              <div onClick={() => setForm(f => ({ ...f, is_tax_applicable: !f.is_tax_applicable }))}
+                style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.is_tax_applicable ? '#f57f17' : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.is_tax_applicable ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              </div>
+            </div>
+          </div>
+
+          {/* Tax */}
+          <div style={{ background: '#fff8e1', border: '1.5px solid #ffe082', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#f57f17', margin: '0 0 2px' }}>🧾 Sales Tax Applicable</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Tax rate from Settings will apply to this customer's invoices</p>
+              </div>
+              <div onClick={() => setForm(f => ({ ...f, is_tax_applicable: !f.is_tax_applicable }))}
+                style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.is_tax_applicable ? '#f57f17' : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.is_tax_applicable ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              </div>
+            </div>
           </div>
 
           {/* ── DELIVERY SCHEDULE ── */}
+
           <div style={{ background: '#f0fff4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div>
@@ -534,6 +565,7 @@ export default function CustomerManagement({ tenantId }) {
                       <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{c.full_name}</p>
                       <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.customer_code}</p>
                       {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>{c.address}</p>}
+                      {c.is_tax_applicable && <span style={{ fontSize: '10px', background: '#fff8e1', color: '#f57f17', padding: '1px 6px', borderRadius: '4px', fontWeight: '600' }}>🧾 Tax</span>}
                     </td>
                     <td style={{ padding: '12px 14px', fontSize: '13px', color: '#555' }}>{c.mobile}</td>
                     <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '600', color: '#0f4c81' }}>Rs. {c.rate_19l}</td>
@@ -548,7 +580,7 @@ export default function CustomerManagement({ tenantId }) {
                       </span>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
-                      {c.schedule_active && (c.delivery_days || []).length > 0 ? (
+                      {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>{c.address}</p>}
                         <div>
                           <p style={{ fontSize: '11px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>📅 Active</p>
                           <p style={{ fontSize: '10px', color: '#888', margin: 0 }}>
