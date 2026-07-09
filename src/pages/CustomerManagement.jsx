@@ -61,10 +61,10 @@ export default function CustomerManagement({ tenantId }) {
       google_maps_link: '', latitude: '', longitude: '',
       is_active: true,
       schedule_active: false,
-      delivery_days: [],
-      default_qty_19l: 1,
-      default_qty_half: 0,
-      default_qty_1_5l: 0,
+    delivery_days: [],
+    default_qty_19l: 1,
+    default_qty_half: 0,
+    default_qty_1_5l: 0,
       is_tax_applicable: false,
     })
 
@@ -354,7 +354,7 @@ export default function CustomerManagement({ tenantId }) {
           <div style={{ background: '#f0f7ff', borderRadius: '10px', padding: '14px', marginBottom: '14px', border: '1px solid #c8d8ff' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '10px' }}>
               <div>
-                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Customer ID (Auto Generated)</label>
+                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Customer ID (Auto)</label>
                 <div style={{ padding: '10px 12px', background: '#e3f0ff', borderRadius: '8px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
                   {editCustomer ? editCustomer.customer_code : 'AQ-XXXXX (auto)'}
                 </div>
@@ -362,19 +362,17 @@ export default function CustomerManagement({ tenantId }) {
               <div>
                 <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>App Password *</label>
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  <input value={form.customer_password}
-                    onChange={e => setForm({ ...form, customer_password: e.target.value })}
-                    placeholder="Password"
-                    style={{ ...inp, flex: 1, fontWeight: '700', letterSpacing: '2px' }} />
+                  <input value={form.customer_password} onChange={e => setForm({ ...form, customer_password: e.target.value })}
+                    placeholder="Password" style={{ ...inp, flex: 1, fontWeight: '700' }} />
                   <button type="button" onClick={() => setForm({ ...form, customer_password: generatePassword() })}
-                    style={{ padding: '10px 10px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                    style={{ padding: '10px 10px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
                     🔄
                   </button>
                 </div>
               </div>
             </div>
             <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>
-              💡 Customer uses their <strong>Customer ID</strong> and <strong>Password</strong> to login to the customer app.
+              💡 Customer uses their <strong>Customer ID</strong> and <strong>Password</strong> to login.
             </p>
           </div>
 
@@ -434,17 +432,16 @@ export default function CustomerManagement({ tenantId }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#f57f17', margin: '0 0 2px' }}>🧾 Sales Tax Applicable</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Tax rate from Settings will apply to this customer's invoices</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Tax rate from Settings will apply to this customer</p>
               </div>
               <div onClick={() => setForm(f => ({ ...f, is_tax_applicable: !f.is_tax_applicable }))}
-                style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.is_tax_applicable ? '#f57f17' : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.is_tax_applicable ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.is_tax_applicable ? '#f57f17' : '#ddd', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+                <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.is_tax_applicable ? '22px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
               </div>
             </div>
           </div>
 
-          {/* ── DELIVERY SCHEDULE ── */}
-
+          {/* Delivery Schedule */}
           <div style={{ background: '#f0fff4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div>
@@ -456,15 +453,13 @@ export default function CustomerManagement({ tenantId }) {
                   {form.schedule_active ? 'Active' : 'Inactive'}
                 </span>
                 <div onClick={() => setForm(f => ({ ...f, schedule_active: !f.schedule_active }))}
-                  style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.schedule_active ? '#1a7a4a' : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
-                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.schedule_active ? '22px' : '2px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                  style={{ width: '44px', height: '24px', borderRadius: '12px', background: form.schedule_active ? '#1a7a4a' : '#ddd', cursor: 'pointer', position: 'relative' }}>
+                  <div style={{ width: '20px', height: '20px', borderRadius: '50%', background: 'white', position: 'absolute', top: '2px', left: form.schedule_active ? '22px' : '2px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                 </div>
               </div>
             </div>
-
             {form.schedule_active && (
               <>
-                {/* Day selector */}
                 <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Delivery Days</p>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '14px' }}>
                   {DAYS.map(day => (
@@ -474,8 +469,6 @@ export default function CustomerManagement({ tenantId }) {
                     </button>
                   ))}
                 </div>
-
-                {/* Default quantities */}
                 <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Default Quantities per Delivery</p>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
                   <div>
@@ -497,11 +490,10 @@ export default function CustomerManagement({ tenantId }) {
                       style={{ ...inp, textAlign: 'center' }} />
                   </div>
                 </div>
-
                 {(form.delivery_days || []).length > 0 && (
                   <div style={{ marginTop: '10px', background: '#dcfce7', borderRadius: '6px', padding: '8px 12px' }}>
                     <p style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>
-                      📦 {form.default_qty_19l} × 19L will be ordered every {(form.delivery_days || []).map(d => DAY_LABELS[d]).join(', ')}
+                      📦 {form.default_qty_19l} × 19L every {(form.delivery_days || []).map(d => DAY_LABELS[d]).join(', ')}
                     </p>
                   </div>
                 )}
@@ -526,7 +518,6 @@ export default function CustomerManagement({ tenantId }) {
             style={{ width: '100%', padding: '14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', fontWeight: '600' }}>
             {saving ? 'Saving...' : editCustomer ? '✓ Update Customer' : '✓ Save Customer'}
           </button>
-        </div>
         </div>
       )}
 
@@ -569,7 +560,7 @@ export default function CustomerManagement({ tenantId }) {
                       </span>
                     </td>
                     <td style={{ padding: '12px 14px' }}>
-                      {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>{c.address}</p>}
+                      {c.schedule_active && (c.delivery_days || []).length > 0 ? (
                         <div>
                           <p style={{ fontSize: '11px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>📅 Active</p>
                           <p style={{ fontSize: '10px', color: '#888', margin: 0 }}>
@@ -619,7 +610,6 @@ export default function CustomerManagement({ tenantId }) {
           </table>
         )}
       </div>
-    </div>
     </div>
   )
 }
