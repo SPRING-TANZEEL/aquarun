@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 
 function PayBillModal({ balance, settings, customer, onClose, onPaymentDone }) {
-  const [selectedMethod, setSelectedMethod] = useState(null) // 'jazzcash' | 'easypaisa'
+  const [selectedMethod, setSelectedMethod] = useState(null)
   const [amount, setAmount] = useState(balance > 0 ? String(balance) : '')
   const [sending, setSending] = useState(false)
   const [done, setDone] = useState(false)
@@ -20,7 +20,7 @@ function PayBillModal({ balance, settings, customer, onClose, onPaymentDone }) {
       tenant_id: customer.tenant_id,
       customer_id: customer.id,
       amount: Number(amount),
-      payment_method: selectedMethod === 'jazzcash' ? 'jazzcash' : 'jazzcash',
+      payment_method: 'jazzcash',
       payment_date: new Date().toISOString().split('T')[0],
       jazzcash_confirmed: false,
       notes: `Customer self-reported ${selectedMethod === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} payment — awaiting screenshot confirmation`,
@@ -37,39 +37,47 @@ function PayBillModal({ balance, settings, customer, onClose, onPaymentDone }) {
         {!done ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💳 Pay Your Bill</h3>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💳 Pay Bill / Advance</h3>
               <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
             </div>
 
             {/* Balance due */}
             {balance > 0 && (
-              <div style={{ background: 'linear-gradient(135deg, #c62828, #e65100)', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center', color: 'white' }}>
+              <div style={{ background: 'linear-gradient(135deg, #c62828, #e65100)', borderRadius: '12px', padding: '16px', marginBottom: '16px', textAlign: 'center', color: 'white' }}>
                 <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 4px' }}>Outstanding Balance</p>
                 <p style={{ fontSize: '32px', fontWeight: '700', margin: 0 }}>Rs. {balance.toLocaleString()}</p>
+              </div>
+            )}
+            {balance <= 0 && (
+              <div style={{ background: 'linear-gradient(135deg, #0f4c81, #1a7a4a)', borderRadius: '12px', padding: '16px', marginBottom: '16px', textAlign: 'center', color: 'white' }}>
+                <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 4px' }}>
+                  {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit` : 'Account is clear'}
+                </p>
+                <p style={{ fontSize: '13px', fontWeight: '600', margin: 0, opacity: 0.9 }}>You can pay in advance below</p>
               </div>
             )}
 
             {/* Amount input */}
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Amount to Pay (Rs.)</p>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
-              {balance > 0 && (
+            {balance > 0 && (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
                 <button onClick={() => setAmount(String(balance))}
                   style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: amount === String(balance) ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: amount === String(balance) ? '#0f4c81' : '#f8f9fa', color: amount === String(balance) ? 'white' : '#333', fontWeight: '700', fontSize: '12px' }}>
                   Full: Rs. {balance.toLocaleString()}
                 </button>
-              )}
-              <button onClick={() => setAmount('')}
-                style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: amount !== String(balance) && amount !== '' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: amount !== String(balance) && amount !== '' ? '#0f4c81' : '#f8f9fa', color: amount !== String(balance) && amount !== '' ? 'white' : '#333', fontWeight: '700', fontSize: '12px' }}>
-                {balance > 0 ? 'Other Amount' : 'Enter Amount'}
-              </button>
-            </div>
+                <button onClick={() => setAmount('')}
+                  style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: amount !== String(balance) && amount !== '' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: amount !== String(balance) && amount !== '' ? '#0f4c81' : '#f8f9fa', color: amount !== String(balance) && amount !== '' ? 'white' : '#333', fontWeight: '700', fontSize: '12px' }}>
+                  Other / Advance
+                </button>
+              </div>
+            )}
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
               placeholder="Enter amount in Rs."
               style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', marginBottom: '20px' }} />
 
             {/* Payment method selection */}
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Select Payment Method</p>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px' }}>
               {hasJazzcash && (
                 <button onClick={() => setSelectedMethod('jazzcash')}
                   style={{ flex: 1, padding: '14px 10px', border: '2px solid', borderColor: selectedMethod === 'jazzcash' ? '#7b1fa2' : '#eee', borderRadius: '12px', cursor: 'pointer', background: selectedMethod === 'jazzcash' ? '#f3e5f5' : '#fafafa', textAlign: 'center' }}>
@@ -105,7 +113,7 @@ function PayBillModal({ balance, settings, customer, onClose, onPaymentDone }) {
 
             <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
               <p style={{ fontSize: '12px', color: '#f57f17', fontWeight: '600', margin: '0 0 4px' }}>📸 Important</p>
-              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending payment, tap confirm below and send your screenshot to our WhatsApp.</p>
+              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending payment, tap confirm below and send your screenshot to our WhatsApp to update your balance.</p>
             </div>
 
             <button onClick={submitPayment} disabled={sending || !selectedMethod || !amount}
@@ -155,7 +163,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [showPayBill, setShowPayBill] = useState(false)
 
-  // FIX: Re-fetch customer from DB to get fresh balance on every mount/tab switch
   const fetchCustomer = useCallback(async () => {
     const { data } = await supabase
       .from('customers')
@@ -172,7 +179,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
     return () => window.removeEventListener('resize', handleResize)
   }, [tenantId])
 
-  // Re-fetch customer (balance) every time user switches tabs
   useEffect(() => {
     fetchCustomer()
   }, [activeTab, fetchCustomer])
@@ -249,8 +255,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
     setTimeout(() => setOrderSuccess(false), 4000)
   }
 
-  
-
   const balance = Number(customer.balance || 0)
   const totalBottles19l = deliveries.reduce((s, d) => s + Number(d.qty_19l || 0), 0)
   const totalSpent = deliveries.reduce((s, d) => s + Number(d.total_amount || 0), 0)
@@ -265,7 +269,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
     { key: 'account', icon: '💰', label: 'Account' },
   ]
 
-  // Reusable product qty buttons
   function ProductQtyBtn({ product }) {
     const qty = orderForm.quantities[product.id] || 0
     return (
@@ -320,22 +323,20 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
 
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 40px' }}>
 
-          {/* HOME */}
+          {/* HOME — desktop */}
           {activeTab === 'home' && (
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '20px', marginBottom: '24px' }}>
                 <div style={{ gridColumn: '1 / 2', background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', borderRadius: '16px', padding: '24px', color: 'white' }}>
                   <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Account Balance' : 'Account Clear'}</p>
                   <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px', letterSpacing: '-1px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-                  <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>
+                  <p style={{ fontSize: '12px', opacity: 0.6, margin: '0 0 12px' }}>
                     {balance > 0 ? 'Please pay at earliest' : balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : 'No outstanding amount'}
                   </p>
-                  {balance > 0 && (
-                    <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
-                      style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                      💳 Pay Your Bill
-                    </button>
-                  )}
+                  <button onClick={() => setShowPayBill(true)}
+                    style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                    💳 {balance > 0 ? 'Pay Your Bill' : 'Pay in Advance'}
+                  </button>
                 </div>
                 <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', borderTop: '4px solid #0f4c81' }}>
                   <p style={{ fontSize: '12px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase' }}>Deliveries</p>
@@ -408,7 +409,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 )}
                 <div style={{ background: 'white', borderRadius: '16px', padding: '28px', boxShadow: '0 2px 12px rgba(0,0,0,0.06)', marginBottom: '20px' }}>
                   <p style={{ fontSize: '14px', fontWeight: '700', color: '#555', marginBottom: '20px' }}>Select Products</p>
-                  {/* 19L — always hardcoded */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '20px', borderBottom: '1px solid #f0f0f0' }}>
                     <div>
                       <p style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 4px' }}>🍶 19 Litre Bottle</p>
@@ -422,7 +422,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                         style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                     </div>
                   </div>
-                  {/* Other saleable products */}
                   {products.map((p, i) => (
                     <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: i < products.length - 1 ? '20px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
                       <div>
@@ -541,15 +540,13 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                   <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', borderRadius: '16px', padding: '28px', marginBottom: '20px' }}>
                     <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Account Balance' : 'Account Clear'}</p>
                     <p style={{ fontSize: '48px', fontWeight: '700', margin: '0 0 6px', letterSpacing: '-2px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-                    <p style={{ fontSize: '12px', opacity: 0.7, margin: balance > 0 ? '0 0 12px' : '0' }}>
+                    <p style={{ fontSize: '12px', opacity: 0.7, margin: '0 0 12px' }}>
                       {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : `ID: ${customer.customer_code}`}
                     </p>
-                    {balance > 0 && (
-                      <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
-                        style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                        💳 Pay Your Bill
-                      </button>
-                    )}
+                    <button onClick={() => setShowPayBill(true)}
+                      style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                      💳 {balance > 0 ? 'Pay Your Bill' : 'Pay in Advance'}
+                    </button>
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
                     <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
@@ -563,15 +560,15 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                   </div>
                   {settings.jazzcash_number_1 && (
                     <div style={{ background: '#f3e5f5', border: '1px solid #e1bee7', borderRadius: '12px', padding: '20px' }}>
-                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 12px' }}>📱 Pay via JazzCash</p>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 12px' }}>📱 Payment Accounts</p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: settings.jazzcash_number_2 ? '1px solid #e1bee7' : 'none' }}>
-                        <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_1 || 'Account 1'}</span>
+                        <span style={{ fontSize: '14px', color: '#555' }}>JazzCash — {settings.jazzcash_name_1 || 'Account 1'}</span>
                         <span style={{ fontSize: '15px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_1}</span>
                       </div>
                       {settings.jazzcash_number_2 && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0' }}>
-                          <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_2 || 'Account 2'}</span>
-                          <span style={{ fontSize: '15px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_2}</span>
+                          <span style={{ fontSize: '14px', color: '#555' }}>EasyPaisa — {settings.jazzcash_name_2 || 'Account 2'}</span>
+                          <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a7a4a' }}>{settings.jazzcash_number_2}</span>
                         </div>
                       )}
                     </div>
@@ -628,12 +625,10 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : `ID: ${customer.customer_code}`}
               </p>
             </div>
-            {balance > 0 && (
-              <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
-                style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                💳 Pay Your Bill
-              </button>
-            )}
+            <button onClick={() => setShowPayBill(true)}
+              style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              💳 {balance > 0 ? 'Pay Your Bill' : 'Pay in Advance'}
+            </button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
                 <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px' }}>Total Deliveries</p>
@@ -676,10 +671,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 <p style={{ fontSize: '13px', color: '#2e7d32', margin: 0 }}>Your order has been submitted.</p>
               </div>
             )}
-
-            {/* Products */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              {/* 19L — always hardcoded */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', marginBottom: products.length > 0 ? '16px' : '0', borderBottom: products.length > 0 ? '1px solid #f0f0f0' : 'none' }}>
                 <div>
                   <p style={{ fontSize: '15px', fontWeight: '600', margin: '0 0 2px' }}>🍶 19 Litre Bottle</p>
@@ -693,7 +685,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                     style={{ width: '40px', height: '40px', borderRadius: '50%', border: '2px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                 </div>
               </div>
-              {/* Other saleable products */}
               {products.map((p, i) => (
                 <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: i < products.length - 1 ? '16px' : '0', marginBottom: i < products.length - 1 ? '16px' : '0', borderBottom: i < products.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
                   <div>
@@ -704,8 +695,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 </div>
               ))}
             </div>
-
-            {/* Delivery Date */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Delivery Date *</label>
               <input type="date" value={orderForm.delivery_date}
@@ -713,16 +702,12 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 min={new Date().toISOString().split('T')[0]}
                 style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
             </div>
-
-            {/* Notes */}
             <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Special Instructions</label>
               <input value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="e.g. Please deliver in the morning..."
                 style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }} />
             </div>
-
-            {/* Estimated total */}
             {hasOrderItems && (
               <div style={{ background: '#e8f5e9', borderRadius: '10px', padding: '14px', marginBottom: '12px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -731,7 +716,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 </div>
               </div>
             )}
-
             <button onClick={placeOrder} disabled={placingOrder}
               style={{ width: '100%', padding: '16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
               {placingOrder ? 'Placing Order...' : '✓ Place Order'}
@@ -779,12 +763,10 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                 {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : `ID: ${customer.customer_code}`}
               </p>
             </div>
-            {balance > 0 && (
-              <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
-                style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-                💳 Pay Your Bill
-              </button>
-            )}
+            <button onClick={() => setShowPayBill(true)}
+              style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              💳 {balance > 0 ? 'Pay Your Bill' : 'Pay in Advance'}
+            </button>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               <div style={{ background: 'white', borderRadius: '10px', padding: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Total Spent</p><p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {totalSpent.toLocaleString()}</p></div>
               <div style={{ background: 'white', borderRadius: '10px', padding: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}><p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Payments Made</p><p style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>{payments.length}</p></div>
@@ -802,9 +784,17 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
             )}
             {settings.jazzcash_number_1 && (
               <div style={{ background: '#f3e5f5', border: '1px solid #e1bee7', borderRadius: '12px', padding: '16px' }}>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 10px' }}>📱 Pay via JazzCash</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: settings.jazzcash_number_2 ? '1px solid #e1bee7' : 'none' }}><span style={{ fontSize: '13px', color: '#555' }}>{settings.jazzcash_name_1 || 'Account 1'}</span><span style={{ fontSize: '14px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_1}</span></div>
-                {settings.jazzcash_number_2 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}><span style={{ fontSize: '13px', color: '#555' }}>{settings.jazzcash_name_2 || 'Account 2'}</span><span style={{ fontSize: '14px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_2}</span></div>}
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 10px' }}>📱 Payment Accounts</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: settings.jazzcash_number_2 ? '1px solid #e1bee7' : 'none' }}>
+                  <span style={{ fontSize: '13px', color: '#555' }}>JazzCash — {settings.jazzcash_name_1 || 'Account 1'}</span>
+                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_1}</span>
+                </div>
+                {settings.jazzcash_number_2 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+                    <span style={{ fontSize: '13px', color: '#555' }}>EasyPaisa — {settings.jazzcash_name_2 || 'Account 2'}</span>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a' }}>{settings.jazzcash_number_2}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
