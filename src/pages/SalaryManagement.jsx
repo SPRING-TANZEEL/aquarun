@@ -55,10 +55,19 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       const riderAdvances = advancesData?.filter(a => a.rider_id === r.id && a.status === 'approved') || []
       const totalAdvances = riderAdvances.reduce((s, a) => s + Number(a.amount), 0)
 
+      let fixedPart = 0
+      let commissionPart = 0
       let baseSalary = 0
       let commissionBreakdown = null
 
-      if (r.salary_type === 'commission') {
+      const isCommission = r.salary_type === 'commission' || r.salary_type === 'fixed_commission'
+      const isFixed = r.salary_type === 'fixed' || r.salary_type === 'fixed_commission'
+
+      if (isFixed) {
+        fixedPart = Number(r.monthly_salary || 0)
+      }
+
+      if (isCommission) {
         const { data: deliveries } = await supabase.from('deliveries')
           .select('qty_19l, qty_half_litre, qty_1_5l')
           .eq('rider_id', r.id)
@@ -77,14 +86,19 @@ export default function SalaryManagement({ adminUser, tenantId }) {
         const commission19l = total19l * Number(r.commission_19l || 0)
         const commissionHalf = totalHalf * Number(r.commission_half_litre || 0)
         const commission15l = total15l * Number(r.commission_1_5l || 0)
-        baseSalary = commission19l + commissionHalf + commission15l
-        commissionBreakdown = { total19l, totalHalf, total15l, commission19l, commissionHalf, commission15l, rate19l: r.commission_19l, rateHalf: r.commission_half_litre, rate15l: r.commission_1_5l }
-      } else {
-        baseSalary = Number(r.monthly_salary || 0)
+        commissionPart = commission19l + commissionHalf + commission15l
+        commissionBreakdown = {
+          total19l, totalHalf, total15l,
+          commission19l, commissionHalf, commission15l,
+          rate19l: r.commission_19l,
+          rateHalf: r.commission_half_litre,
+          rate15l: r.commission_1_5l
+        }
       }
 
+      baseSalary = fixedPart + commissionPart
       const remaining = baseSalary - totalAdvances
-      summaries.push({ ...r, baseSalary, totalAdvances, remaining, advances: riderAdvances, commissionBreakdown })
+      summaries.push({ ...r, baseSalary, fixedPart, commissionPart, totalAdvances, remaining, advances: riderAdvances, commissionBreakdown })
     }
     setRiderSummaries(summaries)
     setLoading(false)
@@ -98,13 +112,10 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       .eq('tenant_id', tenantId)
       .select().single()
     if (error) { alert('Error: ' + error.message); setProcessing(null); return }
-
-    // Auto-post journal entry
     try {
       const { postSalaryAdvanceJournal } = await import('../accountingEngine')
       await postSalaryAdvanceJournal(approved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
-
     fetchData()
     setProcessing(null)
   }
@@ -136,8 +147,6 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       payment_date: payDate
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
-
-    // Auto-post journal entry
     try {
       const { postSalaryPaymentJournal } = await import('../accountingEngine')
       await postSalaryPaymentJournal(savedPayment, tenantId)
@@ -194,8 +203,11 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                   <p style={{ fontSize: '16px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>
                     {r.is_main_rider ? '⭐ ' : '🚴 '}{r.full_name}
                   </p>
-                  <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', background: r.salary_type === 'commission' ? '#e8f5e9' : '#f3e5f5', color: r.salary_type === 'commission' ? '#1a7a4a' : '#7b1fa2' }}>
-                    {r.salary_type === 'commission' ? '📦 Commission Based' : '💰 Fixed Salary'}
+                  <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
+                    background: r.salary_type === 'commission' ? '#e8f5e9' : r.salary_type === 'fixed_commission' ? '#e3f0ff' : '#f3e5f5',
+                    color: r.salary_type === 'commission' ? '#1a7a4a' : r.salary_type === 'fixed_commission' ? '#0f4c81' : '#7b1fa2'
+                  }}>
+                    {r.salary_type === 'commission' ? '📦 Commission Based' : r.salary_type === 'fixed_commission' ? '💰+📦 Fixed + Commission' : '💰 Fixed Salary'}
                   </span>
                 </div>
                 <button onClick={() => { setPayingRider(r); setPayAmount(String(r.remaining > 0 ? r.remaining : 0)); setPayMethod('cash') }}
@@ -204,10 +216,22 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                 </button>
               </div>
 
-              {/* Commission Breakdown */}
-              {r.salary_type === 'commission' && r.commissionBreakdown && (
+              {/* Salary Breakdown */}
+              {(r.salary_type === 'fixed_commission' || r.salary_type === 'commission') && r.commissionBreakdown && (
                 <div style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
-                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 8px' }}>Commission Breakdown</p>
+                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 8px' }}>
+                    {r.salary_type === 'fixed_commission' ? 'Salary Breakdown' : 'Commission Breakdown'}
+                  </p>
+
+                  {/* Fixed part for fixed_commission */}
+                  {r.salary_type === 'fixed_commission' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #eee', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', color: '#555', fontWeight: '600' }}>Fixed Monthly Salary</span>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>Rs. {r.fixedPart.toLocaleString()}</span>
+                    </div>
+                  )}
+
+                  {/* Commission lines */}
                   {r.commissionBreakdown.rate19l > 0 && (
                     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
                       <span style={{ fontSize: '12px', color: '#888' }}>19L × {r.commissionBreakdown.total19l} bottles × Rs. {r.commissionBreakdown.rate19l}</span>
@@ -226,13 +250,25 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                       <span style={{ fontSize: '12px', fontWeight: '600', color: '#1a7a4a' }}>Rs. {r.commissionBreakdown.commission15l.toLocaleString()}</span>
                     </div>
                   )}
+
+                  {/* Total for fixed_commission */}
+                  {r.salary_type === 'fixed_commission' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '1px solid #ddd', marginTop: '6px' }}>
+                      <span style={{ fontSize: '12px', fontWeight: '700', color: '#333' }}>
+                        Fixed Rs. {r.fixedPart.toLocaleString()} + Commission Rs. {r.commissionPart.toLocaleString()}
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>= Rs. {r.baseSalary.toLocaleString()}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Summary Cards */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                 <div style={{ textAlign: 'center', padding: '10px', background: '#f0f7ff', borderRadius: '8px' }}>
-                  <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{r.salary_type === 'commission' ? 'Commission Earned' : 'Monthly Salary'}</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>
+                    {r.salary_type === 'fixed' ? 'Monthly Salary' : r.salary_type === 'fixed_commission' ? 'Total Payable' : 'Commission Earned'}
+                  </p>
                   <p style={{ fontSize: '18px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {r.baseSalary.toLocaleString()}</p>
                 </div>
                 <div style={{ textAlign: 'center', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
@@ -247,7 +283,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
 
               {r.remaining < 0 && (
                 <div style={{ background: '#fff3e0', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
-                  <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Advances exceed {r.salary_type === 'commission' ? 'commission' : 'salary'} by Rs. {Math.abs(r.remaining).toLocaleString()} — will carry forward.</p>
+                  <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Advances exceed {r.salary_type === 'fixed' ? 'salary' : 'earnings'} by Rs. {Math.abs(r.remaining).toLocaleString()} — will carry forward.</p>
                 </div>
               )}
 
@@ -272,7 +308,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
               {payingRider?.id === r.id && (
                 <div style={{ marginTop: '14px', padding: '14px', background: '#f0f7ff', borderRadius: '10px', border: '1px solid #c8e0ff' }}>
                   <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', marginBottom: '12px' }}>
-                    Pay {r.salary_type === 'commission' ? 'Commission' : 'Salary'} to {r.full_name}
+                    Pay {r.salary_type === 'fixed' ? 'Salary' : r.salary_type === 'fixed_commission' ? 'Salary + Commission' : 'Commission'} to {r.full_name}
                   </p>
 
                   {/* Payment Method */}
@@ -311,7 +347,6 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                       <p style={{ fontSize: '11px', color: '#e65100', fontWeight: '600', margin: 0 }}>⚠️ Back-dated entry — {new Date(payDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                     </div>
                   )}
-
                   <div style={{ background: '#fff3e0', borderRadius: '8px', padding: '8px 12px', marginBottom: '10px' }}>
                     <p style={{ fontSize: '11px', color: '#e65100', margin: 0 }}>
                       {payMethod === 'cash' && '💵 This will be deducted from CEO Cash in Hand'}
@@ -319,7 +354,6 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                       {payMethod === 'bank' && '🏦 This will be deducted from CEO Bank balance'}
                     </p>
                   </div>
-
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <button onClick={() => setPayingRider(null)}
                       style={{ flex: 1, padding: '10px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
@@ -369,7 +403,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                 <div>
                   <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>🚴 {r.rider?.full_name}</p>
                   <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px' }}>
-                    {r.rider?.salary_type === 'commission' ? '📦 Commission Based' : `Fixed: Rs. ${Number(r.rider?.monthly_salary || 0).toLocaleString()}/month`}
+                    {r.rider?.salary_type === 'commission' ? '📦 Commission Based' : r.rider?.salary_type === 'fixed_commission' ? '💰+📦 Fixed + Commission' : `Fixed: Rs. ${Number(r.rider?.monthly_salary || 0).toLocaleString()}/month`}
                   </p>
                   <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
                     {new Date(r.created_at).toLocaleString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}

@@ -105,6 +105,15 @@ export default function RiderManagement({ tenantId }) {
     borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box'
   }
 
+  const salaryTypes = [
+    { key: 'fixed', label: '💰 Fixed Monthly', desc: 'Same amount every month' },
+    { key: 'commission', label: '📦 Commission Only', desc: 'Earn per bottle delivered' },
+    { key: 'fixed_commission', label: '💰+📦 Fixed + Commission', desc: 'Fixed salary plus per-bottle commission' },
+  ]
+
+  const showFixed = form.salary_type === 'fixed' || form.salary_type === 'fixed_commission'
+  const showCommission = form.salary_type === 'commission' || form.salary_type === 'fixed_commission'
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
@@ -144,33 +153,32 @@ export default function RiderManagement({ tenantId }) {
             </div>
           </div>
 
-          {/* Salary Type Toggle */}
+          {/* Salary Type — 3 options */}
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Salary Type
           </p>
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
-            {[
-              { key: 'fixed', label: '💰 Fixed Monthly', desc: 'Same amount every month' },
-              { key: 'commission', label: '📦 Commission Based', desc: 'Earn per bottle delivered' },
-            ].map(t => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
+            {salaryTypes.map(t => (
               <button key={t.key} onClick={() => setForm({ ...form, salary_type: t.key })}
                 style={{
-                  flex: 1, padding: '14px', border: '2px solid',
+                  padding: '14px 10px', border: '2px solid',
                   borderColor: form.salary_type === t.key ? '#0f4c81' : '#eee',
                   borderRadius: '10px', cursor: 'pointer',
                   background: form.salary_type === t.key ? '#e3f0ff' : '#f8f9fa',
                   textAlign: 'center'
                 }}>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: form.salary_type === t.key ? '#0f4c81' : '#555', margin: '0 0 4px' }}>{t.label}</p>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: form.salary_type === t.key ? '#0f4c81' : '#555', margin: '0 0 4px' }}>{t.label}</p>
                 <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{t.desc}</p>
               </button>
             ))}
           </div>
 
-          {/* Fixed Salary Fields */}
-          {form.salary_type === 'fixed' && (
+          {/* Fixed Salary Field */}
+          {showFixed && (
             <div style={{ marginBottom: '20px' }}>
-              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Monthly Salary (Rs.)</label>
+              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>
+                Monthly Fixed Salary (Rs.)
+              </label>
               <input type="number" value={form.monthly_salary}
                 onChange={e => setForm({ ...form, monthly_salary: Number(e.target.value) })}
                 placeholder="e.g. 15000" style={inp} />
@@ -178,7 +186,7 @@ export default function RiderManagement({ tenantId }) {
           )}
 
           {/* Commission Fields */}
-          {form.salary_type === 'commission' && (
+          {showCommission && (
             <div style={{ marginBottom: '20px' }}>
               <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Commission Rates (Rs. per bottle)
@@ -197,9 +205,19 @@ export default function RiderManagement({ tenantId }) {
                   </div>
                 ))}
               </div>
-              {/* Commission Preview */}
+
+              {/* Preview */}
               <div style={{ marginTop: '12px', background: '#f0f7ff', borderRadius: '8px', padding: '12px' }}>
-                <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: '0 0 6px' }}>Example — if rider delivers 100 bottles per month:</p>
+                <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: '0 0 6px' }}>
+                  {form.salary_type === 'fixed_commission'
+                    ? `Example — Fixed Rs. ${Number(form.monthly_salary).toLocaleString()} + if rider delivers 100 bottles:`
+                    : 'Example — if rider delivers 100 bottles per month:'}
+                </p>
+                {form.salary_type === 'fixed_commission' && (
+                  <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px', fontWeight: '600' }}>
+                    Fixed: Rs. {Number(form.monthly_salary).toLocaleString()}
+                  </p>
+                )}
                 <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>
                   19L × 100 × Rs. {form.commission_19l} = Rs. {(100 * form.commission_19l).toLocaleString()}
                 </p>
@@ -211,6 +229,16 @@ export default function RiderManagement({ tenantId }) {
                 {form.commission_1_5l > 0 && (
                   <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>
                     1.5L × 50 × Rs. {form.commission_1_5l} = Rs. {(50 * form.commission_1_5l).toLocaleString()}
+                  </p>
+                )}
+                {form.salary_type === 'fixed_commission' && (
+                  <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '700', margin: '6px 0 0', borderTop: '1px solid #c8e0ff', paddingTop: '6px' }}>
+                    Total Payable = Rs. {(
+                      Number(form.monthly_salary) +
+                      100 * form.commission_19l +
+                      (form.commission_half_litre > 0 ? 50 * form.commission_half_litre : 0) +
+                      (form.commission_1_5l > 0 ? 50 * form.commission_1_5l : 0)
+                    ).toLocaleString()}
                   </p>
                 )}
               </div>
@@ -280,21 +308,30 @@ export default function RiderManagement({ tenantId }) {
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{
                     padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
-                    background: r.salary_type === 'commission' ? '#e8f5e9' : '#f3e5f5',
-                    color: r.salary_type === 'commission' ? '#1a7a4a' : '#7b1fa2'
+                    background: r.salary_type === 'commission' ? '#e8f5e9' : r.salary_type === 'fixed_commission' ? '#e3f0ff' : '#f3e5f5',
+                    color: r.salary_type === 'commission' ? '#1a7a4a' : r.salary_type === 'fixed_commission' ? '#0f4c81' : '#7b1fa2'
                   }}>
-                    {r.salary_type === 'commission' ? '📦 Commission' : '💰 Fixed'}
+                    {r.salary_type === 'commission' ? '📦 Commission' : r.salary_type === 'fixed_commission' ? '💰+📦 Fixed+Comm' : '💰 Fixed'}
                   </span>
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: '13px', color: '#555' }}>
-                  {r.salary_type === 'commission' ? (
+                  {r.salary_type === 'fixed' && (
+                    <span style={{ fontWeight: '600', color: '#1a7a4a' }}>Rs. {Number(r.monthly_salary || 0).toLocaleString()}/month</span>
+                  )}
+                  {r.salary_type === 'commission' && (
                     <div>
                       <p style={{ margin: '0 0 2px', fontSize: '12px' }}>19L: Rs. {r.commission_19l || 0}/bottle</p>
                       {r.commission_half_litre > 0 && <p style={{ margin: '0 0 2px', fontSize: '12px' }}>Half: Rs. {r.commission_half_litre}/bottle</p>}
                       {r.commission_1_5l > 0 && <p style={{ margin: 0, fontSize: '12px' }}>1.5L: Rs. {r.commission_1_5l}/bottle</p>}
                     </div>
-                  ) : (
-                    <span style={{ fontWeight: '600', color: '#1a7a4a' }}>Rs. {Number(r.monthly_salary || 0).toLocaleString()}/month</span>
+                  )}
+                  {r.salary_type === 'fixed_commission' && (
+                    <div>
+                      <p style={{ margin: '0 0 2px', fontSize: '12px', fontWeight: '600', color: '#0f4c81' }}>Fixed: Rs. {Number(r.monthly_salary || 0).toLocaleString()}</p>
+                      <p style={{ margin: '0 0 2px', fontSize: '12px' }}>19L: Rs. {r.commission_19l || 0}/bottle</p>
+                      {r.commission_half_litre > 0 && <p style={{ margin: '0 0 2px', fontSize: '12px' }}>Half: Rs. {r.commission_half_litre}/bottle</p>}
+                      {r.commission_1_5l > 0 && <p style={{ margin: 0, fontSize: '12px' }}>1.5L: Rs. {r.commission_1_5l}/bottle</p>}
+                    </div>
                   )}
                 </td>
                 <td style={{ padding: '12px 16px', fontSize: '14px', fontFamily: 'monospace', letterSpacing: '4px', color: '#555' }}>
