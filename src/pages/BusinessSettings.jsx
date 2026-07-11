@@ -82,7 +82,7 @@ export default function BusinessSettings({ tenantId }) {
     setSettings(map)
     if (map.business_logo) setLogoPreview(map.business_logo)
     setLoading(false)
-  }
+  } 
 
   async function handleLogoUpload(e) {
     const file = e.target.files[0]

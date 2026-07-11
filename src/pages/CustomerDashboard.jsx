@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 
 function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAmount, payBillSending, payBillDone, submitPayBill, onClose }) {
@@ -73,7 +73,8 @@ function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAm
   )
 }
 
-export default function CustomerDashboard({ customer, onLogout }) {
+export default function CustomerDashboard({ customer: initialCustomer, onLogout }) {
+  const [customer, setCustomer] = useState(initialCustomer)
   const tenantId = customer.tenant_id
   const [activeTab, setActiveTab] = useState('home')
   const [deliveries, setDeliveries] = useState([])
@@ -91,6 +92,16 @@ export default function CustomerDashboard({ customer, onLogout }) {
   const [payBillSending, setPayBillSending] = useState(false)
   const [payBillDone, setPayBillDone] = useState(false)
 
+  // FIX: Re-fetch customer from DB to get fresh balance on every mount/tab switch
+  const fetchCustomer = useCallback(async () => {
+    const { data } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', initialCustomer.id)
+      .single()
+    if (data) setCustomer(data)
+  }, [initialCustomer.id])
+
   useEffect(() => {
     if (tenantId) fetchAll()
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -98,9 +109,14 @@ export default function CustomerDashboard({ customer, onLogout }) {
     return () => window.removeEventListener('resize', handleResize)
   }, [tenantId])
 
+  // Re-fetch customer (balance) every time user switches tabs
+  useEffect(() => {
+    fetchCustomer()
+  }, [activeTab, fetchCustomer])
+
   async function fetchAll() {
     setLoading(true)
-    await Promise.all([fetchDeliveries(), fetchPayments(), fetchOrders(), fetchSettings(), fetchProducts()])
+    await Promise.all([fetchCustomer(), fetchDeliveries(), fetchPayments(), fetchOrders(), fetchSettings(), fetchProducts()])
     setLoading(false)
   }
 
@@ -122,21 +138,21 @@ export default function CustomerDashboard({ customer, onLogout }) {
 
   async function fetchDeliveries() {
     const { data } = await supabase.from('deliveries').select('*')
-      .eq('tenant_id', tenantId).eq('customer_id', customer.id)
+      .eq('tenant_id', tenantId).eq('customer_id', initialCustomer.id)
       .eq('is_voided', false).order('delivered_at', { ascending: false }).limit(30)
     setDeliveries(data || [])
   }
 
   async function fetchPayments() {
     const { data } = await supabase.from('payments').select('*')
-      .eq('tenant_id', tenantId).eq('customer_id', customer.id)
+      .eq('tenant_id', tenantId).eq('customer_id', initialCustomer.id)
       .eq('is_voided', false).order('created_at', { ascending: false }).limit(20)
     setPayments(data || [])
   }
 
   async function fetchOrders() {
     const { data } = await supabase.from('orders').select('*')
-      .eq('tenant_id', tenantId).eq('customer_id', customer.id)
+      .eq('tenant_id', tenantId).eq('customer_id', initialCustomer.id)
       .order('created_at', { ascending: false }).limit(10)
     setOrders(data || [])
   }
@@ -184,6 +200,8 @@ export default function CustomerDashboard({ customer, onLogout }) {
     setPayBillSending(false)
     setPayBillDone(true)
     fetchPayments()
+    // Also refresh customer balance after payment recorded
+    fetchCustomer()
   }
 
   const balance = Number(customer.balance || 0)
@@ -260,9 +278,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
             <div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '20px', marginBottom: '24px' }}>
                 <div style={{ gridColumn: '1 / 2', background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', borderRadius: '16px', padding: '24px', color: 'white' }}>
-                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Advance Credit' : 'Account Clear'}</p>
+                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Account Balance' : 'Account Clear'}</p>
                   <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px', letterSpacing: '-1px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-                  <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>{balance > 0 ? 'Please pay at earliest' : balance < 0 ? 'You have advance credit' : 'No outstanding amount'}</p>
+                  <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>
+                    {balance > 0 ? 'Please pay at earliest' : balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : 'No outstanding amount'}
+                  </p>
                   {balance > 0 && (
                     <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
                       style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
@@ -472,9 +492,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
                 <div>
                   <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', borderRadius: '16px', padding: '28px', marginBottom: '20px' }}>
-                    <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Advance Credit' : 'Account Clear'}</p>
+                    <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Account Balance' : 'Account Clear'}</p>
                     <p style={{ fontSize: '48px', fontWeight: '700', margin: '0 0 6px', letterSpacing: '-2px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-                    <p style={{ fontSize: '12px', opacity: 0.6, margin: balance > 0 ? '0 0 12px' : '0' }}>ID: {customer.customer_code}</p>
+                    <p style={{ fontSize: '12px', opacity: 0.7, margin: balance > 0 ? '0 0 12px' : '0' }}>
+                      {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : `ID: ${customer.customer_code}`}
+                    </p>
                     {balance > 0 && (
                       <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
                         style={{ width: '100%', padding: '10px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
@@ -553,9 +575,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
         {activeTab === 'home' && (
           <div>
             <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : balance < 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #1a7a4a, #0f4c81)', borderRadius: '16px', padding: '24px', marginBottom: '12px', color: 'white', textAlign: 'center' }}>
-              <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? '⚠️ Outstanding Balance' : balance < 0 ? '✅ Advance Credit' : '✅ Account Clear'}</p>
+              <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>{balance > 0 ? '⚠️ Outstanding Balance' : balance < 0 ? '✅ Account Balance' : '✅ Account Clear'}</p>
               <p style={{ fontSize: '44px', fontWeight: '700', margin: '0 0 6px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-              <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>ID: {customer.customer_code}</p>
+              <p style={{ fontSize: '11px', opacity: 0.75, margin: 0 }}>
+                {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : `ID: ${customer.customer_code}`}
+              </p>
             </div>
             {balance > 0 && (
               <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
@@ -702,9 +726,11 @@ export default function CustomerDashboard({ customer, onLogout }) {
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>💰 Account Statement</h3>
             <div style={{ background: balance > 0 ? 'linear-gradient(135deg, #c62828, #e65100)' : 'linear-gradient(135deg, #0f4c81, #1a7a4a)', color: 'white', borderRadius: '12px', padding: '20px', marginBottom: '12px', textAlign: 'center' }}>
-              <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Advance Credit' : 'Account Clear'}</p>
+              <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 6px' }}>{balance > 0 ? 'Outstanding Balance' : balance < 0 ? 'Account Balance' : 'Account Clear'}</p>
               <p style={{ fontSize: '36px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {Math.abs(balance).toLocaleString()}</p>
-              <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>ID: {customer.customer_code}</p>
+              <p style={{ fontSize: '11px', opacity: 0.75, margin: 0 }}>
+                {balance < 0 ? `You have Rs. ${Math.abs(balance).toLocaleString()} credit in your account` : `ID: ${customer.customer_code}`}
+              </p>
             </div>
             {balance > 0 && (
               <button onClick={() => { setShowPayBill(true); setPayBillAmount(String(balance)); setPayBillDone(false) }}
