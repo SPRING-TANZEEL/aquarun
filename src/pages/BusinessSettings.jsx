@@ -32,11 +32,11 @@ const SETTINGS_CONFIG = [
     ]
   },
   {
-    section: 'JazzCash Account 2',
-    icon: '📱',
+    section: 'EasyPaisa Account',
+    icon: '💚',
     fields: [
-      { key: 'jazzcash_number_2', label: 'JazzCash Number 2', placeholder: '03xx-xxxxxxx' },
-      { key: 'jazzcash_name_2', label: 'Account Name 2', placeholder: 'Account holder name' },
+      { key: 'jazzcash_number_2', label: 'EasyPaisa Number', placeholder: '03xx-xxxxxxx' },
+      { key: 'jazzcash_name_2', label: 'Account Name', placeholder: 'Account holder name' },
     ]
   },
 ]

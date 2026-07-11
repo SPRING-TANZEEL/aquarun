@@ -1,65 +1,131 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../supabase'
 
-function PayBillModal({ balance, settings, customer, payBillAmount, setPayBillAmount, payBillSending, payBillDone, submitPayBill, onClose }) {
+function PayBillModal({ balance, settings, customer, onClose, onPaymentDone }) {
+  const [selectedMethod, setSelectedMethod] = useState(null) // 'jazzcash' | 'easypaisa'
+  const [amount, setAmount] = useState(balance > 0 ? String(balance) : '')
+  const [sending, setSending] = useState(false)
+  const [done, setDone] = useState(false)
+
+  const hasJazzcash = !!settings.jazzcash_number_1
+  const hasEasypaisa = !!settings.jazzcash_number_2
+  const selectedNumber = selectedMethod === 'jazzcash' ? settings.jazzcash_number_1 : settings.jazzcash_number_2
+  const selectedName = selectedMethod === 'jazzcash' ? settings.jazzcash_name_1 : settings.jazzcash_name_2
+
+  async function submitPayment() {
+    if (!amount || Number(amount) <= 0) return alert('Please enter amount')
+    if (!selectedMethod) return alert('Please select a payment method')
+    setSending(true)
+    await supabase.from('payments').insert([{
+      tenant_id: customer.tenant_id,
+      customer_id: customer.id,
+      amount: Number(amount),
+      payment_method: selectedMethod === 'jazzcash' ? 'jazzcash' : 'jazzcash',
+      payment_date: new Date().toISOString().split('T')[0],
+      jazzcash_confirmed: false,
+      notes: `Customer self-reported ${selectedMethod === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} payment — awaiting screenshot confirmation`,
+      is_voided: false
+    }])
+    setSending(false)
+    setDone(true)
+    onPaymentDone()
+  }
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-      <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '480px', padding: '28px 24px', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)' }}>
-        {!payBillDone ? (
+      <div style={{ background: 'white', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: '480px', padding: '28px 24px', boxShadow: '0 -10px 40px rgba(0,0,0,0.2)', maxHeight: '90vh', overflowY: 'auto' }}>
+        {!done ? (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>💳 Pay Your Bill</h3>
               <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
             </div>
-            {settings.jazzcash_number_1 && (
-              <div style={{ background: '#f3e5f5', border: '1px solid #e1bee7', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 10px' }}>📱 Send payment to JazzCash:</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: settings.jazzcash_number_2 ? '8px' : '0' }}>
-                  <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_1 || 'Account'}</span>
-                  <span style={{ fontSize: '18px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_1}</span>
-                </div>
-                {settings.jazzcash_number_2 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '14px', color: '#555' }}>{settings.jazzcash_name_2 || 'Account 2'}</span>
-                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#7b1fa2' }}>{settings.jazzcash_number_2}</span>
-                  </div>
-                )}
+
+            {/* Balance due */}
+            {balance > 0 && (
+              <div style={{ background: 'linear-gradient(135deg, #c62828, #e65100)', borderRadius: '12px', padding: '16px', marginBottom: '20px', textAlign: 'center', color: 'white' }}>
+                <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 4px' }}>Outstanding Balance</p>
+                <p style={{ fontSize: '32px', fontWeight: '700', margin: 0 }}>Rs. {balance.toLocaleString()}</p>
               </div>
             )}
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Amount to Pay (Rs.)</p>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
-              <button onClick={() => setPayBillAmount(String(balance))}
-                style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: payBillAmount === String(balance) ? '#7b1fa2' : '#eee', borderRadius: '10px', cursor: 'pointer', background: payBillAmount === String(balance) ? '#7b1fa2' : '#f8f9fa', color: payBillAmount === String(balance) ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
-                Full: Rs. {balance.toLocaleString()}
-              </button>
-              <button onClick={() => setPayBillAmount('')}
-                style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: payBillAmount !== String(balance) && payBillAmount !== '' ? '#7b1fa2' : '#eee', borderRadius: '10px', cursor: 'pointer', background: payBillAmount !== String(balance) && payBillAmount !== '' ? '#7b1fa2' : '#f8f9fa', color: payBillAmount !== String(balance) && payBillAmount !== '' ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
-                Other Amount
+
+            {/* Amount input */}
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Amount to Pay (Rs.)</p>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+              {balance > 0 && (
+                <button onClick={() => setAmount(String(balance))}
+                  style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: amount === String(balance) ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: amount === String(balance) ? '#0f4c81' : '#f8f9fa', color: amount === String(balance) ? 'white' : '#333', fontWeight: '700', fontSize: '12px' }}>
+                  Full: Rs. {balance.toLocaleString()}
+                </button>
+              )}
+              <button onClick={() => setAmount('')}
+                style={{ flex: 1, padding: '10px', border: '2px solid', borderColor: amount !== String(balance) && amount !== '' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: amount !== String(balance) && amount !== '' ? '#0f4c81' : '#f8f9fa', color: amount !== String(balance) && amount !== '' ? 'white' : '#333', fontWeight: '700', fontSize: '12px' }}>
+                {balance > 0 ? 'Other Amount' : 'Enter Amount'}
               </button>
             </div>
-            <input type="number" value={payBillAmount} onChange={e => setPayBillAmount(e.target.value)}
-              placeholder={`e.g. ${balance}`}
-              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#7b1fa2', marginBottom: '16px' }} />
+            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+              placeholder="Enter amount in Rs."
+              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '10px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', marginBottom: '20px' }} />
+
+            {/* Payment method selection */}
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Select Payment Method</p>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+              {hasJazzcash && (
+                <button onClick={() => setSelectedMethod('jazzcash')}
+                  style={{ flex: 1, padding: '14px 10px', border: '2px solid', borderColor: selectedMethod === 'jazzcash' ? '#7b1fa2' : '#eee', borderRadius: '12px', cursor: 'pointer', background: selectedMethod === 'jazzcash' ? '#f3e5f5' : '#fafafa', textAlign: 'center' }}>
+                  <p style={{ fontSize: '24px', margin: '0 0 4px' }}>📱</p>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 2px' }}>JazzCash</p>
+                  <p style={{ fontSize: '12px', color: '#555', margin: 0, fontWeight: '600' }}>{settings.jazzcash_number_1}</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{settings.jazzcash_name_1}</p>
+                </button>
+              )}
+              {hasEasypaisa && (
+                <button onClick={() => setSelectedMethod('easypaisa')}
+                  style={{ flex: 1, padding: '14px 10px', border: '2px solid', borderColor: selectedMethod === 'easypaisa' ? '#1a7a4a' : '#eee', borderRadius: '12px', cursor: 'pointer', background: selectedMethod === 'easypaisa' ? '#e8f5e9' : '#fafafa', textAlign: 'center' }}>
+                  <p style={{ fontSize: '24px', margin: '0 0 4px' }}>💚</p>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>EasyPaisa</p>
+                  <p style={{ fontSize: '12px', color: '#555', margin: 0, fontWeight: '600' }}>{settings.jazzcash_number_2}</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{settings.jazzcash_name_2}</p>
+                </button>
+              )}
+            </div>
+
+            {/* Selected account detail */}
+            {selectedMethod && (
+              <div style={{ background: selectedMethod === 'jazzcash' ? '#f3e5f5' : '#e8f5e9', border: `1px solid ${selectedMethod === 'jazzcash' ? '#e1bee7' : '#c8e6c9'}`, borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '12px', fontWeight: '700', color: selectedMethod === 'jazzcash' ? '#7b1fa2' : '#1a7a4a', margin: '0 0 6px' }}>
+                  Send {selectedMethod === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} payment to:
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '14px', color: '#555' }}>{selectedName}</span>
+                  <span style={{ fontSize: '20px', fontWeight: '700', color: selectedMethod === 'jazzcash' ? '#7b1fa2' : '#1a7a4a' }}>{selectedNumber}</span>
+                </div>
+              </div>
+            )}
+
             <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 14px', marginBottom: '16px' }}>
               <p style={{ fontSize: '12px', color: '#f57f17', fontWeight: '600', margin: '0 0 4px' }}>📸 Important</p>
-              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending JazzCash payment, tap the button below and send a screenshot to our WhatsApp to confirm.</p>
+              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>After sending payment, tap confirm below and send your screenshot to our WhatsApp.</p>
             </div>
-            <button onClick={submitPayBill} disabled={payBillSending}
-              style={{ width: '100%', padding: '16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '10px' }}>
-              {payBillSending ? 'Recording...' : `✓ I've Sent Rs. ${Number(payBillAmount || 0).toLocaleString()} via JazzCash`}
+
+            <button onClick={submitPayment} disabled={sending || !selectedMethod || !amount}
+              style={{ width: '100%', padding: '16px', background: !selectedMethod || !amount ? '#ccc' : '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: !selectedMethod || !amount ? 'not-allowed' : 'pointer', marginBottom: '10px' }}>
+              {sending ? 'Recording...' : `✓ I've Sent Rs. ${Number(amount || 0).toLocaleString()} via ${selectedMethod === 'jazzcash' ? 'JazzCash' : selectedMethod === 'easypaisa' ? 'EasyPaisa' : '...'}`}
             </button>
             <button onClick={onClose} style={{ width: '100%', padding: '12px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', fontSize: '14px', color: '#888', cursor: 'pointer' }}>Cancel</button>
           </>
         ) : (
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <p style={{ fontSize: '52px', margin: '0 0 16px' }}>✅</p>
-            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#333', margin: '0 0 8px' }}>Payment Recorded!</h3>
-            <p style={{ fontSize: '14px', color: '#888', margin: '0 0 24px', lineHeight: 1.6 }}>
-              Your payment of <strong>Rs. {Number(payBillAmount).toLocaleString()}</strong> has been recorded.<br />
-              Please send your JazzCash screenshot to WhatsApp to confirm.
+            <p style={{ fontSize: '56px', margin: '0 0 12px' }}>✅</p>
+            <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 8px' }}>Thank You for Your Payment!</h3>
+            <p style={{ fontSize: '14px', color: '#555', margin: '0 0 6px', lineHeight: 1.6 }}>
+              Your payment of <strong>Rs. {Number(amount).toLocaleString()}</strong> via <strong>{selectedMethod === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'}</strong> has been recorded.
+            </p>
+            <p style={{ fontSize: '13px', color: '#e65100', fontWeight: '600', margin: '0 0 24px' }}>
+              📸 Please send your payment screenshot to our WhatsApp to update your balance.
             </p>
             {settings.whatsapp_number && (
-              <a href={`https://wa.me/92${settings.whatsapp_number?.replace(/^0/, '')}?text=Assalam o Alaikum! I have sent JazzCash payment of Rs. ${Number(payBillAmount).toLocaleString()}. My account ID is ${customer.customer_code}. Please confirm my payment.`}
+              <a href={`https://wa.me/92${settings.whatsapp_number?.replace(/^0/, '')}?text=Assalam o Alaikum! I have sent ${selectedMethod === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} payment of Rs. ${Number(amount).toLocaleString()}. My account ID is ${customer.customer_code}. Please confirm my payment.`}
                 target="_blank" rel="noreferrer"
                 style={{ display: 'block', width: '100%', padding: '16px', background: '#25d366', color: 'white', borderRadius: '12px', fontSize: '16px', fontWeight: '700', textDecoration: 'none', textAlign: 'center', marginBottom: '12px', boxSizing: 'border-box' }}>
                 💬 Send Screenshot on WhatsApp
@@ -88,9 +154,6 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
   const [orderSuccess, setOrderSuccess] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [showPayBill, setShowPayBill] = useState(false)
-  const [payBillAmount, setPayBillAmount] = useState('')
-  const [payBillSending, setPayBillSending] = useState(false)
-  const [payBillDone, setPayBillDone] = useState(false)
 
   // FIX: Re-fetch customer from DB to get fresh balance on every mount/tab switch
   const fetchCustomer = useCallback(async () => {
@@ -186,23 +249,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
     setTimeout(() => setOrderSuccess(false), 4000)
   }
 
-  async function submitPayBill() {
-    if (!payBillAmount || Number(payBillAmount) <= 0) return alert('Please enter amount')
-    setPayBillSending(true)
-    await supabase.from('payments').insert([{
-      tenant_id: tenantId, customer_id: customer.id,
-      amount: Number(payBillAmount), payment_method: 'jazzcash',
-      payment_date: new Date().toISOString().split('T')[0],
-      jazzcash_confirmed: false,
-      notes: 'Customer self-reported JazzCash payment — awaiting screenshot confirmation',
-      is_voided: false
-    }])
-    setPayBillSending(false)
-    setPayBillDone(true)
-    fetchPayments()
-    // Also refresh customer balance after payment recorded
-    fetchCustomer()
-  }
+  
 
   const balance = Number(customer.balance || 0)
   const totalBottles19l = deliveries.reduce((s, d) => s + Number(d.qty_19l || 0), 0)
@@ -243,7 +290,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
   if (!isMobile) {
     return (
       <div style={{ minHeight: '100vh', background: '#f5f7fa', fontFamily: "'Inter', sans-serif" }}>
-        {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} payBillAmount={payBillAmount} setPayBillAmount={setPayBillAmount} payBillSending={payBillSending} payBillDone={payBillDone} submitPayBill={submitPayBill} onClose={() => { setShowPayBill(false); setPayBillDone(false) }} />}
+        {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} onClose={() => setShowPayBill(false)} onPaymentDone={() => { fetchPayments(); fetchCustomer(); }} />}
 
         <div style={{ background: '#0f4c81', padding: '0 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '64px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -556,7 +603,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
   // ── MOBILE ───────────────────────────────────────────────────────
   return (
     <div style={{ maxWidth: '430px', margin: '0 auto', minHeight: '100vh', background: '#f5f7fa', position: 'relative', paddingBottom: '80px', width: '100%' }}>
-      {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} payBillAmount={payBillAmount} setPayBillAmount={setPayBillAmount} payBillSending={payBillSending} payBillDone={payBillDone} submitPayBill={submitPayBill} onClose={() => { setShowPayBill(false); setPayBillDone(false) }} />}
+      {showPayBill && <PayBillModal balance={balance} settings={settings} customer={customer} onClose={() => setShowPayBill(false)} onPaymentDone={() => { fetchPayments(); fetchCustomer(); }} />}
 
       <div style={{ background: '#0f4c81', padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
