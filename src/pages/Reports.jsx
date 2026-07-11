@@ -9,6 +9,7 @@ export default function Reports({ tenantId }) {
     { key: 'ageing', label: '⏳ Receivables' },
     { key: 'sales', label: '📊 Sales Summary' },
     { key: 'pl', label: '📈 P&L' },
+    { key: 'bulk', label: '📨 Bulk Share' },
   ]
   return (
     <div>
@@ -29,6 +30,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'ageing' && <ReceivablesAgeing tenantId={tenantId} />}
       {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
+      {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
   )
 }
@@ -186,9 +188,7 @@ function CustomerLedger({ tenantId }) {
   useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
 
   async function fetchSettings() {
-    const { data } = await supabase.from('business_settings')
-      .select('*')
-      .eq('tenant_id', tenantId)
+    const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
     const map = {}
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     setBusinessSettings(map)
@@ -197,9 +197,7 @@ function CustomerLedger({ tenantId }) {
   async function searchCustomer(val) {
     setSearch(val)
     if (val.length < 2) { setCustomers([]); return }
-    const { data } = await supabase.from('customers')
-      .select('*')
-      .eq('tenant_id', tenantId)
+    const { data } = await supabase.from('customers').select('*').eq('tenant_id', tenantId)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
     setCustomers(data || [])
   }
@@ -209,18 +207,10 @@ function CustomerLedger({ tenantId }) {
     setCustomers([])
     setSearch('')
     setLoading(true)
-
-    const { data: deliveries } = await supabase.from('deliveries')
-      .select('*')
-      .eq('customer_id', customer.id)
-      .eq('tenant_id', tenantId)
-      .eq('is_voided', false).order('delivered_at', { ascending: true })
-    const { data: payments } = await supabase.from('payments')
-      .select('*')
-      .eq('customer_id', customer.id)
-      .eq('tenant_id', tenantId)
-      .eq('is_voided', false).order('created_at', { ascending: true })
-
+    const { data: deliveries } = await supabase.from('deliveries').select('*')
+      .eq('customer_id', customer.id).eq('tenant_id', tenantId).eq('is_voided', false).order('delivered_at', { ascending: true })
+    const { data: payments } = await supabase.from('payments').select('*')
+      .eq('customer_id', customer.id).eq('tenant_id', tenantId).eq('is_voided', false).order('created_at', { ascending: true })
     const entries = []
     deliveries?.forEach(d => {
       entries.push({
@@ -233,7 +223,6 @@ function CustomerLedger({ tenantId }) {
         jazzcash_confirmed: d.jazzcash_confirmed
       })
     })
-
     payments?.forEach(p => {
       const isCash = p.payment_method === 'cash'
       const isConfirmedJazz = p.payment_method === 'jazzcash' && p.jazzcash_confirmed
@@ -247,39 +236,33 @@ function CustomerLedger({ tenantId }) {
         payment_method: p.payment_method
       })
     })
-
     entries.sort((a, b) => new Date(a.date) - new Date(b.date))
     let balance = Number(customer.opening_balance || 0)
     const ledgerWithBalance = entries.map(e => {
       balance = balance + e.debit - e.credit
       return { ...e, runningBalance: balance }
     })
-
     setLedger(ledgerWithBalance)
     setLoading(false)
   }
 
   function handlePrint() { window.print() }
 
-  function handleShareWhatsApp() {
+  function buildWhatsAppMessage(customer, ledger, totalDebit, totalCredit, closingBalance, bizName) {
     const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })
-    const bizName = businessSettings.business_name || 'AquaRun'
-    const whatsappNumber = businessSettings.whatsapp_number?.replace(/^0/, '') || ''
-
     let msg = `*${bizName} — Customer Account Statement*\n`
     msg += `Printed: ${printDate}\n\n`
-    msg += `*Customer:* ${selectedCustomer.full_name}\n`
-    msg += `*ID:* ${selectedCustomer.customer_code}\n`
-    msg += `*Mobile:* ${selectedCustomer.mobile || '—'}\n`
-    msg += `*Rate 19L:* Rs. ${selectedCustomer.rate_19l || 100}\n\n`
+    msg += `*Customer:* ${customer.full_name}\n`
+    msg += `*ID:* ${customer.customer_code}\n`
+    msg += `*Mobile:* ${customer.mobile || '—'}\n`
+    msg += `*Rate 19L:* Rs. ${customer.rate_19l || 100}\n\n`
     msg += `━━━━━━━━━━━━━━━━━━━━━━\n`
-    msg += `*Opening Balance:* Rs. ${Number(selectedCustomer.opening_balance || 0).toLocaleString()}\n`
+    msg += `*Opening Balance:* Rs. ${Number(customer.opening_balance || 0).toLocaleString()}\n`
     msg += `*Total Sales (Dr):* Rs. ${totalDebit.toLocaleString()}\n`
     msg += `*Total Payments (Cr):* Rs. ${totalCredit.toLocaleString()}\n`
     msg += `*Closing Balance:* Rs. ${Math.abs(closingBalance).toLocaleString()}${closingBalance < 0 ? ' CR' : ''}\n`
     msg += `━━━━━━━━━━━━━━━━━━━━━━\n\n`
     msg += `*Transaction Details:*\n\n`
-
     ledger.forEach((e, idx) => {
       const date = new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
       msg += `${idx + 1}. ${date}\n`
@@ -288,7 +271,6 @@ function CustomerLedger({ tenantId }) {
       if (e.credit > 0) msg += `   Cr: Rs. ${e.credit.toLocaleString()}\n`
       msg += `   Bal: Rs. ${Math.abs(e.runningBalance).toLocaleString()}${e.runningBalance < 0 ? ' CR' : ''}\n\n`
     })
-
     msg += `━━━━━━━━━━━━━━━━━━━━━━\n`
     if (closingBalance > 0) {
       msg += `⚠️ *Amount Due: Rs. ${closingBalance.toLocaleString()}*\n`
@@ -298,11 +280,20 @@ function CustomerLedger({ tenantId }) {
       if (closingBalance < 0) msg += `Advance Credit: Rs. ${Math.abs(closingBalance).toLocaleString()}\n`
     }
     msg += `\n_Generated by AquaRun • ${bizName}_`
+    return msg
+  }
 
+  function handleShareWhatsApp() {
+    const bizName = businessSettings.business_name || 'AquaRun'
+    const whatsappNumber = businessSettings.whatsapp_number?.replace(/^0/, '') || ''
+    const msg = buildWhatsAppMessage(selectedCustomer, ledger, totalDebit, totalCredit, closingBalance, bizName)
     const encoded = encodeURIComponent(msg)
-    const url = whatsappNumber
-      ? `https://wa.me/92${whatsappNumber}?text=${encoded}`
-      : `https://wa.me/?text=${encoded}`
+    const customerPhone = selectedCustomer.mobile?.replace(/^0/, '').replace(/[-\s]/g, '') || ''
+    const url = customerPhone
+      ? `https://wa.me/92${customerPhone}?text=${encoded}`
+      : whatsappNumber
+        ? `https://wa.me/92${whatsappNumber}?text=${encoded}`
+        : `https://wa.me/?text=${encoded}`
     window.open(url, '_blank')
   }
 
@@ -369,8 +360,6 @@ function CustomerLedger({ tenantId }) {
           </div>
 
           <div id="ledger-print-area">
-
-            {/* ── PROFESSIONAL HEADER ── */}
             <div style={{ borderBottom: '3px solid #0f4c81', paddingBottom: '12px', marginBottom: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -379,32 +368,21 @@ function CustomerLedger({ tenantId }) {
                       style={{ width: '52px', height: '52px', objectFit: 'contain', borderRadius: '8px', border: '1px solid #eee' }} />
                   )}
                   <div>
-                    <p style={{ fontSize: '18px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>
-                      {businessSettings.business_name || 'Spring Water Kamoke'}
-                    </p>
-                    <p style={{ fontSize: '11px', color: '#888', margin: '0 0 1px' }}>
-                      {businessSettings.business_tagline || 'Pure Water Delivery'}
-                    </p>
-                    {businessSettings.business_address && (
-                      <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
-                        📍 {businessSettings.business_address}
-                      </p>
-                    )}
+                    <p style={{ fontSize: '18px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>{businessSettings.business_name || 'Spring Water Kamoke'}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: '0 0 1px' }}>{businessSettings.business_tagline || 'Pure Water Delivery'}</p>
+                    {businessSettings.business_address && <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>📍 {businessSettings.business_address}</p>}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ background: '#0f4c81', color: 'white', padding: '6px 16px', borderRadius: '6px', marginBottom: '6px', display: 'inline-block' }}>
                     <p style={{ fontSize: '13px', fontWeight: '700', margin: 0, letterSpacing: '0.05em' }}>CUSTOMER ACCOUNT STATEMENT</p>
                   </div>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                    📞 {businessSettings.complaint_number || '—'}
-                  </p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>📞 {businessSettings.complaint_number || '—'}</p>
                   <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>Printed: {printDate}</p>
                 </div>
               </div>
             </div>
 
-            {/* ── CUSTOMER INFO BAR ── */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '10px 16px', marginBottom: '12px' }}>
               <div style={{ display: 'flex', gap: '32px' }}>
                 <div>
@@ -427,13 +405,11 @@ function CustomerLedger({ tenantId }) {
               <div style={{ textAlign: 'right', background: closingBalance > 0 ? '#ffebee' : '#e8f5e9', border: `2px solid ${closingBalance > 0 ? '#f44336' : '#4caf50'}`, borderRadius: '8px', padding: '8px 16px' }}>
                 <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Balance</p>
                 <p style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: closingBalance > 0 ? '#f44336' : '#1a7a4a' }}>
-                  Rs. {Math.abs(closingBalance).toLocaleString()}
-                  {closingBalance < 0 ? ' CR' : ''}
+                  Rs. {Math.abs(closingBalance).toLocaleString()}{closingBalance < 0 ? ' CR' : ''}
                 </p>
               </div>
             </div>
 
-            {/* ── SUMMARY STRIP ── */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
               {[
                 { label: 'Opening Balance', value: openingBal, color: '#0f4c81', bg: '#e3f0ff' },
@@ -443,89 +419,68 @@ function CustomerLedger({ tenantId }) {
               ].map(card => (
                 <div key={card.label} style={{ background: card.bg, borderRadius: '8px', padding: '10px 12px', textAlign: 'center' }}>
                   <p style={{ fontSize: '10px', color: '#666', margin: '0 0 4px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{card.label}</p>
-                  <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>
-                    Rs. {Math.abs(Number(card.value)).toLocaleString()}
-                  </p>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {Math.abs(Number(card.value)).toLocaleString()}</p>
                 </div>
               ))}
             </div>
 
-            {/* ── LEDGER TABLE ── */}
             {loading ? (
               <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
             ) : (
               <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginLeft: '-4px', marginRight: '-4px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '560px' }}>
-                <thead>
-                  <tr style={{ background: '#0f4c81', color: 'white' }}>
-                    {['#', 'Date', 'Description', 'Debit (Rs.)', 'Credit (Rs.)', 'Balance (Rs.)'].map((h, i) => (
-                      <th key={h} style={{ padding: '10px 12px', textAlign: i >= 3 ? 'right' : 'left', fontSize: '11px', fontWeight: '700', letterSpacing: '0.04em' }}>{h}</th>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', minWidth: '560px' }}>
+                  <thead>
+                    <tr style={{ background: '#0f4c81', color: 'white' }}>
+                      {['#', 'Date', 'Description', 'Debit (Rs.)', 'Credit (Rs.)', 'Balance (Rs.)'].map((h, i) => (
+                        <th key={h} style={{ padding: '10px 12px', textAlign: i >= 3 ? 'right' : 'left', fontSize: '11px', fontWeight: '700', letterSpacing: '0.04em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ background: '#e3f0ff', borderBottom: '1px solid #c8d8ff' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
+                      <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>★ Opening Balance</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: '13px', fontWeight: '700', color: openingBal > 0 ? '#f44336' : '#1a7a4a' }}>{openingBal.toLocaleString()}</td>
+                    </tr>
+                    {ledger.length === 0 ? (
+                      <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: '13px' }}>No transactions found</td></tr>
+                    ) : ledger.map((e, idx) => (
+                      <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#fafbff', borderBottom: '1px solid #eef0f5' }}>
+                        <td style={{ padding: '8px 12px', fontSize: '11px', color: '#aaa', fontWeight: '600' }}>{idx + 1}</td>
+                        <td style={{ padding: '8px 12px', fontSize: '11px', color: '#555', whiteSpace: 'nowrap' }}>
+                          {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>
+                          <span style={{ fontWeight: '600' }}>{e.description}</span>
+                          {e.credit_amount > 0 && <span style={{ fontSize: '10px', color: '#f44336', display: 'block', marginTop: '2px' }}>↳ Credit portion: Rs. {e.credit_amount.toLocaleString()}</span>}
+                          {e.pendingAmount > 0 && <span style={{ fontSize: '10px', color: '#e65100', display: 'block', marginTop: '2px' }}>↳ Pending confirmation: Rs. {e.pendingAmount.toLocaleString()}</span>}
+                        </td>
+                        <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.debit > 0 ? '#f44336' : '#ddd', textAlign: 'right' }}>{e.debit > 0 ? e.debit.toLocaleString() : '—'}</td>
+                        <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.credit > 0 ? '#1a7a4a' : '#ddd', textAlign: 'right' }}>{e.credit > 0 ? e.credit.toLocaleString() : '—'}</td>
+                        <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right', color: e.runningBalance > 0 ? '#f44336' : '#1a7a4a' }}>
+                          {e.runningBalance.toLocaleString()}
+                          {e.runningBalance < 0 && <span style={{ fontSize: '9px', marginLeft: '2px' }}>CR</span>}
+                        </td>
+                      </tr>
                     ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ background: '#e3f0ff', borderBottom: '1px solid #c8d8ff' }}>
-                    <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
-                    <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
-                    <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>★ Opening Balance</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
-                    <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: '13px', fontWeight: '700', color: openingBal > 0 ? '#f44336' : '#1a7a4a' }}>
-                      {openingBal.toLocaleString()}
-                    </td>
-                  </tr>
-                  {ledger.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: '13px' }}>No transactions found</td>
-                    </tr>
-                  ) : ledger.map((e, idx) => (
-                    <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#fafbff', borderBottom: '1px solid #eef0f5' }}>
-                      <td style={{ padding: '8px 12px', fontSize: '11px', color: '#aaa', fontWeight: '600' }}>{idx + 1}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '11px', color: '#555', whiteSpace: 'nowrap' }}>
-                        {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                      </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>
-                        <span style={{ fontWeight: '600' }}>{e.description}</span>
-                        {e.credit_amount > 0 && (
-                          <span style={{ fontSize: '10px', color: '#f44336', display: 'block', marginTop: '2px' }}>
-                            ↳ Credit portion: Rs. {e.credit_amount.toLocaleString()}
-                          </span>
-                        )}
-                        {e.pendingAmount > 0 && (
-                          <span style={{ fontSize: '10px', color: '#e65100', display: 'block', marginTop: '2px' }}>
-                            ↳ Pending confirmation: Rs. {e.pendingAmount.toLocaleString()}
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.debit > 0 ? '#f44336' : '#ddd', textAlign: 'right' }}>
-                        {e.debit > 0 ? e.debit.toLocaleString() : '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.credit > 0 ? '#1a7a4a' : '#ddd', textAlign: 'right' }}>
-                        {e.credit > 0 ? e.credit.toLocaleString() : '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right', color: e.runningBalance > 0 ? '#f44336' : '#1a7a4a' }}>
-                        {e.runningBalance.toLocaleString()}
-                        {e.runningBalance < 0 && <span style={{ fontSize: '9px', marginLeft: '2px' }}>CR</span>}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#0f4c81', color: 'white' }}>
+                      <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', letterSpacing: '0.05em' }}>TOTAL</td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalDebit.toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalCredit.toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right' }}>
+                        {Math.abs(closingBalance).toLocaleString()}{closingBalance < 0 && <span style={{ fontSize: '10px', marginLeft: '2px' }}>CR</span>}
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#0f4c81', color: 'white' }}>
-                    <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', letterSpacing: '0.05em' }}>TOTAL</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalDebit.toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>{totalCredit.toLocaleString()}</td>
-                    <td style={{ padding: '10px 12px', fontSize: '14px', fontWeight: '700', textAlign: 'right' }}>
-                      {Math.abs(closingBalance).toLocaleString()}
-                      {closingBalance < 0 && <span style={{ fontSize: '10px', marginLeft: '2px' }}>CR</span>}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
+                  </tfoot>
+                </table>
               </div>
             )}
 
-            {/* ── OUTSTANDING BOX ── */}
             {closingBalance > 0 && (
               <div style={{ marginTop: '16px', border: '2px solid #f44336', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#fff5f5' }}>
                 <div>
@@ -538,29 +493,367 @@ function CustomerLedger({ tenantId }) {
             {closingBalance <= 0 && (
               <div style={{ marginTop: '16px', border: '2px solid #4caf50', borderRadius: '8px', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0fff4' }}>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Account Clear — No outstanding balance. Thank you!</p>
-                {closingBalance < 0 && (
-                  <p style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Advance: Rs. {Math.abs(closingBalance).toLocaleString()}</p>
-                )}
+                {closingBalance < 0 && <p style={{ fontSize: '16px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Advance: Rs. {Math.abs(closingBalance).toLocaleString()}</p>}
               </div>
             )}
 
-            {/* ── FOOTER ── */}
             <div style={{ marginTop: '24px', paddingTop: '12px', borderTop: '2px solid #0f4c81', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', fontStyle: 'italic' }}>
-                  This is a system generated report and does not require any signature or stamp.
-                </p>
-                <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
-                  Generated by AquaRun • {businessSettings.business_name} • {printDate}
-                </p>
+                <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', fontStyle: 'italic' }}>This is a system generated report and does not require any signature or stamp.</p>
+                <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>Generated by AquaRun • {businessSettings.business_name} • {printDate}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontSize: '10px', color: '#0f4c81', fontWeight: '700', margin: 0 }}>Powered by AquaRun</p>
                 <p style={{ fontSize: '9px', color: '#aaa', margin: '2px 0 0' }}>Water Delivery Management System</p>
               </div>
             </div>
-
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── BULK WHATSAPP SHARE ───────────────────────────────────────────
+function BulkWhatsAppShare({ tenantId }) {
+  const [customers, setCustomers] = useState([])
+  const [selected, setSelected] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [businessSettings, setBusinessSettings] = useState({})
+  const [filter, setFilter] = useState('balance') // 'balance' | 'all'
+  const [search, setSearch] = useState('')
+  const [sending, setSending] = useState(false)
+  const [queue, setQueue] = useState([]) // list of customers to send
+  const [queueIndex, setQueueIndex] = useState(0)
+  const [sentCount, setSentCount] = useState(0)
+  const [skippedCount, setSkippedCount] = useState(0)
+  const [skippedNames, setSkippedNames] = useState([])
+  const [phase, setPhase] = useState('select') // 'select' | 'sending' | 'done'
+
+  useEffect(() => { if (tenantId) { fetchSettings(); fetchCustomers() } }, [tenantId])
+
+  async function fetchSettings() {
+    const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
+    const map = {}
+    data?.forEach(s => { map[s.setting_key] = s.setting_value })
+    setBusinessSettings(map)
+  }
+
+  async function fetchCustomers() {
+    setLoading(true)
+    const { data } = await supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
+    setCustomers(data || [])
+    setLoading(false)
+  }
+
+  const filtered = customers.filter(c => {
+    const matchSearch = !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.mobile?.includes(search)
+    const matchFilter = filter === 'all' || Number(c.balance) > 0
+    return matchSearch && matchFilter
+  })
+
+  function toggleSelect(id) {
+    setSelected(s => ({ ...s, [id]: !s[id] }))
+  }
+
+  function selectAll() {
+    const newSel = {}
+    filtered.forEach(c => { newSel[c.id] = true })
+    setSelected(newSel)
+  }
+
+  function deselectAll() { setSelected({}) }
+
+  const selectedList = filtered.filter(c => selected[c.id])
+  const withPhone = selectedList.filter(c => c.mobile)
+  const withoutPhone = selectedList.filter(c => !c.mobile)
+
+  function buildMessage(customer) {
+    const bizName = businessSettings.business_name || 'AquaRun'
+    const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })
+    const balance = Number(customer.balance || 0)
+    let msg = `*${bizName} — Account Statement*\n`
+    msg += `Date: ${printDate}\n\n`
+    msg += `Assalam o Alaikum *${customer.full_name}*,\n\n`
+    msg += `Your account summary:\n`
+    msg += `━━━━━━━━━━━━━━━━━━━━━━\n`
+    msg += `*Customer ID:* ${customer.customer_code}\n`
+    msg += `*Rate 19L:* Rs. ${customer.rate_19l || 100}\n`
+    if (balance > 0) {
+      msg += `\n⚠️ *Outstanding Balance: Rs. ${balance.toLocaleString()}*\n`
+      msg += `Please settle at your earliest convenience.\n`
+    } else if (balance < 0) {
+      msg += `\n✅ *Account Balance: Rs. ${Math.abs(balance).toLocaleString()} CR*\n`
+      msg += `You have advance credit in your account.\n`
+    } else {
+      msg += `\n✅ *Account is clear. Thank you!*\n`
+    }
+    msg += `━━━━━━━━━━━━━━━━━━━━━━\n`
+    if (businessSettings.jazzcash_number_1) {
+      msg += `\n💳 *Pay via:*\n`
+      msg += `📱 JazzCash: ${businessSettings.jazzcash_number_1} (${businessSettings.jazzcash_name_1 || ''})\n`
+      if (businessSettings.jazzcash_number_2) msg += `💚 EasyPaisa: ${businessSettings.jazzcash_number_2} (${businessSettings.jazzcash_name_2 || ''})\n`
+    }
+    msg += `\n_Generated by AquaRun • ${bizName}_`
+    return msg
+  }
+
+  function startSending() {
+    const toSend = selectedList.filter(c => c.mobile)
+    const skipped = selectedList.filter(c => !c.mobile)
+    setQueue(toSend)
+    setQueueIndex(0)
+    setSentCount(0)
+    setSkippedCount(skipped.length)
+    setSkippedNames(skipped.map(c => c.full_name))
+    setPhase('sending')
+    setSending(true)
+    if (toSend.length > 0) openWhatsApp(toSend[0])
+  }
+
+  function openWhatsApp(customer) {
+    const msg = buildMessage(customer)
+    const phone = customer.mobile.replace(/^0/, '').replace(/[-\s]/g, '')
+    const url = `https://wa.me/92${phone}?text=${encodeURIComponent(msg)}`
+    window.open(url, '_blank')
+  }
+
+  function markSentAndNext() {
+    const nextIndex = queueIndex + 1
+    setSentCount(s => s + 1)
+    if (nextIndex >= queue.length) {
+      setPhase('done')
+      setSending(false)
+    } else {
+      setQueueIndex(nextIndex)
+      openWhatsApp(queue[nextIndex])
+    }
+  }
+
+  function skipAndNext() {
+    const nextIndex = queueIndex + 1
+    setSkippedCount(s => s + 1)
+    setSkippedNames(n => [...n, queue[queueIndex].full_name])
+    if (nextIndex >= queue.length) {
+      setPhase('done')
+      setSending(false)
+    } else {
+      setQueueIndex(nextIndex)
+      openWhatsApp(queue[nextIndex])
+    }
+  }
+
+  function reset() {
+    setPhase('select')
+    setSelected({})
+    setQueue([])
+    setQueueIndex(0)
+    setSentCount(0)
+    setSkippedCount(0)
+    setSkippedNames([])
+    setSending(false)
+  }
+
+  if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
+
+  // ── DONE SCREEN ──
+  if (phase === 'done') {
+    return (
+      <div>
+        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📨 Bulk WhatsApp Share</h3>
+        <div style={{ background: 'white', borderRadius: '16px', padding: '40px 24px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <p style={{ fontSize: '52px', margin: '0 0 16px' }}>🎉</p>
+          <h3 style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 8px' }}>All Done!</h3>
+          <p style={{ fontSize: '14px', color: '#555', margin: '0 0 24px' }}>Statements have been shared successfully.</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+            <div style={{ background: '#e8f5e9', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+              <p style={{ fontSize: '32px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>{sentCount}</p>
+              <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>✅ Sent</p>
+            </div>
+            <div style={{ background: '#fff3e0', borderRadius: '12px', padding: '16px', textAlign: 'center' }}>
+              <p style={{ fontSize: '32px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>{skippedCount}</p>
+              <p style={{ fontSize: '13px', color: '#555', margin: 0 }}>⏭️ Skipped</p>
+            </div>
+          </div>
+          {skippedNames.length > 0 && (
+            <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px', marginBottom: '20px', textAlign: 'left' }}>
+              <p style={{ fontSize: '12px', fontWeight: '700', color: '#e65100', margin: '0 0 6px' }}>Skipped customers:</p>
+              {skippedNames.map((n, i) => <p key={i} style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>• {n}</p>)}
+            </div>
+          )}
+          <button onClick={reset}
+            style={{ padding: '12px 32px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
+            ← Start Over
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── SENDING SCREEN ──
+  if (phase === 'sending') {
+    const current = queue[queueIndex]
+    const progress = queueIndex + 1
+    const total = queue.length
+    const pct = Math.round((queueIndex / total) * 100)
+    return (
+      <div>
+        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📨 Bulk WhatsApp Share</h3>
+        <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          {/* Progress bar */}
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>Sending {progress} of {total}</span>
+              <span style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700' }}>{pct}%</span>
+            </div>
+            <div style={{ background: '#f0f0f0', borderRadius: '6px', height: '8px', overflow: 'hidden' }}>
+              <div style={{ background: '#25d366', height: '100%', width: `${pct}%`, borderRadius: '6px', transition: 'width 0.3s' }} />
+            </div>
+          </div>
+
+          {/* Current customer */}
+          <div style={{ background: '#f0f7ff', borderRadius: '12px', padding: '20px', marginBottom: '20px', textAlign: 'center' }}>
+            <p style={{ fontSize: '13px', color: '#888', margin: '0 0 6px' }}>Sending to</p>
+            <p style={{ fontSize: '22px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>{current.full_name}</p>
+            <p style={{ fontSize: '14px', color: '#555', margin: '0 0 4px' }}>📱 {current.mobile}</p>
+            <p style={{ fontSize: '14px', fontWeight: '700', color: Number(current.balance) > 0 ? '#f44336' : '#1a7a4a', margin: 0 }}>
+              Balance: Rs. {Math.abs(Number(current.balance)).toLocaleString()}{Number(current.balance) < 0 ? ' CR' : ''}
+            </p>
+          </div>
+
+          <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px', marginBottom: '20px' }}>
+            <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>
+              💬 WhatsApp has opened for this customer. Tap <strong>Send</strong> in WhatsApp, then come back and click <strong>Next</strong> below.
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={skipAndNext}
+              style={{ flex: 1, padding: '12px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+              ⏭️ Skip
+            </button>
+            <button onClick={markSentAndNext}
+              style={{ flex: 2, padding: '12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
+              ✓ Sent — Next →
+            </button>
+          </div>
+
+          <button onClick={() => { setPhase('done'); setSending(false) }}
+            style={{ width: '100%', marginTop: '10px', padding: '10px', background: 'none', border: '1px solid #ddd', borderRadius: '10px', cursor: 'pointer', fontSize: '13px', color: '#888' }}>
+            Stop Sending
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── SELECT SCREEN ──
+  const selectedCount = selectedList.length
+  return (
+    <div>
+      <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '4px' }}>📨 Bulk WhatsApp Share</h3>
+      <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px' }}>Select customers to send their account statement via WhatsApp.</p>
+
+      {/* Info box */}
+      <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
+        <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>💡 How it works</p>
+        <p style={{ fontSize: '12px', color: '#555', margin: 0, lineHeight: 1.6 }}>
+          Select customers → Click Start → WhatsApp opens for each customer one by one → Tap Send → Click Next. Takes ~5 seconds per customer.
+        </p>
+      </div>
+
+      {/* Filters */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+        <button onClick={() => setFilter('balance')}
+          style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: filter === 'balance' ? '#f44336' : '#f0f0f0', color: filter === 'balance' ? 'white' : '#555', fontWeight: filter === 'balance' ? '700' : '400', fontSize: '13px' }}>
+          ⚠️ With Balance Due
+        </button>
+        <button onClick={() => setFilter('all')}
+          style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: filter === 'all' ? '#0f4c81' : '#f0f0f0', color: filter === 'all' ? 'white' : '#555', fontWeight: filter === 'all' ? '700' : '400', fontSize: '13px' }}>
+          👥 All Customers
+        </button>
+      </div>
+
+      <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or mobile..."
+        style={{ width: '100%', padding: '10px 14px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '10px' }} />
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+        <button onClick={selectAll}
+          style={{ padding: '7px 14px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+          ✓ Select All ({filtered.length})
+        </button>
+        <button onClick={deselectAll}
+          style={{ padding: '7px 14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>
+          ✕ Deselect All
+        </button>
+      </div>
+
+      {/* Customer list */}
+      <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '16px', overflow: 'hidden' }}>
+        {filtered.length === 0 ? (
+          <p style={{ padding: '32px', textAlign: 'center', color: '#888' }}>No customers found</p>
+        ) : filtered.map(c => {
+          const hasPhone = !!c.mobile
+          const isSelected = !!selected[c.id]
+          const balance = Number(c.balance || 0)
+          return (
+            <div key={c.id} onClick={() => toggleSelect(c.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', background: isSelected ? '#f0f7ff' : 'white' }}>
+              <div style={{
+                width: '22px', height: '22px', borderRadius: '6px', border: '2px solid',
+                borderColor: isSelected ? '#0f4c81' : '#ddd',
+                background: isSelected ? '#0f4c81' : 'white',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+              }}>
+                {isSelected && <span style={{ color: 'white', fontSize: '13px', fontWeight: '700' }}>✓</span>}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
+                <p style={{ fontSize: '12px', color: hasPhone ? '#888' : '#f44336', margin: 0 }}>
+                  {hasPhone ? `📱 ${c.mobile}` : '⚠️ No mobile number'}
+                </p>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 2px', color: balance > 0 ? '#f44336' : balance < 0 ? '#1a7a4a' : '#888' }}>
+                  {balance > 0 ? `Rs. ${balance.toLocaleString()}` : balance < 0 ? `Rs. ${Math.abs(balance).toLocaleString()} CR` : 'Clear'}
+                </p>
+                <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{c.customer_code}</p>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Summary + Start button */}
+      {selectedCount > 0 && (
+        <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '12px' }}>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#333', margin: '0 0 10px' }}>Selected: {selectedCount} customers</p>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: '12px' }}>
+            <div style={{ flex: 1, background: '#e8f5e9', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+              <p style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>{withPhone.length}</p>
+              <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>✅ Will be sent</p>
+            </div>
+            <div style={{ flex: 1, background: '#fff3e0', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+              <p style={{ fontSize: '20px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>{withoutPhone.length}</p>
+              <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>⚠️ No number (skip)</p>
+            </div>
+          </div>
+          {withoutPhone.length > 0 && (
+            <div style={{ background: '#fff3e0', borderRadius: '8px', padding: '10px', marginBottom: '12px' }}>
+              <p style={{ fontSize: '12px', fontWeight: '600', color: '#e65100', margin: '0 0 4px' }}>Will be skipped (no number):</p>
+              {withoutPhone.map(c => <p key={c.id} style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>• {c.full_name}</p>)}
+            </div>
+          )}
+          {withPhone.length > 0 ? (
+            <button onClick={startSending}
+              style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
+              💬 Start Sending ({withPhone.length} customers)
+            </button>
+          ) : (
+            <div style={{ background: '#ffebee', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', color: '#c62828', fontWeight: '600', margin: 0 }}>None of the selected customers have a mobile number.</p>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -577,17 +870,10 @@ function ReceivablesAgeing({ tenantId }) {
 
   async function fetchAgeing() {
     setLoading(true)
-    const { data } = await supabase.from('customers')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true).gt('balance', 0).order('balance', { ascending: false })
+    const { data } = await supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('is_active', true).gt('balance', 0).order('balance', { ascending: false })
     const today = new Date()
     const customersWithAge = await Promise.all((data || []).map(async c => {
-      const { data: lastDelivery } = await supabase.from('deliveries')
-        .select('delivered_at')
-        .eq('customer_id', c.id)
-        .eq('tenant_id', tenantId)
-        .eq('is_voided', false).order('delivered_at', { ascending: false }).limit(1).single()
+      const { data: lastDelivery } = await supabase.from('deliveries').select('delivered_at').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false).order('delivered_at', { ascending: false }).limit(1).single()
       const lastDate = lastDelivery ? new Date(lastDelivery.delivered_at) : null
       const daysPending = lastDate ? Math.floor((today - lastDate) / (1000 * 60 * 60 * 24)) : 999
       let ageBucket = '60+ days'
@@ -678,10 +964,7 @@ function SalesSummary({ tenantId }) {
 
   async function fetchSales() {
     setLoading(true)
-    const { data: deliveries } = await supabase.from('deliveries')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
+    const { data: deliveries } = await supabase.from('deliveries').select('*, riders(full_name)').eq('tenant_id', tenantId).gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
     let total19l = 0, totalHalf = 0, total15l = 0, totalCash = 0, totalJazz = 0, totalCredit = 0, totalSales = 0
     const riderSales = {}
     deliveries?.forEach(d => {
@@ -761,36 +1044,18 @@ function ProfitLoss({ tenantId }) {
 
   async function fetchPL() {
     setLoading(true)
-    const { data: deliveries } = await supabase.from('deliveries')
-      .select('total_amount')
-      .eq('tenant_id', tenantId)
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
+    const { data: deliveries } = await supabase.from('deliveries').select('total_amount').eq('tenant_id', tenantId).gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
     const totalRevenue = deliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
-    const { data: productions } = await supabase.from('production_entries')
-      .select('total_overhead')
-      .eq('tenant_id', tenantId)
-      .gte('production_date', dateFrom).lte('production_date', dateTo)
+    const { data: productions } = await supabase.from('production_entries').select('total_overhead').eq('tenant_id', tenantId).gte('production_date', dateFrom).lte('production_date', dateTo)
     const totalProductionOverhead = productions?.reduce((s, p) => s + Number(p.total_overhead), 0) || 0
-    const { data: purchases } = await supabase.from('stock_purchases')
-      .select('total_cost')
-      .eq('tenant_id', tenantId)
-      .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
+    const { data: purchases } = await supabase.from('stock_purchases').select('total_cost').eq('tenant_id', tenantId).gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
     const totalPurchaseCost = purchases?.reduce((s, p) => s + Number(p.total_cost), 0) || 0
     const grossProfit = totalRevenue - totalProductionOverhead - totalPurchaseCost
-    const { data: riderExpenses } = await supabase.from('expenses')
-      .select('amount')
-      .eq('tenant_id', tenantId)
-      .eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+    const { data: riderExpenses } = await supabase.from('expenses').select('amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalRiderExpenses = riderExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('amount')
-      .eq('tenant_id', tenantId)
-      .eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+    const { data: officeExpenses } = await supabase.from('office_expenses').select('amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalOfficeExpenses = officeExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('amount_paid')
-      .eq('tenant_id', tenantId)
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+    const { data: salaryPayments } = await supabase.from('salary_payments').select('amount_paid').eq('tenant_id', tenantId).gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
     const totalSalaries = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
     const totalOperatingExpenses = totalRiderExpenses + totalOfficeExpenses + totalSalaries
     const netProfit = grossProfit - totalOperatingExpenses
