@@ -12,6 +12,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
   const [rejectReason, setRejectReason] = useState('')
   const [rejectingId, setRejectingId] = useState(null)
   const [rejectType, setRejectType] = useState(null)
+  const [jazzSummary, setJazzSummary] = useState({ in: 0, out: 0, pending: 0 })
 
   useEffect(() => { if (tenantId) fetchEntries() }, [filter, dateFrom, dateTo, tenantId])
 
@@ -46,6 +47,41 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     const { data: pData } = await pQuery
     setPayments(pData || [])
 
+    // Jazz summary — all statuses in date range
+    const { data: allDeliveries } = await supabase.from('deliveries')
+      .select('total_amount, jazzcash_confirmed, is_voided')
+      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
+      .gte('delivered_at', dateFrom + 'T00:00:00')
+      .lte('delivered_at', dateTo + 'T23:59:59')
+
+    const { data: allPayments } = await supabase.from('payments')
+      .select('amount, jazzcash_confirmed, is_voided')
+      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
+      .gte('created_at', dateFrom + 'T00:00:00')
+      .lte('created_at', dateTo + 'T23:59:59')
+
+    const { data: jazzTransfers } = await supabase.from('cash_transfers')
+      .select('amount')
+      .eq('tenant_id', tenantId)
+      .eq('transfer_type', 'jazzcash')
+      .eq('status', 'confirmed')
+      .gte('transfer_date', dateFrom)
+      .lte('transfer_date', dateTo)
+
+    let jazzIn = 0, jazzPending = 0
+    allDeliveries?.forEach(d => {
+      if (d.is_voided) return
+      if (d.jazzcash_confirmed) jazzIn += Number(d.total_amount)
+      else jazzPending += Number(d.total_amount)
+    })
+    allPayments?.forEach(p => {
+      if (p.is_voided) return
+      if (p.jazzcash_confirmed) jazzIn += Number(p.amount)
+      else jazzPending += Number(p.amount)
+    })
+    const jazzOut = jazzTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+
+    setJazzSummary({ in: jazzIn, out: jazzOut, pending: jazzPending })
     setLoading(false)
   }
 
@@ -341,17 +377,36 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-        {[
-          { label: 'Sales Pending', value: totalDeliveryPending, color: '#e65100' },
-          { label: 'Payments Pending', value: totalPaymentPending, color: '#f44336' },
-          { label: 'Total Confirmed', value: totalConfirmed, color: '#9c27b0' },
-        ].map(card => (
-          <div key={card.label} style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${card.color}` }}>
-            <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>{card.label}</p>
-            <p style={{ fontSize: '22px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {card.value.toLocaleString()}</p>
-          </div>
-        ))}
+      <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          📱 JazzCash Position — {new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} to {new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+          {[
+            { label: '📥 Confirmed In', value: jazzSummary.in, color: '#1a7a4a', bg: '#e8f5e9', desc: 'Sales + Collections confirmed' },
+            { label: '📤 Transferred Out', value: jazzSummary.out, color: '#0f4c81', bg: '#e3f0ff', desc: 'Jazz transfers to office' },
+            { label: '⏳ Still Pending', value: jazzSummary.pending, color: '#e65100', bg: '#fff3e0', desc: 'Not yet confirmed' },
+            { label: '💰 Net in Hand', value: jazzSummary.in - jazzSummary.out, color: jazzSummary.in - jazzSummary.out >= 0 ? '#9c27b0' : '#c62828', bg: '#f3e5f5', desc: 'Confirmed − Transferred' },
+          ].map(card => (
+            <div key={card.label} style={{ background: card.bg, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
+              <p style={{ fontSize: '11px', color: '#666', margin: '0 0 4px', fontWeight: '600' }}>{card.label}</p>
+              <p style={{ fontSize: '18px', fontWeight: '700', color: card.color, margin: '0 0 4px' }}>Rs. {Math.abs(card.value).toLocaleString()}</p>
+              <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>{card.desc}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+          {[
+            { label: 'Sales Pending', value: totalDeliveryPending, color: '#e65100' },
+            { label: 'Payments Pending', value: totalPaymentPending, color: '#f44336' },
+            { label: 'Total Confirmed', value: totalConfirmed, color: '#9c27b0' },
+          ].map(card => (
+            <div key={card.label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px', borderLeft: `3px solid ${card.color}` }}>
+              <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{card.label}</p>
+              <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {card.value.toLocaleString()}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {loading ? (
