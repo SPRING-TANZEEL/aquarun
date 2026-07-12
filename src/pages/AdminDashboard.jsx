@@ -99,6 +99,8 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [scheduleNotif, setScheduleNotif] = useState(null)
+  const [chartView, setChartView] = useState('daily') // 'daily' | 'monthly'
+  const [monthlyChartData, setMonthlyChartData] = useState([])
 
   const adminUser = user
 
@@ -204,6 +206,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
     payments?.forEach(p => {
       if (p.payment_method === 'cash') cashCollected += Number(p.amount)
+      if (p.payment_method === 'jazzcash') jazzSales += Number(p.amount)
     })
 
     return { totalSales, cashCollected, jazzSales, creditSales, bottles19l, bottlesHalf, bottles15l, deliveryCount }
@@ -279,6 +282,28 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
       chart.push({ label: dayLabel, value: dayTotal, date: dateStr })
     }
     setChartData(chart)
+
+    // Monthly chart — last 6 months
+    const monthlyChart = []
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date()
+      d.setDate(1)
+      d.setMonth(d.getMonth() - i)
+      const monthStart = d.toISOString().split('T')[0]
+      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0]
+      const monthLabel = d.toLocaleDateString('en-PK', { month: 'short', year: '2-digit' })
+      const { data: monthDeliveries } = await supabase.from('deliveries')
+        .select('total_amount')
+        .eq('tenant_id', tenantId)
+        .gte('delivered_at', monthStart + 'T00:00:00')
+        .lte('delivered_at', monthEnd + 'T23:59:59')
+        .eq('is_voided', false)
+      const monthTotal = monthDeliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
+      const isCurrentMonth = i === 0
+      monthlyChart.push({ label: monthLabel, value: monthTotal, date: monthStart, isCurrent: isCurrentMonth })
+    }
+    setMonthlyChartData(monthlyChart)
+
     setLoading(false)
   }
 
@@ -356,7 +381,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
         {data.map((d, i) => {
           const x = 30 + i * (barW + gap)
           const barH = maxVal > 0 ? (d.value / maxVal) * chartH : 0
-          const isToday = d.date === today
+          const isToday = d.date === today || d.isCurrent
           return (
             <g key={i}>
               <rect x={x} y={0} width={barW} height={chartH} rx="4" fill="#f8f9fa" />
@@ -641,9 +666,25 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
                   {/* Charts */}
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '2fr 1fr', gap: '12px', marginBottom: '14px' }}>
                     <div style={{ background: 'white', borderRadius: '14px', padding: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
-                      <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 4px' }}>Daily Sales — Last 7 Days</h3>
-                      <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>Dark bar = today</p>
-                      <BarChart data={chartData} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a2e', margin: 0 }}>
+                          {chartView === 'daily' ? 'Daily Sales — Last 7 Days' : 'Monthly Sales — Last 6 Months'}
+                        </h3>
+                        <div style={{ display: 'flex', gap: '4px', background: '#f0f0f0', padding: '3px', borderRadius: '8px' }}>
+                          <button onClick={() => setChartView('daily')}
+                            style={{ padding: '4px 10px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', background: chartView === 'daily' ? '#0f4c81' : 'transparent', color: chartView === 'daily' ? 'white' : '#555' }}>
+                            Daily
+                          </button>
+                          <button onClick={() => setChartView('monthly')}
+                            style={{ padding: '4px 10px', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', background: chartView === 'monthly' ? '#0f4c81' : 'transparent', color: chartView === 'monthly' ? 'white' : '#555' }}>
+                            Monthly
+                          </button>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>
+                        {chartView === 'daily' ? 'Dark bar = today' : 'Dark bar = current month'}
+                      </p>
+                      <BarChart data={chartView === 'daily' ? chartData : monthlyChartData} />
                     </div>
                     <div style={{ background: 'white', borderRadius: '14px', padding: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)' }}>
                       <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 4px' }}>Payment Methods</h3>
