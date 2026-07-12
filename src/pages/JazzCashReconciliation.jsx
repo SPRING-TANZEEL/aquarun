@@ -32,8 +32,16 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     setStmtLoading(true)
     const entries = []
 
+    // Opening balance from settings
+    const { data: settingsData } = await supabase.from('business_settings')
+      .select('setting_value')
+      .eq('tenant_id', tenantId)
+      .eq('setting_key', 'jazzcash_opening_balance')
+      .single()
+    const openingBalance = Number(settingsData?.setting_value || 0)
+
     // ── MONEY IN ──
-    // Confirmed JazzCash deliveries (sales)
+    // 1. Confirmed JazzCash deliveries (sales)
     const { data: confDeliveries } = await supabase.from('deliveries')
       .select('*, customers(full_name, customer_code)')
       .eq('tenant_id', tenantId)
@@ -71,16 +79,15 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         type: 'in',
         category: 'collection',
         label: p.customers?.full_name || '—',
-        sublabel: 'Balance Collection',
+        sublabel: 'Payment Received — JazzCash',
         amount: Number(p.amount),
         id: 'p-' + p.id
       })
     })
 
-    // ── MONEY OUT ──
-    // JazzCash transfers to office
-    const { data: jazzTransfers } = await supabase.from('cash_transfers')
-      .select('*')
+    // 3. Rider Jazz Transfers to Office — money coming IN to your jazz account
+    const { data: jazzTransfersIn } = await supabase.from('cash_transfers')
+      .select('*, riders:from_rider_id(full_name)')
       .eq('tenant_id', tenantId)
       .eq('transfer_type', 'jazzcash')
       .eq('status', 'confirmed')
@@ -88,19 +95,20 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       .gte('transfer_date', stmtFrom)
       .lte('transfer_date', stmtTo)
 
-    jazzTransfers?.forEach(t => {
+    jazzTransfersIn?.forEach(t => {
       entries.push({
-        date: t.confirmed_at || t.transfer_date,
-        type: 'out',
-        category: 'transfer',
-        label: 'Transfer to Office',
-        sublabel: 'Cash Transfer — JazzCash',
+        date: t.confirmed_at || t.transfer_date + 'T12:00:00',
+        type: 'in',
+        category: 'rider_transfer',
+        label: `Rider Transfer — ${t.riders?.full_name || '—'}`,
+        sublabel: 'Rider forwarded jazz to office account',
         amount: Number(t.amount),
         id: 'ct-' + t.id
       })
     })
 
-    // Office expenses paid from JazzCash
+    // ── MONEY OUT ──
+    // 4. Office expenses paid from JazzCash
     const { data: officeExp } = await supabase.from('office_expenses')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -165,8 +173,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     // Sort by date ascending
     entries.sort((a, b) => new Date(a.date) - new Date(b.date))
 
-    // Add running balance
-    let balance = 0
+    // Running balance starting from opening balance
+    let balance = openingBalance
     const withBalance = entries.map(e => {
       if (e.type === 'in') balance += e.amount
       else balance -= e.amount
@@ -177,7 +185,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     const totalOut = entries.filter(e => e.type === 'out').reduce((s, e) => s + e.amount, 0)
 
     setStmtEntries(withBalance)
-    setStmtSummary({ totalIn, totalOut, closing: totalIn - totalOut })
+    setStmtSummary({ totalIn, totalOut, closing: openingBalance + totalIn - totalOut, openingBalance })
     setStmtLoading(false)
   }
 
@@ -379,8 +387,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     )
   }
 
-  const categoryIcon = { sale: '🍶', collection: '💰', transfer: '🏢', expense: '🧾', salary: '💼' }
-  const categoryLabel = { sale: 'Sale', collection: 'Collection', transfer: 'Office Transfer', expense: 'Expense', salary: 'Salary' }
+  const categoryIcon = { sale: '🍶', collection: '💰', rider_transfer: '🚴', transfer: '🏢', expense: '🧾', salary: '💼' }
+  const categoryLabel = { sale: 'Sale', collection: 'Payment', rider_transfer: 'Rider Transfer', transfer: 'Office Transfer', expense: 'Expense', salary: 'Salary' }
 
   return (
     <div>
@@ -438,18 +446,22 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
           ) : (
             <>
               {/* Summary cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+                <div style={{ background: 'linear-gradient(135deg, #0f4c81, #1565c0)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>🏦 Opening</p>
+                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {(stmtSummary.openingBalance || 0).toLocaleString()}</p>
+                </div>
                 <div style={{ background: 'linear-gradient(135deg, #1a7a4a, #2e7d32)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
                   <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>📥 Total In</p>
-                  <p style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.totalIn.toLocaleString()}</p>
+                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.totalIn.toLocaleString()}</p>
                 </div>
                 <div style={{ background: 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
                   <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>📤 Total Out</p>
-                  <p style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.totalOut.toLocaleString()}</p>
+                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.totalOut.toLocaleString()}</p>
                 </div>
                 <div style={{ background: stmtSummary.closing >= 0 ? 'linear-gradient(135deg, #7b1fa2, #9c27b0)' : 'linear-gradient(135deg, #c62828, #7b1fa2)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
                   <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>💰 Balance</p>
-                  <p style={{ fontSize: '20px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.closing.toLocaleString()}</p>
+                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {(stmtSummary.closing || 0).toLocaleString()}</p>
                 </div>
               </div>
 
@@ -476,7 +488,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
                         <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: 0 }}>Opening Balance</p>
                         <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>Before {new Date(stmtFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
                       </div>
-                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#333', margin: 0 }}>Rs. 0</p>
+                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {(stmtSummary.openingBalance || 0).toLocaleString()}</p>
                     </div>
 
                     {/* Entries */}
@@ -542,7 +554,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
                   {/* Money In breakdown */}
                   <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                     <p style={{ fontSize: '12px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 10px' }}>📥 Money In</p>
-                    {['sale', 'collection'].map(cat => {
+                    {['sale', 'collection', 'rider_transfer'].map(cat => {
                       const total = stmtEntries.filter(e => e.type === 'in' && e.category === cat).reduce((s, e) => s + e.amount, 0)
                       if (total === 0) return null
                       return (
