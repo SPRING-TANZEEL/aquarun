@@ -619,7 +619,8 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
                   <div style={{
                     background: 'linear-gradient(135deg, #0f4c81 0%, #1a7a4a 100%)',
                     borderRadius: '14px', padding: isMobile ? '16px' : '22px 28px', color: 'white',
-                    marginBottom: '14px', boxShadow: '0 4px 20px rgba(15, 76, 129, 0.3)'
+                    marginBottom: '14px', boxShadow: '0 4px 20px rgba(15, 76, 129, 0.3)',
+                    textAlign: 'center'
                   }}>
                     <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                       Total Revenue — {dates?.label}
