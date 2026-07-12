@@ -139,7 +139,7 @@ export default function CEOCashPosition({ tenantId }) {
       .select('*, customers(full_name)')
       .eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', true).eq('is_voided', false)
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
 
     const { data: officeExpenses } = await supabase.from('office_expenses')
       .select('*')
@@ -153,9 +153,9 @@ export default function CEOCashPosition({ tenantId }) {
       .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
 
     const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('*, rider:rider_id(full_name)')
+      .select('*')
       .eq('tenant_id', tenantId)
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+      .gte('payment_date', dateFrom).lte('payment_date', dateTo)
 
     const { data: advances } = await supabase.from('salary_advances')
       .select('*, rider:rider_id(full_name)')

@@ -16,10 +16,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
   const [jazzSummary, setJazzSummary] = useState({ in: 0, out: 0, pending: 0 })
 
   // Statement state
-  const [stmtFrom, setStmtFrom] = useState(() => {
-    const d = new Date(); d.setDate(1)
-    return d.toISOString().split('T')[0]
-  })
+  const [stmtFrom, setStmtFrom] = useState('2024-01-01')
   const [stmtTo, setStmtTo] = useState(new Date().toISOString().split('T')[0])
   const [stmtEntries, setStmtEntries] = useState([])
   const [stmtLoading, setStmtLoading] = useState(false)
