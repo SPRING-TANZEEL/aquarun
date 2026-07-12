@@ -139,7 +139,7 @@ export default function CEOCashPosition({ tenantId }) {
       .select('*, customers(full_name)')
       .eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', true).eq('is_voided', false)
-      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
+      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
 
     const { data: officeExpenses } = await supabase.from('office_expenses')
       .select('*')
