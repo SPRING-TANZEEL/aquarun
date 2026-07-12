@@ -628,7 +628,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
                     <p style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: '700', margin: '0 0 6px', letterSpacing: '-1px', textAlign: 'center' }}>
                       Rs. {(stats?.totalSales || 0).toLocaleString()}
                     </p>
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '8px', justifyContent: 'center' }}>
                       <span style={{ fontSize: '12px', opacity: 0.7 }}>📦 {stats?.deliveryCount || 0} deliveries</span>
                       <span style={{ fontSize: '12px', opacity: 0.7 }}>🍶 {(stats?.bottles19l || 0) + (stats?.bottlesHalf || 0) + (stats?.bottles15l || 0)} bottles</span>
                     </div>
