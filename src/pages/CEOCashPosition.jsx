@@ -153,7 +153,7 @@ export default function CEOCashPosition({ tenantId }) {
       .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
 
     const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('*')
+      .select('*, rider:rider_id(full_name)')
       .eq('tenant_id', tenantId)
       .gte('payment_date', dateFrom).lte('payment_date', dateTo)
 
