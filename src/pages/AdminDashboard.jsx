@@ -624,7 +624,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
                     <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                       Total Revenue — {dates?.label}
                     </p>
-                    <p style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: '700', margin: '0 0 6px', letterSpacing: '-1px' }}>
+                    <p style={{ fontSize: isMobile ? '32px' : '42px', fontWeight: '700', margin: '0 0 6px', letterSpacing: '-1px', textAlign: 'center' }}>
                       Rs. {(stats?.totalSales || 0).toLocaleString()}
                     </p>
                     <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '8px' }}>
