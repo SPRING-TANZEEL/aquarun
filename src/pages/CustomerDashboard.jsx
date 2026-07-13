@@ -233,10 +233,10 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
     setPlacingOrder(true)
 
     const qty19l = orderForm.qty_19l || 0
-    const qtyHalf = products.filter(p => p.name.toLowerCase().includes('half')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
-    const qty15l = products.filter(p => p.name.includes('1.5')).reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
+    const qtyHalf = products.filter(p => p.bottle_type === 'half_litre').reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
+    const qty15l = products.filter(p => p.bottle_type === '1_5l').reduce((s, p) => s + (orderForm.quantities[p.id] || 0), 0)
     const customItems = products
-      .filter(p => !p.name.toLowerCase().includes('half') && !p.name.includes('1.5') && (orderForm.quantities[p.id] || 0) > 0)
+      .filter(p => !p.bottle_type && (orderForm.quantities[p.id] || 0) > 0)
       .map(p => `${p.name} × ${orderForm.quantities[p.id]}`).join(', ')
 
     const { error } = await supabase.from('orders').insert([{
