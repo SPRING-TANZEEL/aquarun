@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 const ACCOUNTS = [
   { key: 'cash', label: 'Cash in Hand', icon: '💵', color: '#0f4c81' },
   { key: 'jazzcash', label: 'JazzCash', icon: '📱', color: '#9c27b0' },
+  { key: 'easypaisa', label: 'EasyPaisa', icon: '💚', color: '#2e7d32' },
   { key: 'bank', label: 'Bank', icon: '🏦', color: '#1a7a4a' },
 ]
 
@@ -11,9 +12,9 @@ export default function CEOCashPosition({ tenantId }) {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('position')
   const [data, setData] = useState(null)
-  const [openingBalances, setOpeningBalances] = useState({ cash: 0, jazzcash: 0, bank: 0 })
+  const [openingBalances, setOpeningBalances] = useState({ cash: 0, jazzcash: 0, easypaisa: 0, bank: 0 })
   const [editingOpening, setEditingOpening] = useState(false)
-  const [tempOpening, setTempOpening] = useState({ cash: '', jazzcash: '', bank: '' })
+  const [tempOpening, setTempOpening] = useState({ cash: '', jazzcash: '', easypaisa: '', bank: '' })
   const [savingOpening, setSavingOpening] = useState(false)
   const [accountTransfers, setAccountTransfers] = useState([])
   const [ownerTransactions, setOwnerTransactions] = useState([])
@@ -42,65 +43,45 @@ export default function CEOCashPosition({ tenantId }) {
     setLoading(false)
   }
 
-  // ── Read opening balances from Chart of Accounts ──
   async function fetchOpeningBalances() {
     const { data } = await supabase.from('chart_of_accounts')
       .select('account_code, opening_balance')
       .eq('tenant_id', tenantId)
-      .in('account_code', ['1001', '1002', '1003'])
+      .in('account_code', ['1001', '1002', '1003', '1004'])
     const map = {}
     data?.forEach(a => { map[a.account_code] = Number(a.opening_balance || 0) })
     const balances = {
       cash: map['1001'] || 0,
       jazzcash: map['1002'] || 0,
-      bank: map['1003'] || 0
+      bank: map['1003'] || 0,
+      easypaisa: map['1004'] || 0,
     }
     setOpeningBalances(balances)
-    setTempOpening({ cash: String(balances.cash), jazzcash: String(balances.jazzcash), bank: String(balances.bank) })
+    setTempOpening({ cash: String(balances.cash), jazzcash: String(balances.jazzcash), easypaisa: String(balances.easypaisa), bank: String(balances.bank) })
   }
 
-  // ── Save opening balances to Chart of Accounts + auto-calculate receivables ──
   async function saveOpeningBalances() {
     setSavingOpening(true)
-
-    // Save cash/jazz/bank to COA
-    for (const [code, key] of [['1001', 'cash'], ['1002', 'jazzcash'], ['1003', 'bank']]) {
+    for (const [code, key] of [['1001', 'cash'], ['1002', 'jazzcash'], ['1003', 'bank'], ['1004', 'easypaisa']]) {
       await supabase.from('chart_of_accounts')
         .update({ opening_balance: Number(tempOpening[key]) || 0 })
-        .eq('account_code', code)
-        .eq('tenant_id', tenantId)
+        .eq('account_code', code).eq('tenant_id', tenantId)
     }
-
-    // Auto-calculate receivables from customer opening balances
     const { data: customers } = await supabase.from('customers')
-      .select('opening_balance')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
+      .select('opening_balance').eq('tenant_id', tenantId).eq('is_active', true)
     const totalReceivable = customers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
-    await supabase.from('chart_of_accounts')
-      .update({ opening_balance: totalReceivable })
-      .eq('account_code', '1100')
-      .eq('tenant_id', tenantId)
-
-    // Auto-calculate owner capital = total assets
-    const totalAssets = (Number(tempOpening.cash) || 0) +
-      (Number(tempOpening.jazzcash) || 0) +
-      (Number(tempOpening.bank) || 0) +
-      totalReceivable
-    await supabase.from('chart_of_accounts')
-      .update({ opening_balance: totalAssets })
-      .eq('account_code', '3001')
-      .eq('tenant_id', tenantId)
-
-    // Keep business_settings in sync for backward compatibility
-    // NOTE: requires a unique constraint on (tenant_id, setting_key) in the database —
-    // see accompanying note. Without it, this upsert can overwrite another tenant's row.
+    await supabase.from('chart_of_accounts').update({ opening_balance: totalReceivable })
+      .eq('account_code', '1100').eq('tenant_id', tenantId)
+    const totalAssets = (Number(tempOpening.cash) || 0) + (Number(tempOpening.jazzcash) || 0) +
+      (Number(tempOpening.bank) || 0) + (Number(tempOpening.easypaisa) || 0) + totalReceivable
+    await supabase.from('chart_of_accounts').update({ opening_balance: totalAssets })
+      .eq('account_code', '3001').eq('tenant_id', tenantId)
     await supabase.from('business_settings').upsert([
       { tenant_id: tenantId, setting_key: 'opening_cash_balance', setting_value: String(Number(tempOpening.cash) || 0) },
       { tenant_id: tenantId, setting_key: 'opening_jazzcash_balance', setting_value: String(Number(tempOpening.jazzcash) || 0) },
       { tenant_id: tenantId, setting_key: 'opening_bank_balance', setting_value: String(Number(tempOpening.bank) || 0) },
+      { tenant_id: tenantId, setting_key: 'opening_easypaisa_balance', setting_value: String(Number(tempOpening.easypaisa) || 0) },
     ], { onConflict: 'tenant_id,setting_key' })
-
     setEditingOpening(false)
     setSavingOpening(false)
     fetchAll()
@@ -108,106 +89,110 @@ export default function CEOCashPosition({ tenantId }) {
 
   async function fetchAccountTransfers() {
     const { data } = await supabase.from('ceo_account_transfers')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('transfer_date', { ascending: false })
+      .select('*').eq('tenant_id', tenantId).order('transfer_date', { ascending: false })
     setAccountTransfers(data || [])
   }
 
   async function fetchOwnerTransactions() {
     const { data } = await supabase.from('owner_transactions')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('transaction_date', { ascending: false })
+      .select('*').eq('tenant_id', tenantId).order('transaction_date', { ascending: false })
     setOwnerTransactions(data || [])
   }
 
   async function fetchTransactions() {
+    const from = dateFrom + 'T00:00:00'
+    const to = dateTo + 'T23:59:59'
+
+    // ── RIDER TRANSFERS TO OFFICE ──
     const { data: cashTransfers } = await supabase.from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('to_office', true).eq('status', 'confirmed')
+      .eq('tenant_id', tenantId).eq('to_office', true).eq('status', 'confirmed')
       .gte('transfer_date', dateFrom).lte('transfer_date', dateTo)
 
+    // ── JAZZ ──
     const { data: jazzSales } = await supabase.from('deliveries')
-      .select('*, customers(full_name)')
-      .eq('tenant_id', tenantId)
+      .select('*, customers(full_name)').eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', true).eq('is_voided', false)
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
+      .gte('delivered_at', from).lte('delivered_at', to)
 
     const { data: jazzPayments } = await supabase.from('payments')
-      .select('*, customers(full_name)')
-      .eq('tenant_id', tenantId)
+      .select('*, customers(full_name)').eq('tenant_id', tenantId)
       .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', true).eq('is_voided', false)
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+      .gte('created_at', from).lte('created_at', to)
 
+    // ── EASYPAISA ──
+    const { data: epSales } = await supabase.from('deliveries')
+      .select('*, customers(full_name)').eq('tenant_id', tenantId)
+      .eq('payment_method', 'easypaisa').eq('jazzcash_confirmed', true).eq('is_voided', false)
+      .gte('delivered_at', from).lte('delivered_at', to)
+
+    const { data: epPayments } = await supabase.from('payments')
+      .select('*, customers(full_name)').eq('tenant_id', tenantId)
+      .eq('payment_method', 'easypaisa').eq('jazzcash_confirmed', true).eq('is_voided', false)
+      .gte('created_at', from).lte('created_at', to)
+
+    // ── EXPENSES / PURCHASES / SALARIES ──
     const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('is_voided', false)
+      .select('*').eq('tenant_id', tenantId).eq('is_voided', false)
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
 
     const { data: stockPurchases } = await supabase.from('stock_purchases')
-      .select('*, products(name)')
-      .eq('tenant_id', tenantId)
+      .select('*, products(name)').eq('tenant_id', tenantId)
       .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
 
     const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('*, rider:rider_id(full_name)')
-      .eq('tenant_id', tenantId)
+      .select('*, rider:rider_id(full_name)').eq('tenant_id', tenantId)
       .gte('payment_date', dateFrom).lte('payment_date', dateTo)
 
     const { data: advances } = await supabase.from('salary_advances')
-      .select('*, rider:rider_id(full_name)')
-      .eq('tenant_id', tenantId)
+      .select('*, rider:rider_id(full_name)').eq('tenant_id', tenantId)
       .eq('requested_from', 'ceo').eq('status', 'approved').eq('is_voided', false)
-      .gte('approved_at', dateFrom + 'T00:00:00').lte('approved_at', dateTo + 'T23:59:59')
+      .gte('approved_at', from).lte('approved_at', to)
 
+    // ── CEO ACCOUNT TRANSFERS + OWNER TX ──
     const { data: ceoTransfers } = await supabase.from('ceo_account_transfers')
-      .select('*')
-      .eq('tenant_id', tenantId)
+      .select('*').eq('tenant_id', tenantId)
       .gte('transfer_date', dateFrom).lte('transfer_date', dateTo)
 
     const { data: ownerTx } = await supabase.from('owner_transactions')
-      .select('*')
-      .eq('tenant_id', tenantId)
+      .select('*').eq('tenant_id', tenantId)
       .gte('transaction_date', dateFrom).lte('transaction_date', dateTo)
 
-    const { data: jazzPendingSales } = await supabase.from('deliveries')
-      .select('total_amount')
-      .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
-    const { data: jazzPendingPay } = await supabase.from('payments')
-      .select('amount')
-      .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
+    // ── ADMIN DIRECT SALES/COLLECTIONS (rider_id IS NULL) ──
+    const { data: adminCashSales } = await supabase.from('deliveries')
+      .select('amount_received').eq('tenant_id', tenantId)
+      .eq('payment_method', 'cash').is('rider_id', null).eq('is_voided', false)
+      .gte('delivered_at', from).lte('delivered_at', to)
+    const adminCashSalesTotal = adminCashSales?.reduce((s, d) => s + Number(d.amount_received || 0), 0) || 0
+
+    const { data: adminCashPayments } = await supabase.from('payments')
+      .select('amount').eq('tenant_id', tenantId)
+      .eq('payment_method', 'cash').is('rider_id', null).eq('is_voided', false)
+      .gte('created_at', from).lte('created_at', to)
+    const adminCashPaymentsTotal = adminCashPayments?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0
+
+    // ── PENDING ──
+    const { data: jazzPendingSales } = await supabase.from('deliveries').select('total_amount')
+      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
+    const { data: jazzPendingPay } = await supabase.from('payments').select('amount')
+      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash').eq('jazzcash_confirmed', false).eq('is_voided', false)
     const jazzPending = (jazzPendingSales?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
       (jazzPendingPay?.reduce((s, p) => s + Number(p.amount), 0) || 0)
+
+    const { data: epPendingSales } = await supabase.from('deliveries').select('total_amount')
+      .eq('tenant_id', tenantId).eq('payment_method', 'easypaisa').eq('jazzcash_confirmed', false).eq('is_voided', false)
+    const { data: epPendingPay } = await supabase.from('payments').select('amount')
+      .eq('tenant_id', tenantId).eq('payment_method', 'easypaisa').eq('jazzcash_confirmed', false).eq('is_voided', false)
+    const epPending = (epPendingSales?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
+      (epPendingPay?.reduce((s, p) => s + Number(p.amount), 0) || 0)
 
     function byMethod(arr, method, field = 'amount') {
       return arr?.filter(i => (i.payment_method || 'cash') === method)
         .reduce((s, i) => s + Number(i[field] || 0), 0) || 0
     }
 
+    // ── CASH CALCULATIONS ──
     const allCashRiders = cashTransfers?.filter(t => !t.transfer_type || t.transfer_type === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
-
-    // Admin direct cash sales (rider_id IS NULL)
-    const { data: adminCashSales } = await supabase.from('deliveries')
-      .select('amount_received')
-      .eq('tenant_id', tenantId).eq('payment_method', 'cash')
-      .is('rider_id', null).eq('is_voided', false)
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
-    const adminCashSalesTotal = adminCashSales?.reduce((s, d) => s + Number(d.amount_received || 0), 0) || 0
-
-    // Admin direct cash collections (rider_id IS NULL)
-    const { data: adminCashPayments } = await supabase.from('payments')
-      .select('amount')
-      .eq('tenant_id', tenantId).eq('payment_method', 'cash')
-      .is('rider_id', null).eq('is_voided', false)
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
-    const adminCashPaymentsTotal = adminCashPayments?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0
-    const jazzFromRiders = cashTransfers?.filter(t => t.transfer_type === 'jazzcash').reduce((s, t) => s + Number(t.amount), 0) || 0
-
     const cashTransfersOut = ceoTransfers?.filter(t => t.from_account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
     const cashTransfersIn = ceoTransfers?.filter(t => t.to_account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
     const cashOwnerIn = ownerTx?.filter(t => t.transaction_type === 'injection' && t.account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -217,6 +202,8 @@ export default function CEOCashPosition({ tenantId }) {
     const cashSalaries = byMethod(salaryPayments, 'cash', 'amount_paid')
     const cashAdvances = byMethod(advances, 'cash')
 
+    // ── JAZZCASH CALCULATIONS ──
+    const jazzFromRiders = cashTransfers?.filter(t => t.transfer_type === 'jazzcash').reduce((s, t) => s + Number(t.amount), 0) || 0
     const jazzFromCustomers = (jazzSales?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
       (jazzPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0)
     const jazzTransfersOut = ceoTransfers?.filter(t => t.from_account === 'jazzcash').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -228,6 +215,20 @@ export default function CEOCashPosition({ tenantId }) {
     const jazzSalaries = byMethod(salaryPayments, 'jazzcash', 'amount_paid')
     const jazzAdvancesOut = byMethod(advances, 'jazzcash')
 
+    // ── EASYPAISA CALCULATIONS ──
+    const epFromRiders = cashTransfers?.filter(t => t.transfer_type === 'easypaisa').reduce((s, t) => s + Number(t.amount), 0) || 0
+    const epFromCustomers = (epSales?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
+      (epPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0)
+    const epTransfersOut = ceoTransfers?.filter(t => t.from_account === 'easypaisa').reduce((s, t) => s + Number(t.amount), 0) || 0
+    const epTransfersIn = ceoTransfers?.filter(t => t.to_account === 'easypaisa').reduce((s, t) => s + Number(t.amount), 0) || 0
+    const epOwnerIn = ownerTx?.filter(t => t.transaction_type === 'injection' && t.account === 'easypaisa').reduce((s, t) => s + Number(t.amount), 0) || 0
+    const epOwnerOut = ownerTx?.filter(t => t.transaction_type === 'drawing' && t.account === 'easypaisa').reduce((s, t) => s + Number(t.amount), 0) || 0
+    const epExpenses = byMethod(officeExpenses, 'easypaisa')
+    const epPurchases = byMethod(stockPurchases, 'easypaisa', 'total_cost')
+    const epSalaries = byMethod(salaryPayments, 'easypaisa', 'amount_paid')
+    const epAdvancesOut = byMethod(advances, 'easypaisa')
+
+    // ── BANK CALCULATIONS ──
     const bankTransfersIn = ceoTransfers?.filter(t => t.to_account === 'bank').reduce((s, t) => s + Number(t.amount), 0) || 0
     const bankTransfersOut = ceoTransfers?.filter(t => t.from_account === 'bank').reduce((s, t) => s + Number(t.amount), 0) || 0
     const bankOwnerIn = ownerTx?.filter(t => t.transaction_type === 'injection' && t.account === 'bank').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -246,9 +247,11 @@ export default function CEOCashPosition({ tenantId }) {
       cashExpenses, cashPurchases, cashSalaries, cashAdvances,
       jazzFromRiders, jazzFromCustomers, jazzTransfersOut, jazzTransfersIn,
       jazzOwnerIn, jazzOwnerOut, jazzExpenses, jazzPurchases, jazzSalaries, jazzAdvancesOut,
+      epFromRiders, epFromCustomers, epTransfersOut, epTransfersIn,
+      epOwnerIn, epOwnerOut, epExpenses, epPurchases, epSalaries, epAdvancesOut,
       bankTransfersIn, bankTransfersOut, bankOwnerIn, bankOwnerOut,
       bankExpenses, bankPurchases, bankSalaries, bankAdvances,
-      jazzPending, totalInjections, totalDrawings,
+      jazzPending, epPending, totalInjections, totalDrawings,
     })
   }
 
@@ -257,8 +260,7 @@ export default function CEOCashPosition({ tenantId }) {
     if (transferFrom === transferTo) return alert('From and To cannot be the same')
     setSavingTransfer(true)
     const { data: savedTransfer, error } = await supabase.from('ceo_account_transfers').insert([{
-      tenant_id: tenantId,
-      from_account: transferFrom, to_account: transferTo,
+      tenant_id: tenantId, from_account: transferFrom, to_account: transferTo,
       amount: Number(transferAmount), transfer_date: transferDate, notes: transferNotes
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingTransfer(false); return }
@@ -277,8 +279,7 @@ export default function CEOCashPosition({ tenantId }) {
     if (!ownerAmount || Number(ownerAmount) <= 0) return alert('Please enter amount')
     setSavingOwner(true)
     const { data: savedTx, error } = await supabase.from('owner_transactions').insert([{
-      tenant_id: tenantId,
-      transaction_type: ownerType, account: ownerAccount,
+      tenant_id: tenantId, transaction_type: ownerType, account: ownerAccount,
       amount: Number(ownerAmount), transaction_date: ownerDate, notes: ownerNotes
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingOwner(false); return }
@@ -295,29 +296,41 @@ export default function CEOCashPosition({ tenantId }) {
 
   if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
 
-  const netCash = openingBalances.cash + (data?.allCashRiders || 0) + (data?.adminCashSalesTotal || 0) + (data?.adminCashPaymentsTotal || 0) + (data?.cashTransfersIn || 0) + (data?.cashOwnerIn || 0) -
-    (data?.cashExpenses || 0) - (data?.cashPurchases || 0) - (data?.cashSalaries || 0) - (data?.cashAdvances || 0) - (data?.cashTransfersOut || 0) - (data?.cashOwnerOut || 0)
-  const netJazz = openingBalances.jazzcash + (data?.jazzFromRiders || 0) + (data?.jazzFromCustomers || 0) + (data?.jazzTransfersIn || 0) + (data?.jazzOwnerIn || 0) -
-    (data?.jazzExpenses || 0) - (data?.jazzPurchases || 0) - (data?.jazzSalaries || 0) - (data?.jazzAdvancesOut || 0) - (data?.jazzTransfersOut || 0) - (data?.jazzOwnerOut || 0)
-  const netBank = openingBalances.bank + (data?.bankTransfersIn || 0) + (data?.bankOwnerIn || 0) -
-    (data?.bankExpenses || 0) - (data?.bankPurchases || 0) - (data?.bankSalaries || 0) - (data?.bankAdvances || 0) - (data?.bankTransfersOut || 0) - (data?.bankOwnerOut || 0)
-  const totalPosition = netCash + netJazz + netBank
+  const netCash = openingBalances.cash +
+    (data?.allCashRiders || 0) + (data?.adminCashSalesTotal || 0) + (data?.adminCashPaymentsTotal || 0) +
+    (data?.cashTransfersIn || 0) + (data?.cashOwnerIn || 0) -
+    (data?.cashExpenses || 0) - (data?.cashPurchases || 0) - (data?.cashSalaries || 0) -
+    (data?.cashAdvances || 0) - (data?.cashTransfersOut || 0) - (data?.cashOwnerOut || 0)
+
+  const netJazz = openingBalances.jazzcash +
+    (data?.jazzFromRiders || 0) + (data?.jazzFromCustomers || 0) +
+    (data?.jazzTransfersIn || 0) + (data?.jazzOwnerIn || 0) -
+    (data?.jazzExpenses || 0) - (data?.jazzPurchases || 0) - (data?.jazzSalaries || 0) -
+    (data?.jazzAdvancesOut || 0) - (data?.jazzTransfersOut || 0) - (data?.jazzOwnerOut || 0)
+
+  const netEasyPaisa = openingBalances.easypaisa +
+    (data?.epFromRiders || 0) + (data?.epFromCustomers || 0) +
+    (data?.epTransfersIn || 0) + (data?.epOwnerIn || 0) -
+    (data?.epExpenses || 0) - (data?.epPurchases || 0) - (data?.epSalaries || 0) -
+    (data?.epAdvancesOut || 0) - (data?.epTransfersOut || 0) - (data?.epOwnerOut || 0)
+
+  const netBank = openingBalances.bank +
+    (data?.bankTransfersIn || 0) + (data?.bankOwnerIn || 0) -
+    (data?.bankExpenses || 0) - (data?.bankPurchases || 0) - (data?.bankSalaries || 0) -
+    (data?.bankAdvances || 0) - (data?.bankTransfersOut || 0) - (data?.bankOwnerOut || 0)
+
+  const totalPosition = netCash + netJazz + netEasyPaisa + netBank
   const netOwnerEquity = (data?.totalInjections || 0) - (data?.totalDrawings || 0)
 
   return (
     <div>
       <div style={{ marginBottom: '16px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>🏦 CEO Cash Position</h2>
-        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Complete wallet — Cash, JazzCash, Bank and Owner Equity</p>
+        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Complete wallet — Cash, JazzCash, EasyPaisa, Bank and Owner Equity</p>
       </div>
 
       <div style={{ display: 'flex', gap: '6px', background: 'white', padding: '5px', borderRadius: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '16px', flexWrap: 'wrap' }}>
-        {[
-          { key: 'position', label: '📊 Position' },
-          { key: 'transfer', label: '🔄 Move Money' },
-          { key: 'owner', label: '👤 Owner' },
-          { key: 'history', label: '📋 History' },
-        ].map(t => (
+        {[{ key: 'position', label: '📊 Position' }, { key: 'transfer', label: '🔄 Move Money' }, { key: 'owner', label: '👤 Owner' }, { key: 'history', label: '📋 History' }].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)}
             style={{ flex: 1, padding: '8px 4px', border: 'none', borderRadius: '7px', cursor: 'pointer', background: activeTab === t.key ? '#0f4c81' : 'transparent', color: activeTab === t.key ? 'white' : '#555', fontWeight: activeTab === t.key ? '700' : '400', fontSize: '12px' }}>
             {t.label}
@@ -327,7 +340,7 @@ export default function CEOCashPosition({ tenantId }) {
 
       {activeTab === 'position' && (
         <div>
-          {/* Opening Balances from COA */}
+          {/* Opening Balances */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
               <div>
@@ -345,7 +358,7 @@ export default function CEOCashPosition({ tenantId }) {
                   <p style={{ fontSize: '12px', color: '#0f4c81', margin: '0 0 2px', fontWeight: '600' }}>💡 Enter balances from the day you started using AquaRun</p>
                   <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Customer receivables and owner capital are auto-calculated</p>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '12px' }}>
                   {ACCOUNTS.map(acc => (
                     <div key={acc.key}>
                       <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>{acc.icon} {acc.label}</label>
@@ -362,7 +375,7 @@ export default function CEOCashPosition({ tenantId }) {
                 </button>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px' }}>
                 {ACCOUNTS.map(acc => (
                   <div key={acc.key} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '12px', textAlign: 'center' }}>
                     <p style={{ fontSize: '18px', margin: '0 0 4px' }}>{acc.icon}</p>
@@ -407,7 +420,8 @@ export default function CEOCashPosition({ tenantId }) {
             {[
               { label: '💵 Cash', value: netCash, bg: 'linear-gradient(135deg, #0f4c81, #1565c0)' },
               { label: '📱 JazzCash', value: netJazz, bg: 'linear-gradient(135deg, #6a1b9a, #9c27b0)' },
-              { label: '🏦 Bank', value: netBank, bg: 'linear-gradient(135deg, #1a7a4a, #2e7d32)' },
+              { label: '💚 EasyPaisa', value: netEasyPaisa, bg: 'linear-gradient(135deg, #1b5e20, #2e7d32)' },
+              { label: '🏦 Bank', value: netBank, bg: 'linear-gradient(135deg, #1a7a4a, #00695c)' },
               { label: '👤 Owner Equity', value: netOwnerEquity, bg: netOwnerEquity >= 0 ? 'linear-gradient(135deg, #e65100, #f57c00)' : 'linear-gradient(135deg, #c62828, #e53935)' },
             ].map(card => (
               <div key={card.label} style={{ background: card.bg, color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
@@ -422,14 +436,15 @@ export default function CEOCashPosition({ tenantId }) {
             <p style={{ fontSize: '12px', opacity: 0.7, margin: '0 0 6px', textTransform: 'uppercase' }}>Total Business Position</p>
             <p style={{ fontSize: '40px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {totalPosition.toLocaleString()}</p>
             <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>
-              Cash {netCash.toLocaleString()} + Jazz {netJazz.toLocaleString()} + Bank {netBank.toLocaleString()}
+              Cash {netCash.toLocaleString()} + Jazz {netJazz.toLocaleString()} + EP {netEasyPaisa.toLocaleString()} + Bank {netBank.toLocaleString()}
             </p>
           </div>
 
-          {data?.jazzPending > 0 && (
+          {/* Pending warnings */}
+          {(data?.jazzPending > 0 || data?.epPending > 0) && (
             <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>⏳ JazzCash Pending</p>
-              <p style={{ fontSize: '12px', color: '#795548', margin: 0 }}>Rs. {data.jazzPending.toLocaleString()} awaiting confirmation</p>
+              {data?.jazzPending > 0 && <p style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>⏳ JazzCash Pending: Rs. {data.jazzPending.toLocaleString()} awaiting confirmation</p>}
+              {data?.epPending > 0 && <p style={{ fontSize: '13px', fontWeight: '700', color: '#2e7d32', margin: 0 }}>⏳ EasyPaisa Pending: Rs. {data.epPending.toLocaleString()} awaiting confirmation</p>}
             </div>
           )}
 
@@ -457,7 +472,7 @@ export default function CEOCashPosition({ tenantId }) {
               rows: [
                 { label: 'Opening Balance', value: openingBalances.jazzcash, plus: true },
                 { label: 'From Riders (JazzCash)', value: data?.jazzFromRiders || 0, plus: true },
-                { label: 'From Customers', value: data?.jazzFromCustomers || 0, plus: true },
+                { label: 'From Customers (Confirmed)', value: data?.jazzFromCustomers || 0, plus: true },
                 { label: 'Owner Injections', value: data?.jazzOwnerIn || 0, plus: true },
                 { label: 'Received from Accounts', value: data?.jazzTransfersIn || 0, plus: true },
                 { label: 'Transferred to Accounts', value: data?.jazzTransfersOut || 0, plus: false },
@@ -467,6 +482,22 @@ export default function CEOCashPosition({ tenantId }) {
                 { label: 'Salaries', value: data?.jazzSalaries || 0, plus: false },
                 { label: 'Advances', value: data?.jazzAdvancesOut || 0, plus: false },
               ], net: netJazz
+            },
+            {
+              key: 'easypaisa', label: '💚 EasyPaisa Account', color: '#2e7d32',
+              rows: [
+                { label: 'Opening Balance', value: openingBalances.easypaisa, plus: true },
+                { label: 'From Riders (EasyPaisa)', value: data?.epFromRiders || 0, plus: true },
+                { label: 'From Customers (Confirmed)', value: data?.epFromCustomers || 0, plus: true },
+                { label: 'Owner Injections', value: data?.epOwnerIn || 0, plus: true },
+                { label: 'Received from Accounts', value: data?.epTransfersIn || 0, plus: true },
+                { label: 'Transferred to Accounts', value: data?.epTransfersOut || 0, plus: false },
+                { label: 'Owner Drawings', value: data?.epOwnerOut || 0, plus: false },
+                { label: 'Office Expenses', value: data?.epExpenses || 0, plus: false },
+                { label: 'Inventory Purchases', value: data?.epPurchases || 0, plus: false },
+                { label: 'Salaries', value: data?.epSalaries || 0, plus: false },
+                { label: 'Advances', value: data?.epAdvancesOut || 0, plus: false },
+              ], net: netEasyPaisa
             },
             {
               key: 'bank', label: '🏦 Bank Account', color: '#1a7a4a',
@@ -508,8 +539,8 @@ export default function CEOCashPosition({ tenantId }) {
               <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Transfer recorded!</p>
             </div>
           )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-            {[{ label: '💵 Cash', value: netCash, color: '#0f4c81' }, { label: '📱 JazzCash', value: netJazz, color: '#9c27b0' }, { label: '🏦 Bank', value: netBank, color: '#1a7a4a' }].map(b => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '16px' }}>
+            {[{ label: '💵 Cash', value: netCash, color: '#0f4c81' }, { label: '📱 Jazz', value: netJazz, color: '#9c27b0' }, { label: '💚 EasyPaisa', value: netEasyPaisa, color: '#2e7d32' }, { label: '🏦 Bank', value: netBank, color: '#1a7a4a' }].map(b => (
               <div key={b.label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{b.label}</p>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: b.color, margin: 0 }}>Rs. {b.value.toLocaleString()}</p>
@@ -517,7 +548,7 @@ export default function CEOCashPosition({ tenantId }) {
             ))}
           </div>
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>FROM</p>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             {ACCOUNTS.map(acc => (
               <button key={acc.key} onClick={() => { setTransferFrom(acc.key); if (transferTo === acc.key) setTransferTo(ACCOUNTS.find(a => a.key !== acc.key)?.key) }}
                 style={{ flex: 1, padding: '12px 6px', border: '2px solid', borderColor: transferFrom === acc.key ? acc.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: transferFrom === acc.key ? acc.color : 'white', color: transferFrom === acc.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -527,7 +558,7 @@ export default function CEOCashPosition({ tenantId }) {
             ))}
           </div>
           <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>TO</p>
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             {ACCOUNTS.filter(a => a.key !== transferFrom).map(acc => (
               <button key={acc.key} onClick={() => setTransferTo(acc.key)}
                 style={{ flex: 1, padding: '12px 6px', border: '2px solid', borderColor: transferTo === acc.key ? acc.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: transferTo === acc.key ? acc.color : 'white', color: transferTo === acc.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -590,7 +621,7 @@ export default function CEOCashPosition({ tenantId }) {
               </button>
             </div>
             <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Account</p>
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
               {ACCOUNTS.map(acc => (
                 <button key={acc.key} onClick={() => setOwnerAccount(acc.key)}
                   style={{ flex: 1, padding: '10px 6px', border: '2px solid', borderColor: ownerAccount === acc.key ? acc.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: ownerAccount === acc.key ? acc.color : 'white', color: ownerAccount === acc.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -634,12 +665,8 @@ export default function CEOCashPosition({ tenantId }) {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                       <span style={{ fontSize: '16px' }}>{isInjection ? '💰' : '📤'}</span>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: isInjection ? '#1a7a4a' : '#f44336' }}>
-                        {isInjection ? 'Capital Injection' : 'Drawing'}
-                      </span>
-                      <span style={{ fontSize: '11px', background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: '10px' }}>
-                        {acc?.icon} {acc?.label}
-                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: '700', color: isInjection ? '#1a7a4a' : '#f44336' }}>{isInjection ? 'Capital Injection' : 'Drawing'}</span>
+                      <span style={{ fontSize: '11px', background: '#f0f0f0', color: '#555', padding: '2px 8px', borderRadius: '10px' }}>{acc?.icon} {acc?.label}</span>
                     </div>
                     {t.notes && <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{t.notes}</p>}
                     <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>
