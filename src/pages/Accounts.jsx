@@ -555,7 +555,7 @@ function BalanceSheet({ tenantId }) {
     let retainedEarnings = 0
 
     lines?.forEach(l => {
-      const type = l.account?.account_type
+      const type = coaMap[l.account_code]?.account_type
       if (type === 'revenue') retainedEarnings += Number(l.credit || 0) - Number(l.debit || 0)
       if (type === 'expense') retainedEarnings -= Number(l.debit || 0) - Number(l.credit || 0)
     })
