@@ -190,6 +190,22 @@ export default function CEOCashPosition({ tenantId }) {
     }
 
     const allCashRiders = cashTransfers?.filter(t => !t.transfer_type || t.transfer_type === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
+
+    // Admin direct cash sales (rider_id IS NULL)
+    const { data: adminCashSales } = await supabase.from('deliveries')
+      .select('amount_received')
+      .eq('tenant_id', tenantId).eq('payment_method', 'cash')
+      .is('rider_id', null).eq('is_voided', false)
+      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
+    const adminCashSalesTotal = adminCashSales?.reduce((s, d) => s + Number(d.amount_received || 0), 0) || 0
+
+    // Admin direct cash collections (rider_id IS NULL)
+    const { data: adminCashPayments } = await supabase.from('payments')
+      .select('amount')
+      .eq('tenant_id', tenantId).eq('payment_method', 'cash')
+      .is('rider_id', null).eq('is_voided', false)
+      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+    const adminCashPaymentsTotal = adminCashPayments?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0
     const jazzFromRiders = cashTransfers?.filter(t => t.transfer_type === 'jazzcash').reduce((s, t) => s + Number(t.amount), 0) || 0
 
     const cashTransfersOut = ceoTransfers?.filter(t => t.from_account === 'cash').reduce((s, t) => s + Number(t.amount), 0) || 0
@@ -225,7 +241,8 @@ export default function CEOCashPosition({ tenantId }) {
     const totalDrawings = ownerTx?.filter(t => t.transaction_type === 'drawing').reduce((s, t) => s + Number(t.amount), 0) || 0
 
     setData({
-      allCashRiders, cashTransfersOut, cashTransfersIn, cashOwnerIn, cashOwnerOut,
+      allCashRiders, adminCashSalesTotal, adminCashPaymentsTotal,
+      cashTransfersOut, cashTransfersIn, cashOwnerIn, cashOwnerOut,
       cashExpenses, cashPurchases, cashSalaries, cashAdvances,
       jazzFromRiders, jazzFromCustomers, jazzTransfersOut, jazzTransfersIn,
       jazzOwnerIn, jazzOwnerOut, jazzExpenses, jazzPurchases, jazzSalaries, jazzAdvancesOut,
@@ -278,7 +295,7 @@ export default function CEOCashPosition({ tenantId }) {
 
   if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
 
-  const netCash = openingBalances.cash + (data?.allCashRiders || 0) + (data?.cashTransfersIn || 0) + (data?.cashOwnerIn || 0) -
+  const netCash = openingBalances.cash + (data?.allCashRiders || 0) + (data?.adminCashSalesTotal || 0) + (data?.adminCashPaymentsTotal || 0) + (data?.cashTransfersIn || 0) + (data?.cashOwnerIn || 0) -
     (data?.cashExpenses || 0) - (data?.cashPurchases || 0) - (data?.cashSalaries || 0) - (data?.cashAdvances || 0) - (data?.cashTransfersOut || 0) - (data?.cashOwnerOut || 0)
   const netJazz = openingBalances.jazzcash + (data?.jazzFromRiders || 0) + (data?.jazzFromCustomers || 0) + (data?.jazzTransfersIn || 0) + (data?.jazzOwnerIn || 0) -
     (data?.jazzExpenses || 0) - (data?.jazzPurchases || 0) - (data?.jazzSalaries || 0) - (data?.jazzAdvancesOut || 0) - (data?.jazzTransfersOut || 0) - (data?.jazzOwnerOut || 0)
@@ -423,6 +440,8 @@ export default function CEOCashPosition({ tenantId }) {
               rows: [
                 { label: 'Opening Balance', value: openingBalances.cash, plus: true },
                 { label: 'Cash from Riders', value: data?.allCashRiders || 0, plus: true },
+                { label: 'Admin Direct Sales', value: data?.adminCashSalesTotal || 0, plus: true },
+                { label: 'Admin Cash Collections', value: data?.adminCashPaymentsTotal || 0, plus: true },
                 { label: 'Owner Injections', value: data?.cashOwnerIn || 0, plus: true },
                 { label: 'Received from Accounts', value: data?.cashTransfersIn || 0, plus: true },
                 { label: 'Transferred to Accounts', value: data?.cashTransfersOut || 0, plus: false },
