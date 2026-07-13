@@ -246,18 +246,11 @@ function TrialBalance({ tenantId }) {
       .gte('entry_date', dateFrom)
       .lte('entry_date', dateTo)
 
-    const entryIds = journalEntries?.map(e => e.id) || []
-
-    if (entryIds.length === 0) {
+    if (!lines || lines.length === 0) {
       setData({ revenue: {}, cogs: {}, expenses: {}, totalRevenue: 0, totalCogs: 0, grossProfit: 0, totalExpenses: 0, netProfit: 0 })
       setLoading(false)
       return
     }
-
-    const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .in('journal_entry_id', entryIds)
 
     const balances = {}
     lines?.forEach(l => {
@@ -385,11 +378,12 @@ function IncomeStatement({ tenantId }) {
       .gte('entry_date', dateFrom)
       .lte('entry_date', dateTo)
 
-    const entryIds = journalEntries?.map(e => e.id) || []
-
-    const { data: lines } = entryIds.length > 0
-      ? await supabase.from('journal_entry_lines').select('*').eq('tenant_id', tenantId).in('journal_entry_id', entryIds)
-      : { data: [] }
+    const { data: lines } = await supabase
+      .from('journal_entry_lines')
+      .select('*, je:journal_entry_id!inner(entry_date)')
+      .eq('tenant_id', tenantId)
+      .gte('je.entry_date', dateFrom)
+      .lte('je.entry_date', dateTo)
 
     const revenue = {}
     const cogs = {}
@@ -528,16 +522,12 @@ function BalanceSheet({ tenantId }) {
     const coaMap = {}
     coaData?.forEach(a => { coaMap[a.account_code] = a })
 
-    const { data: journalEntries } = await supabase.from('journal_entries')
-      .select('id')
+    const { data: lines } = await supabase
+      .from('journal_entry_lines')
+      .select('*, je:journal_entry_id!inner(entry_date)')
       .eq('tenant_id', tenantId)
-      .lte('entry_date', asOf)
+      .lte('je.entry_date', asOf)
 
-    const entryIds = journalEntries?.map(e => e.id) || []
-
-    const { data: lines } = entryIds.length > 0
-      ? await supabase.from('journal_entry_lines').select('*').eq('tenant_id', tenantId).in('journal_entry_id', entryIds)
-      : { data: [] }
 
     const balances = {}
     lines?.forEach(l => {
