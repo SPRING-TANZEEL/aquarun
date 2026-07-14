@@ -168,6 +168,7 @@ function ChartOfAccounts({ tenantId }) {
     setEditAccount(null)
     fetchAccounts()
     setSaving(false)
+  }
 
   async function toggleActive(acc) {
     if (acc.is_system) return alert('System accounts cannot be deactivated')
