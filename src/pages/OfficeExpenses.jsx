@@ -108,6 +108,19 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
       }])
     }
 
+    // If salary payment, also record in salary_payments table
+    if (category === 'salary' && selectedRider) {
+      await supabase.from('salary_payments').insert([{
+        tenant_id: tenantId,
+        rider_id: selectedRider.id,
+        amount_paid: Number(amount),
+        payment_method: paymentMethod,
+        payment_date: expenseDate,
+        notes: description || `Salary payment — ${selectedRider.full_name}`,
+        month_year: expenseDate.slice(0, 7)
+      }])
+    }
+
     // Auto-post journal entry
     try {
       const { postOfficeExpenseJournal } = await import('../accountingEngine')
