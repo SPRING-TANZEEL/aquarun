@@ -17,7 +17,7 @@ export default function RiderQuickSale({ rider, tenantId }) {
     setSaving(true)
     const total = selectedRate * qty
 
-    const { error } = await supabase.from('deliveries').insert([{
+    const { data: savedDelivery, error } = await supabase.from('deliveries').insert([{
       tenant_id: tenantId,
       customer_id: null,
       rider_id: rider.id,
@@ -29,10 +29,17 @@ export default function RiderQuickSale({ rider, tenantId }) {
       payment_method: paymentMethod,
       amount_received: paymentMethod === 'jazzcash' ? 0 : total,
       credit_amount: 0,
-      jazzcash_confirmed: false
-    }])
+      jazzcash_confirmed: false,
+      delivered_at: new Date().toISOString(),
+      is_voided: false
+    }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
+    try {
+      const { postDeliveryJournal } = await import('../accountingEngine')
+      await postDeliveryJournal(savedDelivery, null, tenantId, true) // true = rider entry → DR 1101
+    } catch (err) { console.error('Journal error:', err) }
 
     setSuccess({ qty, rate: selectedRate, total, paymentMethod })
     setSelectedRate(null)
