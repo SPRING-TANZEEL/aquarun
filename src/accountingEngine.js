@@ -645,3 +645,38 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
     return null
   }
 }
+
+// ─── 14. POST CUSTOMER OPENING BALANCE JOURNAL ────────────────────
+// Called when new customer is saved with opening_balance > 0
+export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
+  try {
+    const amount = Number(customer.opening_balance || 0)
+    if (amount === 0) return null
+
+    const lines = amount > 0
+      ? [
+          // Customer owes us — debit AR
+          { account_code: '1100', account_name: 'Accounts Receivable', debit: Math.abs(amount), credit: 0 },
+          { account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Math.abs(amount) }
+        ]
+      : [
+          // Customer has advance — debit Owner Capital
+          { account_code: '3001', account_name: 'Owner Capital', debit: Math.abs(amount), credit: 0 },
+          { account_code: '2200', account_name: 'Advance from Customers', debit: 0, credit: Math.abs(amount) }
+        ]
+
+    const entryId = await postJournalEntry({
+      tenantId,
+      date: new Date().toISOString().split('T')[0],
+      referenceType: 'opening_balance',
+      referenceId: customer.id,
+      narration: `Opening balance — ${customer.full_name} — ${amount > 0 ? 'receivable' : 'advance'}`,
+      lines
+    })
+
+    return entryId
+  } catch (err) {
+    console.error('postCustomerOpeningBalanceJournal error:', err)
+    return null
+  }
+}

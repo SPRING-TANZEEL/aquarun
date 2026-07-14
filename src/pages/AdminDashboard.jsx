@@ -91,7 +91,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
   const [alerts, setAlerts] = useState({
     pendingOrders: 0, pendingCashTransfers: 0,
     pendingJazz: 0, pendingSalaryRequests: 0,
-    totalReceivable: 0, totalCustomers: 0
+    totalReceivable: 0, totalCustomers: 0, totalBottlesOut: 0
   })
   const [businessName, setBusinessName] = useState('AquaRun')
   const [showSetupWizard, setShowSetupWizard] = useState(false)
@@ -257,14 +257,15 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
       (jazzPayPending?.reduce((s, p) => s + Number(p.amount), 0) || 0)
 
     const { data: customers } = await supabase.from('customers')
-      .select('balance')
+      .select('balance, our_bottles_placed')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
 
     const totalReceivable = customers?.reduce((s, c) => s + Number(c.balance), 0) || 0
     const totalCustomers = customers?.length || 0
+    const totalBottlesOut = customers?.reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0) || 0
 
-    setAlerts({ pendingOrders, pendingCashTransfers, pendingJazz, pendingSalaryRequests, totalReceivable, totalCustomers })
+    setAlerts({ pendingOrders, pendingCashTransfers, pendingJazz, pendingSalaryRequests, totalReceivable, totalCustomers, totalBottlesOut })
 
     const chart = []
     for (let i = 6; i >= 0; i--) {
@@ -660,6 +661,8 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
                       subtitle={`Half: ${stats?.bottlesHalf || 0} · 1.5L: ${stats?.bottles15l || 0}`} />
                     <MetricCard title="Customers" value={alerts?.totalCustomers} icon="👥"
                       color="#1a7a4a" onClick={() => navigateTo('customers')} />
+                    <MetricCard title="Bottles Out" value={alerts?.totalBottlesOut} icon="🫙"
+                      color="#e65100" />
                     <MetricCard title="Cash Transfers" value={alerts?.pendingCashTransfers} icon="💸"
                       color="#ea580c" onClick={() => navigateTo('cashtransfer')} />
                   </div>

@@ -195,27 +195,16 @@ export default function CustomerManagement({ tenantId }) {
       const { data: savedCustomer, error } = await supabase.from('customers').insert([{
         ...cleanForm, tenant_id: tenantId, customer_code: customerCode,
         balance: Number(form.opening_balance) || 0,
+        our_bottles_placed: Number(form.our_bottles_placed) || Number(form.opening_bottles) || 0,
       }]).select().single()
 
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-      if (Number(form.opening_balance) > 0) {
-        const { data: je } = await supabase.from('journal_entries').insert([{
-          tenant_id: tenantId,
-          entry_date: new Date().toISOString().split('T')[0],
-          reference_type: 'opening_balance',
-          reference_id: savedCustomer?.id,
-          narration: `Opening balance — ${cleanForm.full_name}`,
-          total_amount: Number(form.opening_balance),
-          created_by: 'system'
-        }]).select().single()
-
-        if (je) {
-          await supabase.from('journal_entry_lines').insert([
-            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1100', account_name: 'Accounts Receivable', debit: Number(form.opening_balance), credit: 0 },
-            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Number(form.opening_balance) }
-          ])
-        }
+      if (Number(form.opening_balance) !== 0) {
+        try {
+          const { postCustomerOpeningBalanceJournal } = await import('../accountingEngine')
+          await postCustomerOpeningBalanceJournal(savedCustomer, tenantId)
+        } catch (err) { console.error('Opening balance journal error:', err) }
       }
 
       alert(`Customer added!\n\nCustomer ID: ${customerCode}\nPassword: ${form.customer_password}\n\nShare these with the customer for app login.`)
