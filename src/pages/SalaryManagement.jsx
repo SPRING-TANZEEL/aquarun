@@ -50,19 +50,18 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     const monthStart = selectedMonth + '-01'
     const nextMonth = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1)).toISOString().split('T')[0]
 
+    // Fetch ALL salary payments for this month at once (outside loop)
+    const { data: allSalaryPaid } = await supabase.from('salary_payments')
+      .select('rider_id, amount_paid')
+      .eq('tenant_id', tenantId)
+      .gte('payment_date', monthStart)
+      .lt('payment_date', nextMonth)
+
     const summaries = []
     for (const r of ridersData || []) {
       const riderAdvances = advancesData?.filter(a => a.rider_id === r.id && a.status === 'approved') || []
       const totalAdvances = riderAdvances.reduce((s, a) => s + Number(a.amount), 0)
-
-      // Fetch salary payments made this month
-      const { data: salaryPaid } = await supabase.from('salary_payments')
-        .select('amount_paid')
-        .eq('tenant_id', tenantId)
-        .eq('rider_id', r.id)
-        .gte('payment_date', monthStart)
-        .lt('payment_date', nextMonth)
-      const totalPaid = salaryPaid?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+      const totalPaid = allSalaryPaid?.filter(p => p.rider_id === r.id).reduce((s, p) => s + Number(p.amount_paid), 0) || 0
 
       let fixedPart = 0
       let commissionPart = 0
