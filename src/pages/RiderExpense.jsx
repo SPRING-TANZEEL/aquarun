@@ -52,8 +52,12 @@ export default function RiderExpense({ rider, tenantId, isOnline }) {
     }
 
     if (isOnline) {
-      const { error } = await supabase.from('expenses').insert([expenseData])
+      const { data: saved, error } = await supabase.from('expenses').insert([expenseData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      try {
+        const { postRiderExpenseJournal } = await import('../accountingEngine')
+        await postRiderExpenseJournal(saved, tenantId)
+      } catch (err) { console.error('Journal error:', err) }
       fetchTodayExpenses()
     } else {
       await savePendingExpense(expenseData)
