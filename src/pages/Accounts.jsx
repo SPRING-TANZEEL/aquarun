@@ -39,7 +39,7 @@ function ChartOfAccounts({ tenantId }) {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editAccount, setEditAccount] = useState(null)
-  const [form, setForm] = useState({ account_code: '', account_name: '', account_type: 'expense', account_subtype: '', description: '' })
+  const [form, setForm] = useState({ account_code: '', account_name: '', account_type: 'expense', account_subtype: '', description: '', opening_balance: 0 })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => { if (tenantId) fetchAccounts() }, [tenantId])
@@ -56,13 +56,13 @@ function ChartOfAccounts({ tenantId }) {
 
   function openAdd() {
     setEditAccount(null)
-    setForm({ account_code: '', account_name: '', account_type: 'expense', account_subtype: 'admin', description: '' })
+    setForm({ account_code: '', account_name: '', account_type: 'expense', account_subtype: 'admin', description: '', opening_balance: 0 })
     setShowForm(true)
   }
 
   function openEdit(acc) {
     setEditAccount(acc)
-    setForm({ account_code: acc.account_code, account_name: acc.account_name, account_type: acc.account_type, account_subtype: acc.account_subtype || '', description: acc.description || '' })
+    setForm({ account_code: acc.account_code, account_name: acc.account_name, account_type: acc.account_type, account_subtype: acc.account_subtype || '', description: acc.description || '', opening_balance: Number(acc.opening_balance) || 0 })
     setShowForm(true)
   }
 
@@ -74,7 +74,8 @@ function ChartOfAccounts({ tenantId }) {
         account_name: form.account_name,
         account_type: form.account_type,
         account_subtype: form.account_subtype,
-        description: form.description
+        description: form.description,
+        opening_balance: Number(form.opening_balance) || 0
       })
         .eq('id', editAccount.id)
         .eq('tenant_id', tenantId)
@@ -89,7 +90,7 @@ function ChartOfAccounts({ tenantId }) {
         description: form.description,
         is_system: false,
         is_active: true,
-        opening_balance: 0
+        opening_balance: Number(form.opening_balance) || 0
       }])
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
     }
@@ -162,6 +163,15 @@ function ChartOfAccounts({ tenantId }) {
             <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Description (optional)</label>
             <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
               placeholder="What is this account for?" style={inp} />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Opening Balance (Rs.)</label>
+            <input type="number" value={form.opening_balance}
+              onChange={e => setForm({ ...form, opening_balance: Number(e.target.value) || 0 })}
+              placeholder="0" style={inp} />
+            <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>
+              💡 Balance this account had before you started using AquaRun
+            </p>
           </div>
           <button onClick={saveAccount} disabled={saving}
             style={{ padding: '10px 24px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
