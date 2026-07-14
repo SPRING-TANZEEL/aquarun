@@ -55,6 +55,15 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       const riderAdvances = advancesData?.filter(a => a.rider_id === r.id && a.status === 'approved') || []
       const totalAdvances = riderAdvances.reduce((s, a) => s + Number(a.amount), 0)
 
+      // Fetch salary payments made this month
+      const { data: salaryPaid } = await supabase.from('salary_payments')
+        .select('amount_paid')
+        .eq('tenant_id', tenantId)
+        .eq('rider_id', r.id)
+        .gte('payment_date', monthStart)
+        .lt('payment_date', nextMonth)
+      const totalPaid = salaryPaid?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+
       let fixedPart = 0
       let commissionPart = 0
       let baseSalary = 0
@@ -96,9 +105,18 @@ export default function SalaryManagement({ adminUser, tenantId }) {
         }
       }
 
+      // Fetch salary payments made this month
+      const { data: salaryPaid } = await supabase.from('salary_payments')
+        .select('amount_paid')
+        .eq('tenant_id', tenantId)
+        .eq('rider_id', r.id)
+        .gte('payment_date', monthStart)
+        .lt('payment_date', nextMonth)
+      const totalPaid = salaryPaid?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+
       baseSalary = fixedPart + commissionPart
-      const remaining = baseSalary - totalAdvances
-      summaries.push({ ...r, baseSalary, fixedPart, commissionPart, totalAdvances, remaining, advances: riderAdvances, commissionBreakdown })
+      remaining = baseSalary - totalAdvances - totalPaid
+      summaries.push({ ...r, baseSalary, fixedPart, commissionPart, totalAdvances, totalPaid, remaining, advances: riderAdvances, commissionBreakdown })
     }
     setRiderSummaries(summaries)
     setLoading(false)
@@ -275,6 +293,12 @@ export default function SalaryManagement({ adminUser, tenantId }) {
                   <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Advances Taken</p>
                   <p style={{ fontSize: '18px', fontWeight: '700', color: '#e65100', margin: 0 }}>Rs. {r.totalAdvances.toLocaleString()}</p>
                 </div>
+                {r.totalPaid > 0 && (
+                  <div style={{ textAlign: 'center', padding: '10px', background: '#e3f0ff', borderRadius: '8px' }}>
+                    <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Paid This Month</p>
+                    <p style={{ fontSize: '18px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {r.totalPaid.toLocaleString()}</p>
+                  </div>
+                )}
                 <div style={{ textAlign: 'center', padding: '10px', background: r.remaining >= 0 ? '#e8f5e9' : '#ffebee', borderRadius: '8px' }}>
                   <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Remaining Payable</p>
                   <p style={{ fontSize: '18px', fontWeight: '700', color: r.remaining >= 0 ? '#1a7a4a' : '#c62828', margin: 0 }}>Rs. {r.remaining.toLocaleString()}</p>
