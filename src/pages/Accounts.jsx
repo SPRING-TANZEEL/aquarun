@@ -94,11 +94,80 @@ function ChartOfAccounts({ tenantId }) {
       }])
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
     }
+    // Post opening balance journal entry if amount > 0
+    if (Number(form.opening_balance) > 0) {
+      try {
+        const { data: je } = await supabase.from('journal_entries').insert([{
+          tenant_id: tenantId,
+          entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'opening_balance',
+          reference_id: editAccount?.id || form.account_code,
+          narration: `Opening balance — ${form.account_name}`,
+          total_amount: Number(form.opening_balance),
+          created_by: 'system'
+        }]).select().single()
+
+        if (je) {
+          await supabase.from('journal_entry_lines').insert([
+            { tenant_id: tenantId, journal_entry_id: je.id, account_code: form.account_code, account_name: form.account_name, debit: Number(form.opening_balance), credit: 0 },
+            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Number(form.opening_balance) }
+          ])
+        }
+      } catch (err) { console.error('Opening balance journal error:', err) }
+    }
+
+    // Handle opening balance journal entry
+    if (Number(form.opening_balance) !== 0) {
+      try {
+        // Check if opening balance journal already exists for this account
+        const { data: existingJE } = await supabase.from('journal_entries')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('reference_type', 'opening_balance')
+          .eq('reference_id', editAccount?.id || form.account_code)
+          .single()
+
+        if (existingJE) {
+          // Update existing journal entry lines with new amount
+          await supabase.from('journal_entry_lines')
+            .update({ debit: Number(form.opening_balance), credit: 0 })
+            .eq('journal_entry_id', existingJE.id)
+            .eq('account_code', form.account_code)
+
+          await supabase.from('journal_entry_lines')
+            .update({ debit: 0, credit: Number(form.opening_balance) })
+            .eq('journal_entry_id', existingJE.id)
+            .eq('account_code', '3001')
+
+          await supabase.from('journal_entries')
+            .update({ total_amount: Number(form.opening_balance) })
+            .eq('id', existingJE.id)
+        } else {
+          // Post new opening balance journal entry
+          const { data: je } = await supabase.from('journal_entries').insert([{
+            tenant_id: tenantId,
+            entry_date: new Date().toISOString().split('T')[0],
+            reference_type: 'opening_balance',
+            reference_id: editAccount?.id || form.account_code,
+            narration: `Opening balance — ${form.account_name}`,
+            total_amount: Number(form.opening_balance),
+            created_by: 'system'
+          }]).select().single()
+
+          if (je) {
+            await supabase.from('journal_entry_lines').insert([
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: form.account_code, account_name: form.account_name, debit: Number(form.opening_balance), credit: 0 },
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Number(form.opening_balance) }
+            ])
+          }
+        }
+      } catch (err) { console.error('Opening balance journal error:', err) }
+    }
+
     setShowForm(false)
     setEditAccount(null)
     fetchAccounts()
     setSaving(false)
-  }
 
   async function toggleActive(acc) {
     if (acc.is_system) return alert('System accounts cannot be deactivated')
