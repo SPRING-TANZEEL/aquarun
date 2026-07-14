@@ -106,13 +106,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       }
 
       // Fetch salary payments made this month
-      const { data: salaryPaid } = await supabase.from('salary_payments')
-        .select('amount_paid')
-        .eq('tenant_id', tenantId)
-        .eq('rider_id', r.id)
-        .gte('payment_date', monthStart)
-        .lt('payment_date', nextMonth)
-      const totalPaid = salaryPaid?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+      
 
       baseSalary = fixedPart + commissionPart
       remaining = baseSalary - totalAdvances - totalPaid
