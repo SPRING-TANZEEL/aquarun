@@ -28,6 +28,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
 
   async function fetchData() {
     setLoading(true)
+    try {
     const { data: ridersData } = await supabase.from('riders')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -112,7 +113,12 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       summaries.push({ ...r, baseSalary, fixedPart, commissionPart, totalAdvances, totalPaid, remaining, advances: riderAdvances, commissionBreakdown })
     }
     setRiderSummaries(summaries)
-    setLoading(false)
+    } catch (err) {
+      console.error('SalaryManagement fetchData error:', err)
+      alert('Error loading salary data: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function approveRequest(request) {
