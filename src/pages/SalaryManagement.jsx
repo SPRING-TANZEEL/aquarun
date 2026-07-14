@@ -108,7 +108,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       
 
       baseSalary = fixedPart + commissionPart
-      remaining = baseSalary - totalAdvances - totalPaid
+      const remaining = baseSalary - totalAdvances - totalPaid
       summaries.push({ ...r, baseSalary, fixedPart, commissionPart, totalAdvances, totalPaid, remaining, advances: riderAdvances, commissionBreakdown })
     }
     setRiderSummaries(summaries)
