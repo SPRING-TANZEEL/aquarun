@@ -99,6 +99,14 @@ export default function SuperAdminDashboard({ onLogout }) {
       { tenant_id: tenantId, account_code: '6014', account_name: 'Bank Charges', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6015', account_name: 'Printing & Stationery', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6016', account_name: 'Advertising & Marketing', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+      // ── NEW ACCOUNTS ──
+      { tenant_id: tenantId, account_code: '1004', account_name: 'EasyPaisa Account', account_type: 'asset', account_subtype: 'cash', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1101', account_name: 'Receivable from Riders', account_type: 'asset', account_subtype: 'receivable', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1102', account_name: 'JazzCash Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6017', account_name: 'Rider Fuel & Vehicle', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6018', account_name: 'Rider Refreshments', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '6019', account_name: 'Rider Repairs', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
     ]
     await supabase.from('chart_of_accounts').insert(accounts)
   }
