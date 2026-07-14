@@ -972,7 +972,7 @@ function SalesSummary({ tenantId }) {
       if (d.payment_method === 'cash') totalCash += Number(d.amount_received)
       if (d.payment_method === 'jazzcash') totalJazz += Number(d.total_amount)
       if (d.payment_method === 'credit') totalCredit += Number(d.total_amount)
-      const name = d.riders?.full_name || 'Walk-in'
+      const name = d.riders?.full_name || 'Admin / Office Sales'
       if (!riderSales[name]) riderSales[name] = { sales: 0, bottles19l: 0, bottlesHalf: 0, bottles15l: 0 }
       riderSales[name].sales += Number(d.total_amount); riderSales[name].bottles19l += Number(d.qty_19l || 0); riderSales[name].bottlesHalf += Number(d.qty_half_litre || 0); riderSales[name].bottles15l += Number(d.qty_1_5l || 0)
     })
