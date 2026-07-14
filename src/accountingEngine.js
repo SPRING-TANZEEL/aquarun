@@ -311,7 +311,12 @@ export async function postRiderExpenseJournal(expense, tenantId) {
 export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
-    const expenseAcc = getExpenseAccount(expense.category)
+    // Use custom COA account if provided, otherwise use category mapping
+    const expenseAcc = expense._customAccount
+      ? { code: expense._customAccount.code, name: expense._customAccount.name }
+      : (expense.coa_account_code
+        ? { code: expense.coa_account_code, name: expense.coa_account_name }
+        : getExpenseAccount(expense.category))
     const cashAcc = getCashAccount(expense.payment_method || 'cash')
 
     const lines = [

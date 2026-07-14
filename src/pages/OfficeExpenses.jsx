@@ -30,8 +30,32 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [summary, setSummary] = useState({})
+  const [coaAccounts, setCoaAccounts] = useState([])
+  const [selectedCoaAccount, setSelectedCoaAccount] = useState(null)
+  const [riders, setRiders] = useState([])
+  const [selectedRider, setSelectedRider] = useState(null)
 
   useEffect(() => { if (tenantId) fetchExpenses() }, [dateFrom, dateTo, tenantId])
+  useEffect(() => { if (tenantId) { fetchCoaAccounts(); fetchRiders() } }, [tenantId])
+
+  async function fetchCoaAccounts() {
+    const { data } = await supabase.from('chart_of_accounts')
+      .select('account_code, account_name, account_subtype')
+      .eq('tenant_id', tenantId)
+      .eq('account_type', 'expense')
+      .eq('is_active', true)
+      .order('account_code')
+    setCoaAccounts(data || [])
+  }
+
+  async function fetchRiders() {
+    const { data } = await supabase.from('riders')
+      .select('id, full_name')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .order('full_name')
+    setRiders(data || [])
+  }
 
   async function fetchExpenses() {
     setLoading(true)
@@ -59,12 +83,14 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     const { data: saved, error } = await supabase.from('office_expenses').insert([{
       tenant_id: tenantId,
       paid_by: paidBy,
-      paid_by_rider_id: rider.id,
+      paid_by_rider_id: rider?.id || null,
       category,
       amount: Number(amount),
-      description,
+      description: description || (selectedRider ? `Salary — ${selectedRider.full_name}` : description),
       payment_method: paymentMethod,
-      expense_date: expenseDate
+      expense_date: expenseDate,
+      coa_account_code: category === 'other' && selectedCoaAccount ? selectedCoaAccount.account_code : null,
+      coa_account_name: category === 'other' && selectedCoaAccount ? selectedCoaAccount.account_name : null,
     }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
@@ -72,12 +98,18 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     // Auto-post journal entry
     try {
       const { postOfficeExpenseJournal } = await import('../accountingEngine')
-      await postOfficeExpenseJournal(saved, tenantId)
+      // If custom COA account selected, override category mapping
+      const expenseToPost = saved.coa_account_code
+        ? { ...saved, category: saved.coa_account_code, _customAccount: { code: saved.coa_account_code, name: saved.coa_account_name } }
+        : saved
+      await postOfficeExpenseJournal(expenseToPost, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     setExpenseDate(new Date().toISOString().split('T')[0])
     setSuccess(true)
     setCategory(null)
+    setSelectedCoaAccount(null)
+    setSelectedRider(null)
     setAmount('')
     setDescription('')
     setPaymentMethod('cash')
@@ -129,6 +161,47 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
             </button>
           ))}
         </div>
+
+        {/* Rider selector — shows when salary selected */}
+        {category === 'salary' && riders.length > 0 && (
+          <div style={{ marginBottom: '14px' }}>
+            <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Select Rider</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {riders.map(r => (
+                <button key={r.id} onClick={() => setSelectedRider(r)}
+                  style={{ padding: '8px 14px', border: '2px solid', borderColor: selectedRider?.id === r.id ? '#0f4c81' : '#eee', borderRadius: '8px', cursor: 'pointer', background: selectedRider?.id === r.id ? '#0f4c81' : '#f8f9fa', color: selectedRider?.id === r.id ? 'white' : '#555', fontWeight: '600', fontSize: '13px' }}>
+                  🚴 {r.full_name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* COA account selector — shows when Other selected */}
+        {category === 'other' && coaAccounts.length > 0 && (
+          <div style={{ marginBottom: '14px' }}>
+            <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Select Account</p>
+            <select
+              value={selectedCoaAccount?.account_code || ''}
+              onChange={e => {
+                const acc = coaAccounts.find(a => a.account_code === e.target.value)
+                setSelectedCoaAccount(acc || null)
+              }}
+              style={{ width: '100%', padding: '10px 12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', background: 'white', cursor: 'pointer' }}>
+              <option value=''>— Select Account —</option>
+              {coaAccounts.map(a => (
+                <option key={a.account_code} value={a.account_code}>
+                  {a.account_code} — {a.account_name}
+                </option>
+              ))}
+            </select>
+            {selectedCoaAccount && (
+              <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
+                ✓ Will post to: {selectedCoaAccount.account_code} {selectedCoaAccount.account_name}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Payment Method */}
         <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Paid From</p>
