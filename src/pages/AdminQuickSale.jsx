@@ -15,6 +15,7 @@ export default function AdminQuickSale({ tenantId }) {
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [notes, setNotes] = useState('')
+  const [bottlesReturned, setBottlesReturned] = useState(0)
   const [customerName, setCustomerName] = useState('')
   const [saleDate, setSaleDate] = useState(new Date().toISOString().split('T')[0])
   const [customerSearch, setCustomerSearch] = useState('')
@@ -196,6 +197,7 @@ export default function AdminQuickSale({ tenantId }) {
       jazzcash_confirmed: false,
       delivered_at: new Date(saleDate).toISOString(),
       is_voided: false,
+      bottles_returned: bottlesReturned,
       notes: [walkinName !== 'Walk-in Customer' ? `Customer: ${walkinName}` : '', descParts.join(' | '), notes].filter(Boolean).join(' — '),
       tax_rate: taxRate,
       tax_amount: taxAmount,
@@ -245,6 +247,13 @@ export default function AdminQuickSale({ tenantId }) {
         .eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
     }
 
+    if (selectedCustomer && (qty19l > 0 || bottlesReturned > 0)) {
+      const currentBottles = Number(selectedCustomer.our_bottles_placed || 0)
+      await supabase.from('customers')
+        .update({ our_bottles_placed: Math.max(0, currentBottles + qty19l - bottlesReturned) })
+        .eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+    }
+
     try {
       const { postDeliveryJournal } = await import('../accountingEngine')
       await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false) // false = admin → DR 1001
@@ -254,7 +263,7 @@ export default function AdminQuickSale({ tenantId }) {
     setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id })
 
     // Reset
-    setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName('')
+    setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
     setSaleDate(new Date().toISOString().split('T')[0])
     setSelectedCustomer(null); setCustomerSearch('')
     await fetchProducts()
@@ -493,6 +502,22 @@ export default function AdminQuickSale({ tenantId }) {
             <div style={card}>
               <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
               <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
+            </div>
+
+            <div style={{ ...card, border: '1px solid #fff3e0' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#e65100', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>🫙 Empty Bottles Returned</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
+                <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
+                <span style={{ fontSize: '28px', fontWeight: '700', minWidth: '40px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
+                <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
+              </div>
+              {bottlesReturned > 0 && selectedCustomer && (
+                <p style={{ fontSize: '11px', color: '#e65100', margin: '8px 0 0', textAlign: 'center', fontWeight: '600' }}>
+                  🫙 {bottlesReturned} empty bottle{bottlesReturned > 1 ? 's' : ''} returned by {selectedCustomer.full_name}
+                </p>
+              )}
             </div>
 
             {/* Total & Submit */}
