@@ -80,22 +80,35 @@ function getSalesBreakdown(delivery) {
 }
 
 // ─── HELPER: GET EXPENSE ACCOUNT BY CATEGORY ──────────────────────
-function getExpenseAccount(category) {
-  const map = {
-    rent:        { code: '6004', name: 'Rent' },
-    electricity: { code: '6005', name: 'Electricity' },
-    fuel:        { code: '6006', name: 'Fuel - Office' },
-    maintenance: { code: '6007', name: 'Maintenance' },
-    supplies:    { code: '6008', name: 'Supplies' },
-    salary:      { code: '6001', name: 'Rider Salaries' },
-    telephone:   { code: '6013', name: 'Telephone & Internet' },
-    printing:    { code: '6015', name: 'Printing & Stationery' },
-    marketing:   { code: '6016', name: 'Advertising & Marketing' },
-    water_testing:{ code: '6010', name: 'Water Testing Fees' },
-    vehicle:     { code: '6011', name: 'Vehicle Running Cost' },
-    bank_charges:{ code: '6014', name: 'Bank Charges' },
+function getExpenseAccount(category, isRider = false) {
+  // Rider-specific mapping
+  const riderMap = {
+    fuel:        { code: '6017', name: 'Rider Fuel & Vehicle' },
+    repair:      { code: '6019', name: 'Rider Repairs' },
+    refreshment: { code: '6018', name: 'Rider Refreshments' },
+    maintenance: { code: '6019', name: 'Rider Repairs' },
+    vehicle:     { code: '6017', name: 'Rider Fuel & Vehicle' },
     other:       { code: '6009', name: 'Other Expenses' },
   }
+
+  // Office/admin mapping
+  const officeMap = {
+    rent:         { code: '6004', name: 'Rent' },
+    electricity:  { code: '6005', name: 'Electricity' },
+    fuel:         { code: '6006', name: 'Fuel - Office' },
+    maintenance:  { code: '6007', name: 'Maintenance' },
+    supplies:     { code: '6008', name: 'Supplies' },
+    salary:       { code: '6001', name: 'Rider Salaries' },
+    telephone:    { code: '6013', name: 'Telephone & Internet' },
+    printing:     { code: '6015', name: 'Printing & Stationery' },
+    marketing:    { code: '6016', name: 'Advertising & Marketing' },
+    water_testing:{ code: '6010', name: 'Water Testing Fees' },
+    vehicle:      { code: '6011', name: 'Vehicle Running Cost' },
+    bank_charges: { code: '6014', name: 'Bank Charges' },
+    other:        { code: '6009', name: 'Other Expenses' },
+  }
+
+  const map = isRider ? riderMap : officeMap
   return map[category] || { code: '6009', name: 'Other Expenses' }
 }
 
@@ -629,6 +642,41 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
     return entryId
   } catch (err) {
     console.error('reverseJournalEntry error:', err)
+    return null
+  }
+}
+
+// ─── 14. POST CUSTOMER OPENING BALANCE JOURNAL ────────────────────
+// Called when new customer is saved with opening_balance > 0
+export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
+  try {
+    const amount = Number(customer.opening_balance || 0)
+    if (amount === 0) return null
+
+    const lines = amount > 0
+      ? [
+          // Customer owes us — debit AR
+          { account_code: '1100', account_name: 'Accounts Receivable', debit: Math.abs(amount), credit: 0 },
+          { account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Math.abs(amount) }
+        ]
+      : [
+          // Customer has advance — debit Owner Capital
+          { account_code: '3001', account_name: 'Owner Capital', debit: Math.abs(amount), credit: 0 },
+          { account_code: '2200', account_name: 'Advance from Customers', debit: 0, credit: Math.abs(amount) }
+        ]
+
+    const entryId = await postJournalEntry({
+      tenantId,
+      date: new Date().toISOString().split('T')[0],
+      referenceType: 'opening_balance',
+      referenceId: customer.id,
+      narration: `Opening balance — ${customer.full_name} — ${amount > 0 ? 'receivable' : 'advance'}`,
+      lines
+    })
+
+    return entryId
+  } catch (err) {
+    console.error('postCustomerOpeningBalanceJournal error:', err)
     return null
   }
 }
