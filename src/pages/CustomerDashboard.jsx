@@ -253,6 +253,22 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
     fetchOrders()
     setPlacingOrder(false)
     setTimeout(() => setOrderSuccess(false), 4000)
+
+    // Notify admin about new order
+    try {
+      await fetch('/api/send-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId,
+          userType: 'admin',
+          title: '📦 New Order!',
+          body: `${customer?.full_name} ordered ${orderForm.qty_19l || 0}×19L`,
+          tag: 'new-order',
+          url: '/'
+        })
+      })
+    } catch (err) { console.error('Notify error:', err) }
   }
 
   const balance = Number(customer.balance || 0)

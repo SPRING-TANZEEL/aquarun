@@ -113,6 +113,14 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
   useEffect(() => { if (tenantId) fetchDashboard() }, [period, tenantId])
 
+    useEffect(() => {
+    if (tenantId) {
+      import('../pushNotifications').then(({ subscribeToPush }) => {
+        subscribeToPush('admin-' + tenantId, 'admin', tenantId)
+      })
+    }
+  }, [tenantId])
+
   async function autoGenerateSchedule() {
     try {
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']

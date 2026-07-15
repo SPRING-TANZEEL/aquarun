@@ -50,6 +50,14 @@ export default function RiderDashboard({ user, onLogout }) {
     }
   }, [])
 
+  useEffect(() => {
+    if (user?.tenant_id) {
+      import('../pushNotifications').then(({ subscribeToPush }) => {
+        subscribeToPush(user.id, 'rider', user.tenant_id)
+      })
+    }
+  }, [user])
+
   async function setupOffline() {
     try {
       await initDB()
