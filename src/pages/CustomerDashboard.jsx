@@ -720,6 +720,27 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
               style={{ width: '100%', padding: '16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', fontWeight: '700' }}>
               {placingOrder ? 'Placing Order...' : '✓ Place Order'}
             </button>
+
+            {/* Recent Orders — mobile */}
+            {orders.length > 0 && (
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginTop: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: '0 0 12px' }}>Recent Orders</p>
+                {orders.slice(0, 5).map(o => (
+                  <div key={o.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
+                    <div>
+                      <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>
+                        {o.qty_19l > 0 ? `19L×${o.qty_19l} ` : ''}{o.qty_half_litre > 0 ? `Half×${o.qty_half_litre} ` : ''}{o.qty_1_5l > 0 ? `1.5L×${o.qty_1_5l}` : ''}
+                        {o.notes ? ` · ${o.notes}` : ''}
+                      </p>
+                      <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{o.delivery_date || new Date(o.created_at).toLocaleDateString('en-PK')}</p>
+                    </div>
+                    <span style={{ padding: '3px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '700', background: o.status === 'completed' ? '#e8f5e9' : o.status === 'assigned' ? '#e3f0ff' : o.status === 'cancelled' ? '#ffebee' : '#fff3e0', color: o.status === 'completed' ? '#2e7d32' : o.status === 'assigned' ? '#0f4c81' : o.status === 'cancelled' ? '#c62828' : '#e65100', whiteSpace: 'nowrap' }}>
+                      {o.status === 'completed' ? '✅ Done' : o.status === 'assigned' ? '🚴 On way' : o.status === 'cancelled' ? '✕' : '⏳ Pending'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
