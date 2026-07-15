@@ -26,6 +26,7 @@ export default function CustomerManagement({ tenantId }) {
     default_qty_half: 0,
     default_qty_1_5l: 0,
     is_tax_applicable: false,
+    notes: '',
   })
   const [saving, setSaving] = useState(false)
   const [showPassword, setShowPassword] = useState({})
@@ -96,6 +97,7 @@ export default function CustomerManagement({ tenantId }) {
       default_qty_half: Number(c.default_qty_half) || 0,
       default_qty_1_5l: Number(c.default_qty_1_5l) || 0,
       is_tax_applicable: c.is_tax_applicable || false,
+      notes: c.notes || '',
     })
     setShowForm(true)
   }
@@ -734,6 +736,14 @@ export default function CustomerManagement({ tenantId }) {
                     </div>
                   </>
                 )}
+              </div>
+              
+              <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes (optional)</p>
+              <div style={{ marginBottom: '14px' }}>
+                <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
+                  placeholder="Any notes about this customer..."
+                  rows={3}
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', resize: 'vertical' }} />
               </div>
 
               <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location (optional)</p>
