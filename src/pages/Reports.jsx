@@ -1077,43 +1077,53 @@ function ProfitLoss({ tenantId }) {
     const totalCogs = totalCOGS + totalPurchaseCost + totalProductionOverhead
     const grossProfit = totalRevenue - totalCogs
 
-    // ── RIDER FIELD EXPENSES ──
+// ── RIDER FIELD EXPENSES by type ──
     const { data: riderExpenses } = await supabase.from('expenses')
-      .select('amount').eq('tenant_id', tenantId)
+      .select('expense_type, amount').eq('tenant_id', tenantId)
       .eq('is_voided', false)
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-    const totalRiderExpenses = riderExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
 
-    // ── OFFICE EXPENSES (excluding salary category — tracked separately) ──
+    const riderByCategory = {}
+    riderExpenses?.forEach(e => {
+      const key = e.expense_type || 'other'
+      riderByCategory[key] = (riderByCategory[key] || 0) + Number(e.amount)
+    })
+
+    // ── OFFICE EXPENSES by category (excluding salary) ──
     const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('amount').eq('tenant_id', tenantId)
-      .eq('is_voided', false)
-      .neq('category', 'salary')
+      .select('category, amount').eq('tenant_id', tenantId)
+      .eq('is_voided', false).neq('category', 'salary')
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-    const totalOfficeExpenses = officeExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
 
-    // ── SALARY PAYMENTS (from office_expenses salary category) ──
+    const officeByCategory = {}
+    officeExpenses?.forEach(e => {
+      const key = e.category || 'other'
+      officeByCategory[key] = (officeByCategory[key] || 0) + Number(e.amount)
+    })
+
+    // ── SALARY PAYMENTS ──
     const { data: officeSalaries } = await supabase.from('office_expenses')
       .select('amount').eq('tenant_id', tenantId)
-      .eq('is_voided', false)
-      .eq('category', 'salary')
+      .eq('is_voided', false).eq('category', 'salary')
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalOfficeSalaries = officeSalaries?.reduce((s, e) => s + Number(e.amount), 0) || 0
 
-    // ── SALARY PAYMENTS from salary_payments table ──
     const { data: salaryPayments } = await supabase.from('salary_payments')
       .select('amount_paid').eq('tenant_id', tenantId)
       .gte('payment_date', dateFrom).lte('payment_date', dateTo)
     const totalSalaryPayments = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
-
     const totalSalaries = totalOfficeSalaries + totalSalaryPayments
+
+    const totalRiderExpenses = Object.values(riderByCategory).reduce((s, v) => s + v, 0)
+    const totalOfficeExpenses = Object.values(officeByCategory).reduce((s, v) => s + v, 0)
     const totalOperatingExpenses = totalRiderExpenses + totalOfficeExpenses + totalSalaries
     const netProfit = grossProfit - totalOperatingExpenses
 
     setData({
       totalRevenue, totalCOGS, totalPurchaseCost, totalProductionOverhead,
-      totalCogs, grossProfit, totalRiderExpenses, totalOfficeExpenses,
-      totalSalaries, totalOperatingExpenses, netProfit
+      totalCogs, grossProfit, riderByCategory, officeByCategory,
+      totalRiderExpenses, totalOfficeExpenses, totalSalaries,
+      totalOperatingExpenses, netProfit
     })
     setLoading(false)
   }
@@ -1148,9 +1158,19 @@ function ProfitLoss({ tenantId }) {
             <PLRow label="Total Cost of Goods" value={data.totalCogs} color="#f44336" bold separator />
             <PLRow label="GROSS PROFIT" value={data.grossProfit} color={data.grossProfit >= 0 ? '#1a7a4a' : '#f44336'} bold separator />
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #fff3e0' }}>OPERATING EXPENSES</p>
-            <PLRow label="Rider Field Expenses" value={data.totalRiderExpenses} color="#e65100" indent />
-            <PLRow label="Office Expenses" value={data.totalOfficeExpenses} color="#e65100" indent />
-            <PLRow label="Salaries Paid" value={data.totalSalaries} color="#e65100" indent />
+            {/* Rider Field Expenses by type */}
+            {Object.entries(data.riderByCategory || {}).map(([cat, amt]) => (
+              <PLRow key={'r-'+cat} label={`🚴 ${cat.charAt(0).toUpperCase() + cat.slice(1)}`} value={amt} color="#e65100" indent />
+            ))}
+
+            {/* Office Expenses by category */}
+            {Object.entries(data.officeByCategory || {}).map(([cat, amt]) => (
+              <PLRow key={'o-'+cat} label={`🏢 ${cat.charAt(0).toUpperCase() + cat.slice(1)}`} value={amt} color="#e65100" indent />
+            ))}
+
+            {/* Salaries */}
+            {data.totalSalaries > 0 && <PLRow label="💼 Salaries Paid" value={data.totalSalaries} color="#e65100" indent />}
+
             <PLRow label="Total Operating Expenses" value={data.totalOperatingExpenses} color="#e65100" bold separator />
           </div>
           <div style={{ background: data.netProfit >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
