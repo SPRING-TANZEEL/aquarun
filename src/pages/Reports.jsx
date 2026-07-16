@@ -1044,22 +1044,77 @@ function ProfitLoss({ tenantId }) {
 
   async function fetchPL() {
     setLoading(true)
-    const { data: deliveries } = await supabase.from('deliveries').select('total_amount').eq('tenant_id', tenantId).gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59').eq('is_voided', false)
+
+    // ── REVENUE — from deliveries ──
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('total_amount').eq('tenant_id', tenantId)
+      .eq('is_voided', false)
+      .gte('delivered_at', dateFrom + 'T00:00:00')
+      .lte('delivered_at', dateTo + 'T23:59:59')
     const totalRevenue = deliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
-    const { data: productions } = await supabase.from('production_entries').select('total_overhead').eq('tenant_id', tenantId).gte('production_date', dateFrom).lte('production_date', dateTo)
-    const totalProductionOverhead = productions?.reduce((s, p) => s + Number(p.total_overhead), 0) || 0
-    const { data: purchases } = await supabase.from('stock_purchases').select('total_cost').eq('tenant_id', tenantId).gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
+
+    // ── COGS — from journal entries account 5003 ──
+    const { data: cogsLines } = await supabase.from('journal_entry_lines')
+      .select('debit, je:journal_entry_id!inner(entry_date)')
+      .eq('tenant_id', tenantId)
+      .eq('account_code', '5003')
+      .gte('je.entry_date', dateFrom)
+      .lte('je.entry_date', dateTo)
+    const totalCOGS = cogsLines?.reduce((s, l) => s + Number(l.debit || 0), 0) || 0
+
+    // ── RAW MATERIAL PURCHASES ──
+    const { data: purchases } = await supabase.from('stock_purchases')
+      .select('total_cost').eq('tenant_id', tenantId)
+      .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
     const totalPurchaseCost = purchases?.reduce((s, p) => s + Number(p.total_cost), 0) || 0
-    const grossProfit = totalRevenue - totalProductionOverhead - totalPurchaseCost
-    const { data: riderExpenses } = await supabase.from('expenses').select('amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+
+    // ── PRODUCTION OVERHEAD ──
+    const { data: productions } = await supabase.from('production_entries')
+      .select('total_overhead').eq('tenant_id', tenantId)
+      .gte('production_date', dateFrom).lte('production_date', dateTo)
+    const totalProductionOverhead = productions?.reduce((s, p) => s + Number(p.total_overhead), 0) || 0
+
+    const totalCogs = totalCOGS + totalPurchaseCost + totalProductionOverhead
+    const grossProfit = totalRevenue - totalCogs
+
+    // ── RIDER FIELD EXPENSES ──
+    const { data: riderExpenses } = await supabase.from('expenses')
+      .select('amount').eq('tenant_id', tenantId)
+      .eq('is_voided', false)
+      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalRiderExpenses = riderExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const { data: officeExpenses } = await supabase.from('office_expenses').select('amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+
+    // ── OFFICE EXPENSES (excluding salary category — tracked separately) ──
+    const { data: officeExpenses } = await supabase.from('office_expenses')
+      .select('amount').eq('tenant_id', tenantId)
+      .eq('is_voided', false)
+      .neq('category', 'salary')
+      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
     const totalOfficeExpenses = officeExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const { data: salaryPayments } = await supabase.from('salary_payments').select('amount_paid').eq('tenant_id', tenantId).gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
-    const totalSalaries = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+
+    // ── SALARY PAYMENTS (from office_expenses salary category) ──
+    const { data: officeSalaries } = await supabase.from('office_expenses')
+      .select('amount').eq('tenant_id', tenantId)
+      .eq('is_voided', false)
+      .eq('category', 'salary')
+      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
+    const totalOfficeSalaries = officeSalaries?.reduce((s, e) => s + Number(e.amount), 0) || 0
+
+    // ── SALARY PAYMENTS from salary_payments table ──
+    const { data: salaryPayments } = await supabase.from('salary_payments')
+      .select('amount_paid').eq('tenant_id', tenantId)
+      .gte('payment_date', dateFrom).lte('payment_date', dateTo)
+    const totalSalaryPayments = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+
+    const totalSalaries = totalOfficeSalaries + totalSalaryPayments
     const totalOperatingExpenses = totalRiderExpenses + totalOfficeExpenses + totalSalaries
     const netProfit = grossProfit - totalOperatingExpenses
-    setData({ totalRevenue, totalProductionOverhead, totalPurchaseCost, grossProfit, totalRiderExpenses, totalOfficeExpenses, totalSalaries, totalOperatingExpenses, netProfit })
+
+    setData({
+      totalRevenue, totalCOGS, totalPurchaseCost, totalProductionOverhead,
+      totalCogs, grossProfit, totalRiderExpenses, totalOfficeExpenses,
+      totalSalaries, totalOperatingExpenses, netProfit
+    })
     setLoading(false)
   }
 
@@ -1087,20 +1142,21 @@ function ProfitLoss({ tenantId }) {
             <PLRow label="Sales Revenue" value={data.totalRevenue} color="#1a7a4a" indent />
             <PLRow label="Total Revenue" value={data.totalRevenue} color="#1a7a4a" bold separator />
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#f44336', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #ffebee' }}>COST OF GOODS</p>
-            <PLRow label="Raw Material Purchases" value={data.totalPurchaseCost} color="#f44336" indent />
-            <PLRow label="Production Overhead" value={data.totalProductionOverhead} color="#f44336" indent />
-            <PLRow label="Total Cost of Goods" value={data.totalPurchaseCost + data.totalProductionOverhead} color="#f44336" bold separator />
+            {data.totalCOGS > 0 && <PLRow label="Cost of Goods Sold" value={data.totalCOGS} color="#f44336" indent />}
+            {data.totalPurchaseCost > 0 && <PLRow label="Raw Material Purchases" value={data.totalPurchaseCost} color="#f44336" indent />}
+            {data.totalProductionOverhead > 0 && <PLRow label="Production Overhead" value={data.totalProductionOverhead} color="#f44336" indent />}
+            <PLRow label="Total Cost of Goods" value={data.totalCogs} color="#f44336" bold separator />
             <PLRow label="GROSS PROFIT" value={data.grossProfit} color={data.grossProfit >= 0 ? '#1a7a4a' : '#f44336'} bold separator />
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #fff3e0' }}>OPERATING EXPENSES</p>
             <PLRow label="Rider Field Expenses" value={data.totalRiderExpenses} color="#e65100" indent />
             <PLRow label="Office Expenses" value={data.totalOfficeExpenses} color="#e65100" indent />
-            <PLRow label="Rider Salaries Paid" value={data.totalSalaries} color="#e65100" indent />
+            <PLRow label="Salaries Paid" value={data.totalSalaries} color="#e65100" indent />
             <PLRow label="Total Operating Expenses" value={data.totalOperatingExpenses} color="#e65100" bold separator />
           </div>
           <div style={{ background: data.netProfit >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
             <p style={{ fontSize: '14px', opacity: 0.8, margin: '0 0 8px' }}>NET PROFIT / (LOSS)</p>
             <p style={{ fontSize: '44px', fontWeight: '700', margin: '0 0 6px' }}>{data.netProfit < 0 ? '−' : ''} Rs. {Math.abs(data.netProfit).toLocaleString()}</p>
-            <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>Revenue Rs. {data.totalRevenue.toLocaleString()} − COGS Rs. {(data.totalPurchaseCost + data.totalProductionOverhead).toLocaleString()} − Expenses Rs. {data.totalOperatingExpenses.toLocaleString()}</p>
+            <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>Revenue Rs. {data.totalRevenue.toLocaleString()} − COGS Rs. {(data.totalCogs || 0).toLocaleString()} − Expenses Rs. {data.totalOperatingExpenses.toLocaleString()}</p>
           </div>
         </div>
       )}
