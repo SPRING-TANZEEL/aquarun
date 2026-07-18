@@ -37,8 +37,21 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   function t(en, ur) { return lang === 'ur' ? ur : en }
 
   useEffect(() => {
-    if (tenantId) fetchProducts()
+    if (tenantId) {
+      fetchProducts()
+      fetchAndCacheCustomers()
+    }
   }, [tenantId])
+
+  useEffect(() => {
+    // Load cached customers when going offline
+    if (!isOnline) {
+      const cached = localStorage.getItem('cached_customers_' + tenantId)
+      if (cached) setCustomers(JSON.parse(cached))
+    } else {
+      fetchAndCacheCustomers()
+    }
+  }, [isOnline, tenantId])
 
   useEffect(() => {
     if (preSelectedCustomer) {
@@ -48,6 +61,16 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       setSubTab('customer')
     }
   }, [preSelectedCustomer])
+
+  async function fetchAndCacheCustomers() {
+    if (!isOnline) return
+    const { data } = await supabase.from('customers')
+      .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
+    if (data) {
+      localStorage.setItem('cached_customers_' + tenantId, JSON.stringify(data))
+      setCustomers(data)
+    }
+  }
 
   async function fetchProducts() {
     const { data } = await supabase.from('products')
@@ -64,7 +87,18 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   async function searchCustomer(val) {
     setSearch(val)
     if (val.length < 2) { setSearchResults([]); return }
-    if (!isOnline) { setSearchResults([]); return }
+
+    if (!isOnline) {
+      // Search from cached customers
+      const filtered = customers.filter(c =>
+        c.full_name?.toLowerCase().includes(val.toLowerCase()) ||
+        c.mobile?.includes(val) ||
+        c.customer_code?.toLowerCase().includes(val.toLowerCase())
+      ).slice(0, 5)
+      setSearchResults(filtered)
+      return
+    }
+
     const { data } = await supabase.from('customers')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
@@ -505,8 +539,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   </div>
                 </div>
               ))}
-              {!isOnline && (
-                <p style={{ fontSize: '12px', color: '#aaa', textAlign: 'center', margin: '12px 0 0' }}>{t('Customer search not available offline', 'آف لائن میں کسٹمر تلاش دستیاب نہیں')}</p>
+              {!isOnline && customers.length === 0 && (
+                <p style={{ fontSize: '12px', color: '#aaa', textAlign: 'center', margin: '12px 0 0' }}>{t('No cached customers — please connect to internet first', 'پہلے انٹرنیٹ سے جڑیں')}</p>
               )}
             </div>
           )}
