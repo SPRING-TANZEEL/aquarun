@@ -7,6 +7,7 @@ const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
 export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustomer, onClearPreSelected, isOnline, dbReady, lang = 'en' }) {
   const [subTab, setSubTab] = useState('customer')
+  const [customers, setCustomers] = useState([])
   const [search, setSearch] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [selectedCustomer, setSelectedCustomer] = useState(null)
@@ -46,8 +47,12 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   useEffect(() => {
     // Load cached customers when going offline
     if (!isOnline) {
-      const cached = localStorage.getItem('cached_customers_' + tenantId)
-      if (cached) setCustomers(JSON.parse(cached))
+      try {
+        const cached = localStorage.getItem('cached_customers_' + tenantId)
+        if (cached) setCustomers(JSON.parse(cached))
+      } catch (err) {
+        console.error('Cache parse error:', err)
+      }
     } else {
       fetchAndCacheCustomers()
     }
@@ -89,8 +94,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     if (val.length < 2) { setSearchResults([]); return }
 
     if (!isOnline) {
-      // Search from cached customers
-      const filtered = customers.filter(c =>
+      const filtered = (customers || []).filter(c =>
         c.full_name?.toLowerCase().includes(val.toLowerCase()) ||
         c.mobile?.includes(val) ||
         c.customer_code?.toLowerCase().includes(val.toLowerCase())
@@ -521,7 +525,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               <input value={search} onChange={e => searchCustomer(e.target.value)}
                 placeholder={t('Name, mobile or customer ID...', 'نام، موبائل یا ID...')}
                 style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
-              {searchResults.map(c => (
+              {(searchResults || []).map(c => (
                 <div key={c.id} onClick={() => selectCustomer(c)}
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}>
                   <div>
