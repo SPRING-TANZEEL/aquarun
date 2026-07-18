@@ -817,7 +817,7 @@ function BulkWhatsAppShare({ tenantId }) {
                 <p style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 2px', color: balance > 0 ? '#f44336' : balance < 0 ? '#1a7a4a' : '#888' }}>
                   {balance > 0 ? `Rs. ${balance.toLocaleString()}` : balance < 0 ? `Rs. ${Math.abs(balance).toLocaleString()} CR` : 'Clear'}
                 </p>
-                <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{c.customer_code}</p>
+                <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{c.mobile}{c.address ? ` · ${c.address}` : ` · ${c.customer_code}`}</p>
               </div>
             </div>
           )
