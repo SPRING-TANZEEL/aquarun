@@ -905,7 +905,7 @@ function ReceivablesAgeing({ tenantId }) {
             <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #f0f0f0' }}>
               <div>
                 <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{c.full_name}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile}{c.address ? ` · ${c.address}` : ` · ${c.customer_code}`}</p>
               </div>
               <div style={{ textAlign: 'right' }}>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: '#f44336', margin: '0 0 2px' }}>Rs. {Number(c.balance).toLocaleString()}</p>
