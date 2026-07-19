@@ -269,10 +269,6 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       voided_by: 'Admin', void_reason: 'JazzCash rejected — ' + rejectReason
     }).eq('id', entry.id).eq('tenant_id', tenantId)
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    if (entry.customer_id) {
-      const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).eq('tenant_id', tenantId).single()
-      if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) - Number(entry.total_amount) }).eq('id', entry.customer_id).eq('tenant_id', tenantId)
-    }
     setRejectingId(null); setRejectReason(''); setRejectType(null)
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
     alert('❌ JazzCash delivery rejected and voided.')

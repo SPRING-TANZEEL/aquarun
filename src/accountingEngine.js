@@ -312,11 +312,14 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
     // Use custom COA account if provided, otherwise use category mapping
-    const expenseAcc = expense._customAccount
-      ? { code: expense._customAccount.code, name: expense._customAccount.name }
-      : (expense.coa_account_code
-        ? { code: expense.coa_account_code, name: expense.coa_account_name }
-        : getExpenseAccount(expense.category))
+    // Salary payments settle the payable — DR 2100, not expense account
+    const expenseAcc = expense.category === 'salary'
+      ? { code: '2100', name: 'Salary Payable' }
+      : expense._customAccount
+        ? { code: expense._customAccount.code, name: expense._customAccount.name }
+        : (expense.coa_account_code
+          ? { code: expense.coa_account_code, name: expense.coa_account_name }
+          : getExpenseAccount(expense.category))
     const cashAcc = getCashAccount(expense.payment_method || 'cash')
 
     const lines = [
