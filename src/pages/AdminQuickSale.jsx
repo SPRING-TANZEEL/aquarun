@@ -6,7 +6,7 @@ const RATES_19L = [90, 100, 110, 120, 150, 160, 170, 180]
 
 export default function AdminQuickSale({ tenantId }) {
   const [mode, setMode] = useState('sale')
-  const [products, setProducts] = useState([]) // all saleable products from DB
+  const [products, setProducts] = useState([])
   const [quantities, setQuantities] = useState({})
   const [rates, setRates] = useState({})
   const [qty19l, setQty19l] = useState(1)
@@ -31,13 +31,43 @@ export default function AdminQuickSale({ tenantId }) {
   const [paymentSearchResults, setPaymentSearchResults] = useState([])
   const [paymentCustomer, setPaymentCustomer] = useState(null)
   const [paymentNotes, setPaymentNotes] = useState('')
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [cachedCustomers, setCachedCustomers] = useState([])
+  const [pendingSalesCount, setPendingSalesCount] = useState(0)
 
   useEffect(() => {
-    if (tenantId) { fetchProducts(); fetchSettings() }
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tenantId) { fetchProducts(); fetchSettings(); fetchAndCacheCustomers() }
     const handleResize = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [tenantId])
+
+  useEffect(() => {
+    if (!isOnline) {
+      try {
+        const cached = localStorage.getItem('admin_cached_customers_' + tenantId)
+        if (cached) setCachedCustomers(JSON.parse(cached))
+      } catch (err) { console.error('Cache error:', err) }
+    } else {
+      fetchAndCacheCustomers()
+      syncOfflineData()
+    }
+    // Update pending count
+    const sales = JSON.parse(localStorage.getItem('admin_pending_sales_' + tenantId) || '[]')
+    const payments = JSON.parse(localStorage.getItem('admin_pending_payments_' + tenantId) || '[]')
+    setPendingSalesCount(sales.length + payments.length)
+  }, [isOnline, tenantId])
 
   async function fetchSettings() {
     const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
@@ -46,10 +76,60 @@ export default function AdminQuickSale({ tenantId }) {
     setSettings(map)
   }
 
+  async function fetchAndCacheCustomers() {
+    if (!isOnline) return
+    const { data } = await supabase.from('customers')
+      .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
+    if (data) {
+      localStorage.setItem('admin_cached_customers_' + tenantId, JSON.stringify(data))
+      setCachedCustomers(data)
+    }
+  }
+
+  async function syncOfflineData() {
+    if (!isOnline) return
+    const offlineSales = JSON.parse(localStorage.getItem('admin_pending_sales_' + tenantId) || '[]')
+    let syncedSales = 0
+    for (const sale of offlineSales) {
+      const { _offlineId, _savedAt, ...deliveryData } = sale
+      try {
+        const { data: saved } = await supabase.from('deliveries').insert([deliveryData]).select().single()
+        if (saved) {
+          const { postDeliveryJournal } = await import('../accountingEngine')
+          await postDeliveryJournal(saved, saved.customer_id, tenantId, false)
+          syncedSales++
+        }
+      } catch (err) { console.error('Sync sale error:', err) }
+    }
+    if (syncedSales > 0) {
+      localStorage.removeItem('admin_pending_sales_' + tenantId)
+    }
+
+    const offlinePayments = JSON.parse(localStorage.getItem('admin_pending_payments_' + tenantId) || '[]')
+    let syncedPayments = 0
+    for (const payment of offlinePayments) {
+      const { _offlineId, _savedAt, ...paymentData } = payment
+      try {
+        const { data: saved } = await supabase.from('payments').insert([paymentData]).select().single()
+        if (saved) {
+          const { postPaymentJournal } = await import('../accountingEngine')
+          await postPaymentJournal(saved, tenantId, false)
+          syncedPayments++
+        }
+      } catch (err) { console.error('Sync payment error:', err) }
+    }
+    if (syncedPayments > 0) {
+      localStorage.removeItem('admin_pending_payments_' + tenantId)
+    }
+
+    const total = syncedSales + syncedPayments
+    if (total > 0) {
+      setPendingSalesCount(0)
+      alert(`✅ ${total} offline transaction(s) synced successfully!`)
+    }
+  }
+
   async function fetchProducts() {
-    // Fetch all saleable products EXCEPT 19L (hardcoded)
-    // Products with bottle_type = 'half_litre' or '1_5l' show as main bottle options
-    // All others show as extra products
     const { data } = await supabase.from('products')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -65,9 +145,18 @@ export default function AdminQuickSale({ tenantId }) {
     setQuantities(q); setRates(r)
   }
 
+  function searchFromCache(val) {
+    return (cachedCustomers || []).filter(c =>
+      c.full_name?.toLowerCase().includes(val.toLowerCase()) ||
+      c.mobile?.includes(val) ||
+      c.customer_code?.toLowerCase().includes(val.toLowerCase())
+    ).slice(0, 5)
+  }
+
   async function searchCustomer(val) {
     setCustomerSearch(val)
     if (val.length < 2) { setCustomerResults([]); return }
+    if (!isOnline) { setCustomerResults(searchFromCache(val)); return }
     const { data } = await supabase.from('customers').select('*')
       .eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
@@ -77,6 +166,7 @@ export default function AdminQuickSale({ tenantId }) {
   async function searchPaymentCustomer(val) {
     setPaymentSearch(val)
     if (val.length < 2) { setPaymentSearchResults([]); return }
+    if (!isOnline) { setPaymentSearchResults(searchFromCache(val)); return }
     const { data } = await supabase.from('customers').select('*')
       .eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
@@ -88,7 +178,6 @@ export default function AdminQuickSale({ tenantId }) {
     setCustomerResults([])
     setCustomerName('')
     if (c.rate_19l) setRate19l(Number(c.rate_19l))
-    // Set rates for bottle-type products from customer rates
     const newRates = { ...rates }
     products.forEach(p => {
       if (p.bottle_type === 'half_litre' && c.rate_half_litre) newRates[p.id] = Number(c.rate_half_litre)
@@ -97,11 +186,8 @@ export default function AdminQuickSale({ tenantId }) {
     setRates(newRates)
   }
 
-  // Split products into bottle-mapped and extra
   const bottleProducts = products.filter(p => p.bottle_type === 'half_litre' || p.bottle_type === '1_5l')
   const extraProducts = products.filter(p => !p.bottle_type)
-
-  // Calculate totals
   const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * (rates[p.id] || 0), 0)
   const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * (rates[p.id] || 0), 0)
   const subTotal = (qty19l * (rate19l || 0)) + bottleTotal + extraTotal
@@ -109,7 +195,6 @@ export default function AdminQuickSale({ tenantId }) {
   const taxAmount = Math.round(subTotal * taxRate / 100 * 100) / 100
   const total = subTotal + taxAmount
 
-  // Helper: get qty_half_litre and qty_1_5l from bottle products
   function getBottleQtys() {
     let qtyHalf = 0, qty15l = 0
     bottleProducts.forEach(p => {
@@ -128,6 +213,25 @@ export default function AdminQuickSale({ tenantId }) {
     const amount = Number(paymentAmount)
     const isJazz = paymentMethodReceipt === 'jazzcash'
 
+    if (!isOnline) {
+      const offlinePayments = JSON.parse(localStorage.getItem('admin_pending_payments_' + tenantId) || '[]')
+      offlinePayments.push({
+        tenant_id: tenantId, customer_id: paymentCustomer.id,
+        amount, payment_method: paymentMethodReceipt,
+        payment_date: new Date().toISOString().split('T')[0],
+        jazzcash_confirmed: !isJazz,
+        notes: paymentNotes || `Payment received from ${paymentCustomer.full_name}`,
+        is_voided: false, rider_id: null,
+        _offlineId: 'offline-' + Date.now(), _savedAt: new Date().toISOString()
+      })
+      localStorage.setItem('admin_pending_payments_' + tenantId, JSON.stringify(offlinePayments))
+      setPendingSalesCount(offlinePayments.length)
+      setSuccess({ type: 'payment', name: paymentCustomer.full_name, amount, method: paymentMethodReceipt, savedOffline: true })
+      setPaymentCustomer(null); setPaymentSearch(''); setPaymentAmount(''); setPaymentNotes('')
+      setSaving(false)
+      return
+    }
+
     const { data: savedPayment, error } = await supabase.from('payments').insert([{
       tenant_id: tenantId,
       customer_id: paymentCustomer.id,
@@ -137,7 +241,7 @@ export default function AdminQuickSale({ tenantId }) {
       jazzcash_confirmed: !isJazz,
       notes: paymentNotes || `Payment received from ${paymentCustomer.full_name}`,
       is_voided: false,
-      rider_id: null // admin entry
+      rider_id: null
     }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
@@ -150,7 +254,7 @@ export default function AdminQuickSale({ tenantId }) {
 
     try {
       const { postPaymentJournal } = await import('../accountingEngine')
-      await postPaymentJournal(savedPayment, tenantId, false) // false = admin entry → DR 1001 Cash
+      await postPaymentJournal(savedPayment, tenantId, false)
     } catch (err) { console.error('Journal error:', err) }
 
     setSuccess({
@@ -185,7 +289,7 @@ export default function AdminQuickSale({ tenantId }) {
     const deliveryData = {
       tenant_id: tenantId,
       customer_id: selectedCustomer?.id || null,
-      rider_id: null, // admin entry
+      rider_id: null,
       qty_19l: qty19l,
       qty_half_litre: qtyHalf,
       qty_1_5l: qty15l,
@@ -204,22 +308,34 @@ export default function AdminQuickSale({ tenantId }) {
       total_with_tax: total
     }
 
+    // ── OFFLINE MODE ──
+    if (!isOnline) {
+      const offlineSales = JSON.parse(localStorage.getItem('admin_pending_sales_' + tenantId) || '[]')
+      offlineSales.push({ ...deliveryData, _offlineId: 'offline-' + Date.now(), _savedAt: new Date().toISOString() })
+      localStorage.setItem('admin_pending_sales_' + tenantId, JSON.stringify(offlineSales))
+      setPendingSalesCount(offlineSales.length)
+      setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), savedOffline: true })
+      setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
+      setSaleDate(new Date().toISOString().split('T')[0])
+      setSelectedCustomer(null); setCustomerSearch('')
+      await fetchProducts()
+      setSaving(false)
+      return
+    }
+
     const { data: savedDelivery, error } = await supabase.from('deliveries').insert([deliveryData]).select().single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-    // Deduct stock + post COGS for ALL sold products (bottle-mapped + extra)
     const allSoldProducts = products.filter(p => (quantities[p.id] || 0) > 0)
     for (const p of allSoldProducts) {
       const qtySold = quantities[p.id]
       const avgCost = Number(p.average_cost || p.purchase_price || 0)
       const cogsCost = qtySold * avgCost
 
-      // Reduce stock
       await supabase.from('products')
         .update({ current_stock: Math.max(0, Number(p.current_stock || 0) - qtySold) })
         .eq('id', p.id).eq('tenant_id', tenantId)
 
-      // Post COGS journal for finished goods
       if (p.product_type === 'finished_good' && cogsCost > 0) {
         try {
           const { data: je } = await supabase.from('journal_entries').insert([{
@@ -256,13 +372,12 @@ export default function AdminQuickSale({ tenantId }) {
 
     try {
       const { postDeliveryJournal } = await import('../accountingEngine')
-      await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false) // false = admin → DR 1001
+      await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
     } catch (err) { console.error('Journal post error:', err) }
 
     setLastDelivery({ ...savedDelivery, tax_amount: taxAmount, total_with_tax: total })
     setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id })
 
-    // Reset
     setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
     setSaleDate(new Date().toISOString().split('T')[0])
     setSelectedCustomer(null); setCustomerSearch('')
@@ -300,6 +415,22 @@ export default function AdminQuickSale({ tenantId }) {
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Walk-in sales and customer payment receipts</p>
       </div>
 
+      {/* Offline banner */}
+      {!isOnline && (
+        <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '10px 14px', marginBottom: '14px' }}>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>📵 Offline Mode</p>
+          <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>Sales and payments will be saved locally and synced when internet returns.</p>
+        </div>
+      )}
+
+      {/* Pending sync banner */}
+      {pendingSalesCount > 0 && isOnline && (
+        <div style={{ background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '10px', padding: '10px 14px', marginBottom: '14px' }}>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>⏳ {pendingSalesCount} offline transaction(s) pending sync</p>
+          <button onClick={syncOfflineData} style={{ padding: '4px 12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>Sync Now</button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
         <button onClick={() => { setMode('sale'); setSuccess(null) }}
           style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: mode === 'sale' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'sale' ? '#0f4c81' : 'white', color: mode === 'sale' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -319,15 +450,17 @@ export default function AdminQuickSale({ tenantId }) {
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
           {success.type === 'payment' ? (
             <>
-              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Payment Received!</p>
+              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>{success.savedOffline ? '📵 Payment Saved Offline!' : '✅ Payment Received!'}</p>
+              {success.savedOffline && <p style={{ fontSize: '12px', color: '#e65100', margin: '0 0 4px', fontWeight: '600' }}>Will sync when internet returns</p>}
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.name}</p>
               <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>Rs. {success.amount.toLocaleString()} — {success.method === 'jazzcash' ? '📱 JazzCash' : '💵 Cash'}</p>
-              {success.jazzPending && <p style={{ fontSize: '12px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>⚠️ JazzCash — confirm in reconciliation to update balance</p>}
-              {!success.jazzPending && <p style={{ fontSize: '12px', color: '#555', margin: '4px 0 0' }}>New balance: <strong style={{ color: success.newBalance > 0 ? '#f44336' : '#1a7a4a' }}>Rs. {Math.abs(success.newBalance).toLocaleString()} {success.newBalance > 0 ? 'outstanding' : success.newBalance < 0 ? 'advance' : 'clear'}</strong></p>}
+              {!success.savedOffline && success.jazzPending && <p style={{ fontSize: '12px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>⚠️ JazzCash — confirm in reconciliation to update balance</p>}
+              {!success.savedOffline && !success.jazzPending && <p style={{ fontSize: '12px', color: '#555', margin: '4px 0 0' }}>New balance: <strong style={{ color: success.newBalance > 0 ? '#f44336' : '#1a7a4a' }}>Rs. {Math.abs(success.newBalance).toLocaleString()} {success.newBalance > 0 ? 'outstanding' : success.newBalance < 0 ? 'advance' : 'clear'}</strong></p>}
             </>
           ) : (
             <>
-              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Sale Posted!</p>
+              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>{success.savedOffline ? '📵 Sale Saved Offline!' : '✅ Sale Posted!'}</p>
+              {success.savedOffline && <p style={{ fontSize: '12px', color: '#e65100', margin: '0 0 4px', fontWeight: '600' }}>Will sync automatically when internet returns</p>}
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.name}</p>
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 4px' }}>{success.desc}</p>
               <p style={{ fontSize: '15px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {success.total.toLocaleString()} — {success.paymentMethod}</p>
@@ -366,6 +499,7 @@ export default function AdminQuickSale({ tenantId }) {
             ) : (
               <div>
                 <input value={paymentSearch} onChange={e => searchPaymentCustomer(e.target.value)} placeholder="Search by name, mobile or customer ID..." style={inp} />
+                {!isOnline && cachedCustomers.length === 0 && <p style={{ fontSize: '11px', color: '#aaa', margin: '6px 0 0' }}>Connect to internet to load customers</p>}
                 {paymentSearchResults.length > 0 && (
                   <div style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', marginTop: '4px' }}>
                     {paymentSearchResults.map(c => (
@@ -474,14 +608,15 @@ export default function AdminQuickSale({ tenantId }) {
                 <div>
                   {paymentMethod !== 'credit' && <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in name (optional)" style={{ ...inp, marginBottom: '8px' }} />}
                   <input value={customerSearch} onChange={e => searchCustomer(e.target.value)} placeholder="Search by name, mobile or ID..." style={inp} />
+                  {!isOnline && cachedCustomers.length === 0 && <p style={{ fontSize: '11px', color: '#aaa', margin: '6px 0 0' }}>Connect to internet to load customers</p>}
                   {customerResults.length > 0 && (
                     <div style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', marginTop: '4px' }}>
                       {customerResults.map(c => (
                         <div key={c.id} onClick={() => selectCustomer(c)} style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white' }}>
                           <div>
                             <p style={{ fontWeight: '600', fontSize: '13px', margin: '0 0 1px' }}>{c.full_name}</p>
-                          <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
-                          {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
+                            <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
+                            {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <p style={{ fontSize: '12px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: '0 0 2px' }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
@@ -577,7 +712,7 @@ export default function AdminQuickSale({ tenantId }) {
               {rate19l && qty19l > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700', margin: '8px 0 0', textAlign: 'center', background: '#e3f0ff', padding: '8px', borderRadius: '8px' }}>{qty19l} × Rs.{rate19l} = <strong>Rs. {(qty19l * rate19l).toLocaleString()}</strong></p>}
             </div>
 
-            {/* Bottle-mapped products (half litre, 1.5L etc from DB) */}
+            {/* Bottle-mapped products */}
             {bottleProducts.map(p => (
               <div key={p.id} style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -605,7 +740,7 @@ export default function AdminQuickSale({ tenantId }) {
               </div>
             ))}
 
-            {/* Extra products (trading items, no bottle_type) */}
+            {/* Extra products */}
             {extraProducts.length > 0 && (
               <div style={card}>
                 <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Other Products</p>
