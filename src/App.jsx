@@ -87,7 +87,13 @@ export default function App() {
 
     // Admin login
     if (username.toLowerCase() === 'admin') {
-      if (password === tenant.admin_password) {
+      const verifyRes = await fetch('/api/verify-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantCode, password })
+      })
+      const verifyData = await verifyRes.json()
+      if (verifyData.success) {
         localStorage.setItem('aquarun_tenant_id', tenantUUID)
         localStorage.setItem('aquarun_role', 'admin')
         localStorage.setItem('aquarun_user', JSON.stringify({ full_name: 'Admin', name: 'Admin' }))
@@ -97,7 +103,8 @@ export default function App() {
         setLogging(false)
         return
       } else {
-        setLoginError('Invalid password')
+         setLoginError('Invalid password')
+      }
         setLogging(false)
         return
       }

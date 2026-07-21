@@ -27,10 +27,14 @@ export default function SuperAdminDashboard({ onLogout }) {
     }
     setSaving(true)
 
+    // Hash password using pgcrypto before saving
+    const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
+    const hashedPassword = hashData || form.admin_password
+
     const { data: newTenant, error } = await supabase.from('tenants').insert([{
-      tenant_code: form.tenant_code.toUpperCase(),
+      tenant_code: form.tenant_code,
       business_name: form.business_name,
-      admin_password: form.admin_password,
+      admin_password: hashedPassword,
       plan: form.plan,
       setup_fee: Number(form.setup_fee) || 0,
       monthly_fee: Number(form.monthly_fee) || 0,
