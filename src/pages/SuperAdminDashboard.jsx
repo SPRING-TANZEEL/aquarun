@@ -135,37 +135,6 @@ export default function SuperAdminDashboard({ onLogout }) {
     alert("Transaction password set!\n\nBusiness: " + tenant.business_name + "\nPassword: " + newPass.trim() + "\n\nShare ONLY with business owner.")
   }
 
-  async function deleteTenant(tenant) {
-    if (tenant.tenant_code === "SW001") return alert("Cannot delete your own business")
-    if (!window.confirm("DELETE " + tenant.business_name + "?\n\nThis permanently deletes ALL data. Cannot be undone.")) return
-    if (!window.confirm("Final confirmation - delete " + tenant.business_name + " permanently?")) return
-    const tid = tenant.id
-    try {
-      await supabase.from("bill_of_materials").delete().eq("tenant_id", tid)
-      const { data: pe } = await supabase.from("production_entries").select("id").eq("tenant_id", tid)
-      if (pe?.length > 0) await supabase.from("production_consumption").delete().in("production_entry_id", pe.map(p => p.id))
-      await supabase.from("production_entries").delete().eq("tenant_id", tid)
-      await supabase.from("journal_entry_lines").delete().eq("tenant_id", tid)
-      await supabase.from("journal_entries").delete().eq("tenant_id", tid)
-      await supabase.from("deliveries").delete().eq("tenant_id", tid)
-      await supabase.from("payments").delete().eq("tenant_id", tid)
-      await supabase.from("orders").delete().eq("tenant_id", tid)
-      await supabase.from("expenses").delete().eq("tenant_id", tid)
-      await supabase.from("office_expenses").delete().eq("tenant_id", tid)
-      await supabase.from("cash_transfers").delete().eq("tenant_id", tid)
-      await supabase.from("salary_advances").delete().eq("tenant_id", tid)
-      await supabase.from("salary_payments").delete().eq("tenant_id", tid)
-      await supabase.from("stock_purchases").delete().eq("tenant_id", tid)
-      await supabase.from("customers").delete().eq("tenant_id", tid)
-      await supabase.from("riders").delete().eq("tenant_id", tid)
-      await supabase.from("products").delete().eq("tenant_id", tid)
-      await supabase.from("chart_of_accounts").delete().eq("tenant_id", tid)
-      await supabase.from("business_settings").delete().eq("tenant_id", tid)
-      await supabase.from("tenants").delete().eq("id", tid)
-      alert(tenant.business_name + " deleted successfully.")
-      fetchTenants()
-    } catch (err) { alert("Error: " + err.message) }
-  }
 
   async function toggleActive(tenant) {
     if (tenant.tenant_code === 'SW001') return alert('Cannot deactivate your own business')
@@ -192,7 +161,8 @@ export default function SuperAdminDashboard({ onLogout }) {
     if (!newPass || newPass.trim().length < 4) return alert('Password must be at least 4 characters')
     const { data: hashData } = await supabase.rpc('hash_password', { password_input: newPass.trim() })
     const hashedPassword = hashData || newPass.trim()
-    await supabase.from('tenants').update({ admin_password: hashedPassword }).eq('id', tenant.id)
+    const { error } = await supabase.from('tenants').update({ admin_password: hashedPassword }).eq('id', tenant.id)
+    if (error) return alert('Error saving password: ' + error.message)
     alert(`✅ Password reset!\n\nBusiness ID: ${tenant.tenant_code}\nNew Password: ${newPass.trim()}`)
     fetchTenants()
   }
@@ -210,6 +180,7 @@ export default function SuperAdminDashboard({ onLogout }) {
   }
 
   async function deleteTenant(tenant) {
+    if (tenant.tenant_code === 'SW001') return alert('Cannot delete your own business')
     if (!window.confirm(`DELETE ${tenant.business_name}?\n\nThis will permanently delete ALL data. This cannot be undone.`)) return
     if (!window.confirm(`Final confirmation — delete ${tenant.business_name} permanently?`)) return
 
