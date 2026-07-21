@@ -8,7 +8,6 @@ async function superAdminAction(payload) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-super-secret': import.meta.env.VITE_SUPER_ADMIN_PASSWORD,
     },
     body: JSON.stringify(payload),
   })
