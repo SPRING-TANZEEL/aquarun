@@ -1,12 +1,28 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
+// All mutating SuperAdmin actions go through this server-side route
+// so the service role key bypasses RLS on the tenants table.
+async function superAdminAction(payload) {
+  const res = await fetch('/api/super-admin-actions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-super-secret': import.meta.env.VITE_SUPER_ADMIN_PASSWORD,
+    },
+    body: JSON.stringify(payload),
+  })
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Server error')
+  return data
+}
+
 export default function SuperAdminDashboard({ onLogout }) {
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editTenant, setEditTenant] = useState(null) // for edit modal
+  const [editTenant, setEditTenant] = useState(null)
   const [form, setForm] = useState({
     tenant_code: '', business_name: '', admin_password: '',
     plan: 'basic', setup_fee: '', monthly_fee: '', notes: ''
@@ -27,7 +43,6 @@ export default function SuperAdminDashboard({ onLogout }) {
     }
     setSaving(true)
 
-    // Hash password using pgcrypto before saving
     const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
     const hashedPassword = hashData || form.admin_password
 
@@ -103,7 +118,6 @@ export default function SuperAdminDashboard({ onLogout }) {
       { tenant_id: tenantId, account_code: '6014', account_name: 'Bank Charges', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6015', account_name: 'Printing & Stationery', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6016', account_name: 'Advertising & Marketing', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      // ── NEW ACCOUNTS ──
       { tenant_id: tenantId, account_code: '1004', account_name: 'EasyPaisa Account', account_type: 'asset', account_subtype: 'cash', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1101', account_name: 'Receivable from Riders', account_type: 'asset', account_subtype: 'receivable', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '1102', account_name: 'JazzCash Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
@@ -126,20 +140,21 @@ export default function SuperAdminDashboard({ onLogout }) {
     await supabase.from('business_settings').insert(settings)
   }
 
-
   async function setTransactionPassword(tenant) {
     const newPass = prompt("Set Transaction Password for " + tenant.business_name + "\n\nThis password is required to void or restore any transaction.\nShare ONLY with business owner.\n\nEnter new transaction password:")
     if (!newPass || newPass.trim().length < 4) return alert("Password must be at least 4 characters")
-    const { error } = await supabase.from("tenants").update({ transaction_password: newPass.trim() }).eq("id", tenant.id)
-    if (error) { alert("Error: " + error.message); return }
-    alert("Transaction password set!\n\nBusiness: " + tenant.business_name + "\nPassword: " + newPass.trim() + "\n\nShare ONLY with business owner.")
+    try {
+      await superAdminAction({ action: 'setTransactionPassword', tenantId: tenant.id, txnPassword: newPass.trim() })
+      alert("Transaction password set!\n\nBusiness: " + tenant.business_name + "\nPassword: " + newPass.trim() + "\n\nShare ONLY with business owner.")
+    } catch (e) { alert("Error: " + e.message) }
   }
-
 
   async function toggleActive(tenant) {
     if (tenant.tenant_code === 'SW001') return alert('Cannot deactivate your own business')
-    await supabase.from('tenants').update({ is_active: !tenant.is_active }).eq('id', tenant.id)
-    fetchTenants()
+    try {
+      await superAdminAction({ action: 'toggleActive', tenantId: tenant.id, isActive: !tenant.is_active })
+      fetchTenants()
+    } catch (e) { alert("Error: " + e.message) }
   }
 
   async function recordPayment(tenant) {
@@ -147,70 +162,49 @@ export default function SuperAdminDashboard({ onLogout }) {
     if (!amount || isNaN(amount)) return
     const nextDue = new Date()
     nextDue.setMonth(nextDue.getMonth() + 1)
-    await supabase.from('tenants').update({
-      last_payment_date: new Date().toISOString().split('T')[0],
-      last_payment_amount: Number(amount),
-      next_due_date: nextDue.toISOString().split('T')[0],
-    }).eq('id', tenant.id)
-    fetchTenants()
-    alert('✅ Payment recorded!')
+    try {
+      await superAdminAction({
+        action: 'recordPayment',
+        tenantId: tenant.id,
+        amount: Number(amount),
+        lastPaymentDate: new Date().toISOString().split('T')[0],
+        nextDueDate: nextDue.toISOString().split('T')[0],
+      })
+      fetchTenants()
+      alert('✅ Payment recorded!')
+    } catch (e) { alert("Error: " + e.message) }
   }
 
   async function resetPassword(tenant) {
     const newPass = prompt(`Reset password for ${tenant.business_name}\nEnter new password:`)
     if (!newPass || newPass.trim().length < 4) return alert('Password must be at least 4 characters')
-    const { data: hashData } = await supabase.rpc('hash_password', { password_input: newPass.trim() })
-    const hashedPassword = hashData || newPass.trim()
-    const { error } = await supabase.from('tenants').update({ admin_password: hashedPassword }).eq('id', tenant.id)
-    if (error) return alert('Error saving password: ' + error.message)
-    alert(`✅ Password reset!\n\nBusiness ID: ${tenant.tenant_code}\nNew Password: ${newPass.trim()}`)
-    fetchTenants()
+    try {
+      await superAdminAction({ action: 'resetPassword', tenantId: tenant.id, newPassword: newPass.trim() })
+      alert(`✅ Password reset!\n\nBusiness ID: ${tenant.tenant_code}\nNew Password: ${newPass.trim()}`)
+      fetchTenants()
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
   async function changeBusinessId(tenant) {
     const newId = prompt(`Change Business ID for ${tenant.business_name}\nCurrent ID: ${tenant.tenant_code}\nEnter new Business ID:`)
     if (!newId || newId.trim().length < 3) return alert('Business ID must be at least 3 characters')
     const cleanId = newId.trim().toUpperCase()
-    // Check if already exists
-    const { data: existing } = await supabase.from('tenants').select('id').eq('tenant_code', cleanId).single()
-    if (existing) return alert(`Business ID "${cleanId}" is already taken. Choose a different one.`)
-    await supabase.from('tenants').update({ tenant_code: cleanId }).eq('id', tenant.id)
-    alert(`✅ Business ID changed!\n\nNew Business ID: ${cleanId}\nPassword: unchanged\n\nShare new ID with client.`)
-    fetchTenants()
+    try {
+      await superAdminAction({ action: 'changeBusinessId', tenantId: tenant.id, newCode: cleanId })
+      alert(`✅ Business ID changed!\n\nNew Business ID: ${cleanId}\nPassword: unchanged\n\nShare new ID with client.`)
+      fetchTenants()
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
   async function deleteTenant(tenant) {
     if (tenant.tenant_code === 'SW001') return alert('Cannot delete your own business')
     if (!window.confirm(`DELETE ${tenant.business_name}?\n\nThis will permanently delete ALL data. This cannot be undone.`)) return
     if (!window.confirm(`Final confirmation — delete ${tenant.business_name} permanently?`)) return
-
-    const tid = tenant.id
-    await supabase.from('bill_of_materials').delete().eq('tenant_id', tid)
-    const { data: prodEntries } = await supabase.from('production_entries').select('id').eq('tenant_id', tid)
-    if (prodEntries?.length > 0) {
-      await supabase.from('production_consumption').delete().in('production_entry_id', prodEntries.map(p => p.id))
-    }
-    await supabase.from('production_entries').delete().eq('tenant_id', tid)
-    await supabase.from('journal_entry_lines').delete().eq('tenant_id', tid)
-    await supabase.from('journal_entries').delete().eq('tenant_id', tid)
-    await supabase.from('deliveries').delete().eq('tenant_id', tid)
-    await supabase.from('payments').delete().eq('tenant_id', tid)
-    await supabase.from('orders').delete().eq('tenant_id', tid)
-    await supabase.from('expenses').delete().eq('tenant_id', tid)
-    await supabase.from('office_expenses').delete().eq('tenant_id', tid)
-    await supabase.from('cash_transfers').delete().eq('tenant_id', tid)
-    await supabase.from('salary_advances').delete().eq('tenant_id', tid)
-    await supabase.from('salary_payments').delete().eq('tenant_id', tid)
-    await supabase.from('stock_purchases').delete().eq('tenant_id', tid)
-    await supabase.from('customers').delete().eq('tenant_id', tid)
-    await supabase.from('riders').delete().eq('tenant_id', tid)
-    await supabase.from('products').delete().eq('tenant_id', tid)
-    await supabase.from('chart_of_accounts').delete().eq('tenant_id', tid)
-    await supabase.from('business_settings').delete().eq('tenant_id', tid)
-    await supabase.from('tenants').delete().eq('id', tid)
-
-    alert(`✅ ${tenant.business_name} deleted successfully.`)
-    fetchTenants()
+    try {
+      await superAdminAction({ action: 'deleteTenant', tenantId: tenant.id, tenantCode: tenant.tenant_code })
+      alert(`✅ ${tenant.business_name} deleted successfully.`)
+      fetchTenants()
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
   const totalMonthly = tenants.filter(t => t.is_active && t.tenant_code !== 'SW001').reduce((s, t) => s + Number(t.monthly_fee || 0), 0)
