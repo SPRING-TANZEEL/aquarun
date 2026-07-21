@@ -190,7 +190,9 @@ export default function SuperAdminDashboard({ onLogout }) {
   async function resetPassword(tenant) {
     const newPass = prompt(`Reset password for ${tenant.business_name}\nEnter new password:`)
     if (!newPass || newPass.trim().length < 4) return alert('Password must be at least 4 characters')
-    await supabase.from('tenants').update({ admin_password: newPass.trim() }).eq('id', tenant.id)
+    const { data: hashData } = await supabase.rpc('hash_password', { password_input: newPass.trim() })
+    const hashedPassword = hashData || newPass.trim()
+    await supabase.from('tenants').update({ admin_password: hashedPassword }).eq('id', tenant.id)
     alert(`✅ Password reset!\n\nBusiness ID: ${tenant.tenant_code}\nNew Password: ${newPass.trim()}`)
     fetchTenants()
   }

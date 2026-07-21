@@ -62,7 +62,7 @@ export default function App() {
         setLogging(false)
         return
       } else {
-        setLoginError('Invalid super admin password')
+        setLoginError('Invalid password')
         setLogging(false)
         return
       }
