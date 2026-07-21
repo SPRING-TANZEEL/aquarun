@@ -49,7 +49,13 @@ export default function App() {
 
     // Super admin login
     if (tenantCode.toUpperCase() === 'SUPERADMIN') {
-      if (password === 'aquarun@super2026') {
+      const authRes = await fetch('/api/super-auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+      const authData = await authRes.json()
+      if (authData.success) {
         localStorage.setItem('aquarun_role', 'superadmin')
         setRole('superadmin')
         setScreen('superadmin')
@@ -57,6 +63,7 @@ export default function App() {
         return
       } else {
         setLoginError('Invalid super admin password')
+      }
         setLogging(false)
         return
       }
