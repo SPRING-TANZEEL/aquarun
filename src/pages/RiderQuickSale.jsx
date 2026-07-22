@@ -41,6 +41,20 @@ export default function RiderQuickSale({ rider, tenantId }) {
       await postDeliveryJournal(savedDelivery, null, tenantId, true)
     } catch (err) { console.error('Journal error:', err) }
 
+    // Save line item to delivery_items
+    try {
+      await supabase.from('delivery_items').insert([{
+        tenant_id: tenantId,
+        delivery_id: savedDelivery.id,
+        product_id: null,
+        product_name: '19 Litre Water Bottle',
+        bottle_type: '19l',
+        qty: qty,
+        rate: selectedRate,
+        amount: qty * selectedRate
+      }])
+    } catch (err) { console.error('delivery_items error:', err) }
+
     // Generate invoice number
     try {
       const year = new Date().getFullYear()

@@ -295,6 +295,38 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         }
       }
 
+      // Save line items to delivery_items
+      const sellItems = []
+      if (qty19l > 0) sellItems.push({
+        tenant_id: tenantId, delivery_id: savedDelivery.id,
+        product_id: null, product_name: '19 Litre Water Bottle',
+        bottle_type: '19l', qty: qty19l,
+        rate: selectedRate || 0, amount: qty19l * (selectedRate || 0)
+      })
+      bottleProducts.forEach(p => {
+        if ((quantities[p.id] || 0) > 0) {
+          const rate = getBottleRate(p)
+          sellItems.push({
+            tenant_id: tenantId, delivery_id: savedDelivery.id,
+            product_id: p.id, product_name: p.name,
+            bottle_type: p.bottle_type, qty: quantities[p.id],
+            rate, amount: quantities[p.id] * rate
+          })
+        }
+      })
+      extraProducts.forEach(p => {
+        if ((quantities[p.id] || 0) > 0) {
+          const rate = Number(p.sale_price || 0)
+          sellItems.push({
+            tenant_id: tenantId, delivery_id: savedDelivery.id,
+            product_id: p.id, product_name: p.name,
+            bottle_type: null, qty: quantities[p.id],
+            rate, amount: quantities[p.id] * rate
+          })
+        }
+      })
+      if (sellItems.length > 0) await supabase.from('delivery_items').insert(sellItems)
+
       // Post delivery journal — isRiderEntry=true → DR 1101 Receivable from Riders
       try {
         const { postDeliveryJournal, postSalesTaxJournal } = await import('../accountingEngine')

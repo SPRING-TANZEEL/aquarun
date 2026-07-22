@@ -1,33 +1,61 @@
-import { useRef } from 'react'
+import { useRef, useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 
 export default function InvoiceModal({ deliveries, customer, settings, onClose, invoiceNumber, monthlyTotalPaid, monthlyBalanceDue }) {
   const printRef = useRef()
   const thermalRef = useRef()
+  const [lineItems, setLineItems] = useState({}) // { delivery_id: [items] }
+  const [loadingItems, setLoadingItems] = useState(true)
 
-  // Build line items per delivery — pre-tax amounts per line
-  function getLineItems(d) {
-    const items = []
-    if (Number(d.qty_19l || 0) > 0) {
-      const qty = Number(d.qty_19l)
-      const rate = Number(d.rate_applied || customer?.rate_19l || 0)
-      items.push({ name: '19 Litre Water Bottle', qty, rate, amount: qty * rate })
-    }
-    if (Number(d.qty_half_litre || 0) > 0) {
-      const qty = Number(d.qty_half_litre)
-      const rate = Number(customer?.rate_half_litre || d.rate_applied || 0)
-      items.push({ name: 'Half Litre Water Bottle', qty, rate, amount: qty * rate })
-    }
-    if (Number(d.qty_1_5l || 0) > 0) {
-      const qty = Number(d.qty_1_5l)
-      const rate = Number(customer?.rate_1_5l || d.rate_applied || 0)
-      items.push({ name: '1.5 Litre Water Bottle', qty, rate, amount: qty * rate })
-    }
-    return items
+  useEffect(() => {
+    fetchLineItems()
+  }, [])
+
+  async function fetchLineItems() {
+    setLoadingItems(true)
+    const deliveryIds = deliveries.map(d => d.id).filter(Boolean)
+    if (deliveryIds.length === 0) { setLoadingItems(false); return }
+
+    const { data } = await supabase.from('delivery_items')
+      .select('*').in('delivery_id', deliveryIds).order('created_at', { ascending: true })
+
+    const map = {}
+    deliveryIds.forEach(id => { map[id] = [] })
+    data?.forEach(item => {
+      if (map[item.delivery_id]) map[item.delivery_id].push(item)
+    })
+
+    // Fallback — if no delivery_items found, build from delivery fields
+    deliveryIds.forEach(id => {
+      if (map[id].length === 0) {
+        const d = deliveries.find(x => x.id === id)
+        if (!d) return
+        if (Number(d.qty_19l || 0) > 0) {
+          const rate = Number(d.rate_applied || customer?.rate_19l || 0)
+          map[id].push({ product_name: '19 Litre Water Bottle', bottle_type: '19l', qty: Number(d.qty_19l), rate, amount: Number(d.qty_19l) * rate })
+        }
+        if (Number(d.qty_half_litre || 0) > 0) {
+          const rate = Number(customer?.rate_half_litre || d.rate_applied || 0)
+          map[id].push({ product_name: 'Half Litre Water Bottle', bottle_type: 'half_litre', qty: Number(d.qty_half_litre), rate, amount: Number(d.qty_half_litre) * rate })
+        }
+        if (Number(d.qty_1_5l || 0) > 0) {
+          const rate = Number(customer?.rate_1_5l || d.rate_applied || 0)
+          map[id].push({ product_name: '1.5 Litre Water Bottle', bottle_type: '1_5l', qty: Number(d.qty_1_5l), rate, amount: Number(d.qty_1_5l) * rate })
+        }
+      }
+    })
+
+    setLineItems(map)
+    setLoadingItems(false)
   }
 
-  const allLines = deliveries.flatMap(d => getLineItems(d).map(item => ({ ...item, date: d.delivered_at, payment_method: d.payment_method })))
-  const grandSubTotal = allLines.reduce((s, l) => s + l.amount, 0)
-  const grandTax = deliveries.reduce((s, d) => s + Number(d.tax_amount || 0), 0)
+  const allLines = deliveries.flatMap(d => (lineItems[d.id] || []).map(item => ({ ...item, date: d.delivered_at, payment_method: d.payment_method })))
+  const grandSubTotal = allLines.reduce((s, l) => s + Number(l.amount || 0), 0)
+  const grandTax = deliveries.reduce((s, d) => {
+    const taxRate = Number(d.tax_rate || 0)
+    const deliverySubTotal = (lineItems[d.id] || []).reduce((x, l) => x + Number(l.amount || 0), 0)
+    return s + Math.round(deliverySubTotal * taxRate / 100 * 100) / 100
+  }, 0)
   const grandTotal = grandSubTotal + grandTax
   const isMonthly = deliveries.length > 1
   const invoiceNo = invoiceNumber || 'INV-' + Date.now().toString().slice(-8)
@@ -47,7 +75,6 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
         .biz-name { font-size: 22px; font-weight: 800; color: #0f4c81; margin-bottom: 4px; }
         .biz-detail { font-size: 11px; color: #666; margin-bottom: 2px; }
         .inv-title { font-size: 28px; font-weight: 800; color: #0f4c81; letter-spacing: 2px; text-align: right; }
-        .inv-meta { font-size: 12px; color: #555; text-align: right; margin-top: 4px; }
         .bill-box { background: #f0f4ff; border-left: 4px solid #0f4c81; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px; }
         .bill-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
         .bill-name { font-size: 16px; font-weight: 700; color: #0f4c81; margin-bottom: 2px; }
@@ -64,16 +91,12 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
         td.center { text-align: center; }
         td.amount { text-align: right; font-weight: 700; color: #0f4c81; }
         .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 24px; }
-        .totals-box { width: 280px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
-        .total-row { display: flex; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid #eee; font-size: 13px; }
-        .total-row.tax { color: #e65100; }
-        .total-row.grand { background: #0f4c81; color: white; font-size: 15px; font-weight: 700; border: none; }
-        .payment-row { display: flex; justify-content: space-between; padding: 6px 14px; font-size: 11px; color: #888; background: #f8f8f8; }
-        .balance-box { display: flex; justify-content: space-between; padding: 8px 14px; font-size: 12px; background: #fff8e1; border-top: 1px solid #ffe082; }
-        .footer { border-top: 2px solid #0f4c81; padding-top: 12px; display: flex; justify-content: space-between; align-items: center; }
-        .footer-left { font-size: 11px; color: #888; font-style: italic; }
-        .footer-right { font-size: 10px; color: #aaa; text-align: right; }
-        .powered { font-size: 10px; color: #bbb; text-align: center; margin-top: 12px; }
+        .totals-box { width: 300px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
+        .total-row { display: flex; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid #eee; font-size: 13px; }
+        .total-row.tax { background: #fff8f0; color: #e65100; }
+        .total-row.grand { background: #0f4c81; color: white; font-size: 15px; font-weight: 700; border: none; padding: 13px 14px; }
+        .payment-row { display: flex; justify-content: space-between; padding: 7px 14px; font-size: 11px; color: #888; background: #f8f8f8; }
+        .footer { border-top: 2px solid #e0e8ff; padding-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px; }
         @media print { button { display: none !important; } @page { size: A4; margin: 15mm; } }
       </style>
       </head><body>${content}</body></html>
@@ -103,6 +126,14 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
     setTimeout(() => win.print(), 500)
   }
 
+  if (loadingItems) return (
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center' }}>
+        <p style={{ fontSize: '16px', color: '#0f4c81', fontWeight: '600' }}>Loading invoice...</p>
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div style={{ background: '#f5f6fa', borderRadius: '16px', padding: '20px', maxWidth: '860px', width: '100%', maxHeight: '95vh', overflow: 'auto' }}>
@@ -121,26 +152,26 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
         <div ref={printRef} style={{ background: 'white', borderRadius: '12px', padding: '32px', marginBottom: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
 
           {/* Header */}
-          <div className="inv-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '20px', borderBottom: '3px solid #0f4c81', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '20px', borderBottom: '3px solid #0f4c81', marginBottom: '24px' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
               {settings.business_logo && (
                 <img src={settings.business_logo} alt="logo" style={{ width: '72px', height: '72px', objectFit: 'contain', borderRadius: '8px' }} />
               )}
               <div>
-                <p className="biz-name" style={{ fontSize: '22px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>{settings.business_name || 'Business Name'}</p>
-                {settings.business_tagline && <p className="biz-detail" style={{ fontSize: '12px', color: '#888', margin: '0 0 3px', fontStyle: 'italic' }}>{settings.business_tagline}</p>}
-                {settings.business_address && <p className="biz-detail" style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>📍 {settings.business_address}</p>}
-                {settings.complaint_number && <p className="biz-detail" style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>📞 {settings.complaint_number}</p>}
-                {settings.ntn_number && <p className="biz-detail" style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>NTN: {settings.ntn_number}</p>}
-                {settings.strn_number && <p className="biz-detail" style={{ fontSize: '11px', color: '#666', margin: 0 }}>STRN: {settings.strn_number}</p>}
+                <p style={{ fontSize: '22px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>{settings.business_name || 'Business Name'}</p>
+                {settings.business_tagline && <p style={{ fontSize: '12px', color: '#888', margin: '0 0 3px', fontStyle: 'italic' }}>{settings.business_tagline}</p>}
+                {settings.business_address && <p style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>📍 {settings.business_address}</p>}
+                {settings.complaint_number && <p style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>📞 {settings.complaint_number}</p>}
+                {settings.ntn_number && <p style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>NTN: {settings.ntn_number}</p>}
+                {settings.strn_number && <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>STRN: {settings.strn_number}</p>}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p className="inv-title" style={{ fontSize: '30px', fontWeight: '800', color: '#0f4c81', letterSpacing: '3px', margin: '0 0 8px' }}>INVOICE</p>
+              <p style={{ fontSize: '30px', fontWeight: '800', color: '#0f4c81', letterSpacing: '3px', margin: '0 0 10px' }}>INVOICE</p>
               <div style={{ background: '#f0f4ff', borderRadius: '8px', padding: '10px 16px', textAlign: 'right' }}>
-                <p style={{ fontSize: '12px', color: '#666', margin: '0 0 2px' }}>Invoice No</p>
-                <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: '0 0 6px' }}>{invoiceNo}</p>
-                <p style={{ fontSize: '12px', color: '#666', margin: '0 0 2px' }}>Date</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Invoice No</p>
+                <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: '0 0 8px' }}>{invoiceNo}</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Date</p>
                 <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: 0 }}>{today}</p>
               </div>
             </div>
@@ -148,12 +179,12 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
 
           {/* Bill To */}
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', gap: '16px' }}>
-            <div className="bill-box" style={{ background: '#f0f4ff', borderLeft: '4px solid #0f4c81', padding: '14px 18px', borderRadius: '6px', flex: 1 }}>
-              <p className="bill-label" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Bill To</p>
-              <p className="bill-name" style={{ fontSize: '17px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>{customer?.full_name || 'Walk-in Customer'}</p>
-              {customer?.mobile && <p className="bill-detail" style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>📞 {customer.mobile}</p>}
-              {customer?.customer_code && <p className="bill-detail" style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>ID: {customer.customer_code}</p>}
-              {customer?.address && <p className="bill-detail" style={{ fontSize: '11px', color: '#666', margin: 0 }}>📍 {customer.address}</p>}
+            <div style={{ background: '#f0f4ff', borderLeft: '4px solid #0f4c81', padding: '14px 18px', borderRadius: '6px', flex: 1 }}>
+              <p style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Bill To</p>
+              <p style={{ fontSize: '17px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>{customer?.full_name || 'Walk-in Customer'}</p>
+              {customer?.mobile && <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>📞 {customer.mobile}</p>}
+              {customer?.customer_code && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>ID: {customer.customer_code}</p>}
+              {customer?.address && <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>📍 {customer.address}</p>}
             </div>
             {isMonthly && (
               <div style={{ background: '#f0fff4', borderLeft: '4px solid #1a7a4a', padding: '14px 18px', borderRadius: '6px', minWidth: '180px' }}>
@@ -178,25 +209,27 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
             <tbody>
               {isMonthly ? (
                 deliveries.map((d, di) =>
-                  getLineItems(d).map((item, li) => (
+                  (lineItems[d.id] || []).map((item, li) => (
                     <tr key={`${di}-${li}`} style={{ background: (di + li) % 2 === 0 ? 'white' : '#f8f9ff', borderBottom: '1px solid #eef0f5' }}>
-                      {li === 0 && <td rowSpan={getLineItems(d).length} style={{ padding: '10px 12px', fontSize: '11px', color: '#666', verticalAlign: 'middle', borderBottom: '1px solid #eef0f5', whiteSpace: 'nowrap' }}>
-                        {d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }) : today}
-                      </td>}
-                      <td style={{ padding: '10px 12px', fontSize: '12px', color: '#333', borderBottom: '1px solid #eef0f5' }}>{item.name}</td>
+                      {li === 0 && (
+                        <td rowSpan={(lineItems[d.id] || []).length} style={{ padding: '10px 12px', fontSize: '11px', color: '#666', verticalAlign: 'middle', borderBottom: '1px solid #eef0f5', whiteSpace: 'nowrap' }}>
+                          {d.delivered_at ? new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' }) : today}
+                        </td>
+                      )}
+                      <td style={{ padding: '10px 12px', fontSize: '12px', color: '#333', borderBottom: '1px solid #eef0f5' }}>{item.product_name}</td>
                       <td style={{ padding: '10px 12px', fontSize: '12px', textAlign: 'center', borderBottom: '1px solid #eef0f5' }}>{item.qty}</td>
-                      <td style={{ padding: '10px 12px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #eef0f5', color: '#555' }}>Rs. {item.rate.toLocaleString()}</td>
-                      <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81', textAlign: 'right', borderBottom: '1px solid #eef0f5' }}>Rs. {item.amount.toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', textAlign: 'right', borderBottom: '1px solid #eef0f5', color: '#555' }}>Rs. {Number(item.rate).toLocaleString()}</td>
+                      <td style={{ padding: '10px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81', textAlign: 'right', borderBottom: '1px solid #eef0f5' }}>Rs. {Number(item.amount).toLocaleString()}</td>
                     </tr>
                   ))
                 )
               ) : (
                 allLines.map((item, i) => (
                   <tr key={i} style={{ background: i % 2 === 0 ? 'white' : '#f8f9ff', borderBottom: '1px solid #eef0f5' }}>
-                    <td style={{ padding: '12px', fontSize: '13px', color: '#333', borderBottom: '1px solid #eef0f5', fontWeight: '500' }}>{item.name}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', color: '#333', borderBottom: '1px solid #eef0f5', fontWeight: '500' }}>{item.product_name}</td>
                     <td style={{ padding: '12px', fontSize: '13px', textAlign: 'center', borderBottom: '1px solid #eef0f5' }}>{item.qty}</td>
-                    <td style={{ padding: '12px', fontSize: '13px', textAlign: 'right', borderBottom: '1px solid #eef0f5', color: '#555' }}>Rs. {item.rate.toLocaleString()}</td>
-                    <td style={{ padding: '12px', fontSize: '13px', fontWeight: '700', color: '#0f4c81', textAlign: 'right', borderBottom: '1px solid #eef0f5' }}>Rs. {item.amount.toLocaleString()}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', textAlign: 'right', borderBottom: '1px solid #eef0f5', color: '#555' }}>Rs. {Number(item.rate).toLocaleString()}</td>
+                    <td style={{ padding: '12px', fontSize: '13px', fontWeight: '700', color: '#0f4c81', textAlign: 'right', borderBottom: '1px solid #eef0f5' }}>Rs. {Number(item.amount).toLocaleString()}</td>
                   </tr>
                 ))
               )}
@@ -271,11 +304,11 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
             </div>
             <div style={{ margin: '6px 0' }}>
               {allLines.map((item, i) => (
-                <div key={i}>
-                  <div style={{ fontSize: '10px', fontWeight: '600', marginBottom: '1px' }}>{item.name}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginBottom: '4px', paddingLeft: '4px' }}>
-                    <span>{item.qty} x Rs.{item.rate}</span>
-                    <span style={{ fontWeight: '600' }}>Rs. {item.amount.toLocaleString()}</span>
+                <div key={i} style={{ marginBottom: '4px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: '600' }}>{item.product_name}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', paddingLeft: '4px' }}>
+                    <span>{item.qty} x Rs.{Number(item.rate).toLocaleString()}</span>
+                    <span style={{ fontWeight: '600' }}>Rs. {Number(item.amount).toLocaleString()}</span>
                   </div>
                 </div>
               ))}
@@ -311,7 +344,6 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

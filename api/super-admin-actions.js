@@ -82,6 +82,7 @@ export default async function handler(req, res) {
       const delById = (table, ids) => supabaseAdmin.from(table).delete().in('production_entry_id', ids)
 
       await del('monthly_invoices')
+      await del('delivery_items')
       await del('bill_of_materials')
       const { data: prodEntries } = await supabaseAdmin
         .from('production_entries').select('id').eq('tenant_id', tid)

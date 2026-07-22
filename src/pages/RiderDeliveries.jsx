@@ -194,6 +194,30 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
         status: 'completed', completed_at: now
       }).eq('id', selectedOrder.id)
 
+      // Save line items to delivery_items
+      const riderItems = []
+      if (qty19l > 0) riderItems.push({
+        tenant_id: tenantId, delivery_id: savedDelivery.id,
+        product_id: null, product_name: '19 Litre Water Bottle',
+        bottle_type: '19l', qty: qty19l,
+        rate: selectedRate || 0, amount: qty19l * (selectedRate || 0)
+      })
+      if (qtyHalf > 0) riderItems.push({
+        tenant_id: tenantId, delivery_id: savedDelivery.id,
+        product_id: null, product_name: 'Half Litre Water Bottle',
+        bottle_type: 'half_litre', qty: qtyHalf,
+        rate: Number(selectedOrder.customers?.rate_half_litre || 0),
+        amount: qtyHalf * Number(selectedOrder.customers?.rate_half_litre || 0)
+      })
+      if (qty15l > 0) riderItems.push({
+        tenant_id: tenantId, delivery_id: savedDelivery.id,
+        product_id: null, product_name: '1.5 Litre Water Bottle',
+        bottle_type: '1_5l', qty: qty15l,
+        rate: Number(selectedOrder.customers?.rate_1_5l || 0),
+        amount: qty15l * Number(selectedOrder.customers?.rate_1_5l || 0)
+      })
+      if (riderItems.length > 0) await supabase.from('delivery_items').insert(riderItems)
+
       if (creditPortion > 0) {
         const newBalance = Number(selectedOrder.customers.balance) + creditPortion
         await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedOrder.customer_id)

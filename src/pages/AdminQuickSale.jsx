@@ -294,7 +294,7 @@ export default function AdminQuickSale({ tenantId }) {
       qty_half_litre: qtyHalf,
       qty_1_5l: qty15l,
       rate_applied: rate19l || 0,
-      total_amount: total,
+      total_amount: subTotal,
       payment_method: paymentMethod,
       amount_received: paymentMethod === 'credit' ? 0 : paymentMethod === 'jazzcash' ? 0 : total,
       credit_amount: paymentMethod === 'credit' ? total : 0,
@@ -325,6 +325,42 @@ export default function AdminQuickSale({ tenantId }) {
 
     const { data: savedDelivery, error } = await supabase.from('deliveries').insert([deliveryData]).select().single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
+
+    // Save all line items to delivery_items
+    const deliveryItems = []
+    if (qty19l > 0) {
+      deliveryItems.push({
+        tenant_id: tenantId, delivery_id: savedDelivery.id,
+        product_id: null, product_name: '19 Litre Water Bottle',
+        bottle_type: '19l', qty: qty19l,
+        rate: rate19l || 0, amount: qty19l * (rate19l || 0)
+      })
+    }
+    bottleProducts.forEach(p => {
+      if ((quantities[p.id] || 0) > 0) {
+        const rate = rates[p.id] || Number(p.sale_price) || 0
+        deliveryItems.push({
+          tenant_id: tenantId, delivery_id: savedDelivery.id,
+          product_id: p.id, product_name: p.name,
+          bottle_type: p.bottle_type, qty: quantities[p.id],
+          rate, amount: quantities[p.id] * rate
+        })
+      }
+    })
+    extraProducts.forEach(p => {
+      if ((quantities[p.id] || 0) > 0) {
+        const rate = rates[p.id] || Number(p.sale_price) || 0
+        deliveryItems.push({
+          tenant_id: tenantId, delivery_id: savedDelivery.id,
+          product_id: p.id, product_name: p.name,
+          bottle_type: null, qty: quantities[p.id],
+          rate, amount: quantities[p.id] * rate
+        })
+      }
+    })
+    if (deliveryItems.length > 0) {
+      await supabase.from('delivery_items').insert(deliveryItems)
+    }
 
     const allSoldProducts = products.filter(p => (quantities[p.id] || 0) > 0)
     for (const p of allSoldProducts) {
