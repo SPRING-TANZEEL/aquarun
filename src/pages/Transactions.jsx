@@ -548,6 +548,9 @@ export default function Transactions({ tenantId }) {
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: '12px', color: '#333', maxWidth: '200px' }}>
                       {tx.description}
+                      {tx.type === 'delivery' && tx.raw.invoice_number && (
+                        <p style={{ fontSize: '10px', color: '#0f4c81', margin: '2px 0 0', fontWeight: '600' }}>🧾 {tx.raw.invoice_number}</p>
+                      )}
                       {tx.is_voided && tx.void_reason && (
                         <p style={{ fontSize: '10px', color: '#f44336', margin: '2px 0 0' }}>Void: {tx.void_reason}</p>
                       )}
