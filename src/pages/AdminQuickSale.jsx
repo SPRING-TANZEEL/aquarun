@@ -598,7 +598,7 @@ export default function AdminQuickSale({ tenantId }) {
               <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Payment Method</p>
               <div style={{ display: 'flex', gap: '8px' }}>
                 {[{ key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' }, { key: 'jazzcash', label: 'JazzCash', urdu: 'JZC', icon: '📱', color: '#9c27b0' }, { key: 'credit', label: 'Credit', urdu: 'ادھار', icon: '📋', color: '#f44336' }].map(pm => (
-                  <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); if (pm.key !== 'credit') { setSelectedCustomer(null); setCustomerSearch('') } }}
+                  <button key={pm.key} onClick={() => { setPaymentMethod(pm.key) }}
                     style={{ flex: 1, padding: '12px 4px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
                     <span style={{ fontSize: '20px' }}>{pm.icon}</span>
                     <span>{pm.urdu}</span>
