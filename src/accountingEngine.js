@@ -688,3 +688,30 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
     return null
   }
 }
+
+// ─── 15. POST SALES TAX JOURNAL ENTRY ─────────────────────────────
+// Called when delivery has tax — DR AR (tax portion)  CR 2300 Tax Payable
+export async function postSalesTaxJournal(delivery, taxAmount, tenantId) {
+  try {
+    if (!taxAmount || taxAmount <= 0) return null
+
+    const lines = [
+      { account_code: '1100', account_name: 'Accounts Receivable', debit: taxAmount },
+      { account_code: '2300', account_name: 'Tax Payable', credit: taxAmount }
+    ]
+
+    const entryId = await postJournalEntry({
+      tenantId,
+      date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+      referenceType: 'sales_tax',
+      referenceId: delivery.id,
+      narration: `Sales tax — ${delivery.invoice_number || ''} — Rs. ${taxAmount} @ ${delivery.tax_rate || 0}%`,
+      lines
+    })
+
+    return entryId
+  } catch (err) {
+    console.error('postSalesTaxJournal error:', err)
+    return null
+  }
+}

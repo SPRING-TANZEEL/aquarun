@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import InvoiceModal from '../components/InvoiceModal'
 
 const TRANSACTION_TYPES = [
   { key: 'all', label: 'All Transactions' },
@@ -23,8 +24,23 @@ export default function Transactions({ tenantId }) {
   const [showVoidForm, setShowVoidForm] = useState(false)
   const [voidReason, setVoidReason] = useState('')
   const [processing, setProcessing] = useState(false)
+  const [invoiceData, setInvoiceData] = useState(null) // { delivery, customer, settings }
+  const [businessSettings, setBusinessSettings] = useState({})
 
   useEffect(() => { if (tenantId) fetchTransactions() }, [activeType, dateFrom, dateTo, showVoided, tenantId])
+  useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
+
+  async function fetchSettings() {
+    const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
+    const map = {}
+    data?.forEach(s => { map[s.setting_key] = s.setting_value })
+    setBusinessSettings(map)
+  }
+
+  async function openInvoice(tx) {
+    const { data: customer } = await supabase.from('customers').select('*').eq('id', tx.raw.customer_id).single()
+    setInvoiceData({ delivery: tx.raw, customer, settings: businessSettings })
+  }
 
   async function fetchTransactions() {
     setLoading(true)
@@ -381,8 +397,17 @@ export default function Transactions({ tenantId }) {
     credit: '#f44336'
   }
 
-  return (
+ return (
     <div>
+      {invoiceData && (
+        <InvoiceModal
+          deliveries={[invoiceData.delivery]}
+          customer={invoiceData.customer}
+          settings={invoiceData.settings}
+          invoiceNumber={invoiceData.delivery.invoice_number}
+          onClose={() => setInvoiceData(null)}
+        />
+      )}
       <div style={{ marginBottom: '20px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>🗂️ Transaction Ledger</h2>
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>View, void and restore all business transactions.</p>
@@ -548,17 +573,25 @@ export default function Transactions({ tenantId }) {
                       )}
                     </td>
                     <td style={{ padding: '10px 14px' }}>
-                      {tx.is_voided ? (
-                         <button onClick={() => restoreTransaction(tx)}
-                          style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
-                          ↩️ Restore
-                        </button>
-                      ) : (
-                        <button onClick={() => { setSelectedTx(tx); setShowVoidForm(true) }}
-                          style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
-                          🗑️ Void
-                        </button>
-                      )}
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {tx.type === 'delivery' && !tx.is_voided && (
+                          <button onClick={() => openInvoice(tx)}
+                            style={{ padding: '5px 10px', background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                            🧾 Invoice
+                          </button>
+                        )}
+                        {tx.is_voided ? (
+                          <button onClick={() => restoreTransaction(tx)}
+                            style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                            ↩️ Restore
+                          </button>
+                        ) : (
+                          <button onClick={() => { setSelectedTx(tx); setShowVoidForm(true) }}
+                            style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                            🗑️ Void
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

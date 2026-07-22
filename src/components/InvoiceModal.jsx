@@ -1,13 +1,13 @@
 import { useRef } from 'react'
 
-export default function InvoiceModal({ deliveries, customer, settings, onClose }) {
+export default function InvoiceModal({ deliveries, customer, settings, onClose, invoiceNumber }) {
   const printRef = useRef()
   const thermalRef = useRef()
 
   const grandSubTotal = deliveries.reduce((s, d) => s + Number(d.total_amount || 0), 0)
   const grandTax = deliveries.reduce((s, d) => s + Number(d.tax_amount || 0), 0)
   const grandTotal = deliveries.reduce((s, d) => s + Number(d.total_with_tax || d.total_amount || 0), 0)
-  const invoiceNo = 'INV-' + Date.now().toString().slice(-8)
+  const invoiceNo = invoiceNumber || 'INV-' + Date.now().toString().slice(-8)
   const today = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
 
   function printA4() {
@@ -170,7 +170,8 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose }
           {/* Footer */}
           <div style={{ marginTop: '30px', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '12px' }}>
             <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>Thank you for your business!</p>
-            {settings.whatsapp_number && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>WhatsApp: {settings.whatsapp_number}</p>}
+            {settings.whatsapp_number && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 8px' }}>WhatsApp: {settings.whatsapp_number}</p>}
+            <p style={{ fontSize: '10px', color: '#bbb', margin: 0 }}>Powered by <strong>AquaRun</strong> — Water Delivery Management System</p>
           </div>
         </div>
 
@@ -214,7 +215,8 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose }
             </div>
             <div style={{ textAlign: 'center', marginTop: '8px', borderTop: '1px dashed #000', paddingTop: '6px', fontSize: '10px' }}>
               <p style={{ margin: '0 0 2px' }}>Thank you for your business!</p>
-              {settings.whatsapp_number && <p style={{ margin: 0 }}>WhatsApp: {settings.whatsapp_number}</p>}
+              {settings.whatsapp_number && <p style={{ margin: '0 0 4px' }}>WhatsApp: {settings.whatsapp_number}</p>}
+              <p style={{ margin: 0, fontSize: '9px' }}>Powered by AquaRun</p>
             </div>
           </div>
         </div>

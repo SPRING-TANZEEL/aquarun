@@ -213,6 +213,23 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
         await postDeliveryJournal(savedDelivery, selectedOrder.customer_id, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
 
+      // Generate invoice number
+      try {
+        const year = new Date().getFullYear()
+        const counterKey = `invoice_counter_${year}`
+        const { data: counterData } = await supabase.from('business_settings')
+          .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey).single()
+        const counter = Number(counterData?.setting_value || 0) + 1
+        const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
+        const code = tenantData?.tenant_code || 'INV'
+        const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
+        await supabase.from('business_settings').upsert(
+          { tenant_id: tenantId, setting_key: counterKey, setting_value: String(counter) },
+          { onConflict: 'tenant_id,setting_key' }
+        )
+        await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
+      } catch (err) { console.error('Invoice number error:', err) }
+
       if (deliveryLat && deliveryLng && selectedOrder.customer_id) {
         const { data: cust } = await supabase.from('customers')
           .select('latitude, longitude')

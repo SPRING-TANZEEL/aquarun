@@ -371,11 +371,32 @@ export default function AdminQuickSale({ tenantId }) {
     }
 
     try {
-      const { postDeliveryJournal } = await import('../accountingEngine')
+      const { postDeliveryJournal, postSalesTaxJournal } = await import('../accountingEngine')
       await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
+      if (selectedCustomer?.is_tax_applicable && taxAmount > 0) {
+        await postSalesTaxJournal(savedDelivery, taxAmount, tenantId)
+      }
     } catch (err) { console.error('Journal post error:', err) }
 
-    setLastDelivery({ ...savedDelivery, tax_amount: taxAmount, total_with_tax: total })
+    // Generate invoice number
+    try {
+      const year = new Date().getFullYear()
+      const counterKey = `invoice_counter_${year}`
+      const { data: counterData } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey).single()
+      const counter = Number(counterData?.setting_value || 0) + 1
+      const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
+      const code = tenantData?.tenant_code || 'INV'
+      const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
+      await supabase.from('business_settings').upsert(
+        { tenant_id: tenantId, setting_key: counterKey, setting_value: String(counter) },
+        { onConflict: 'tenant_id,setting_key' }
+      )
+      await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
+      setLastDelivery({ ...savedDelivery, invoice_number: invoiceNumber, tax_amount: taxAmount, total_with_tax: total })
+    } catch (err) { console.error('Invoice number error:', err) }
+
+    // lastDelivery is now set inside the invoice number block above
     setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id })
 
     setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
@@ -776,6 +797,7 @@ export default function AdminQuickSale({ tenantId }) {
           deliveries={[lastDelivery]}
           customer={selectedCustomer || { full_name: customerName || 'Walk-in', mobile: '', customer_code: '', address: '' }}
           settings={settings}
+          invoiceNumber={lastDelivery.invoice_number}
           onClose={() => setShowInvoice(false)}
         />
       )}

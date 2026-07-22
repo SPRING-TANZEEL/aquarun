@@ -297,9 +297,33 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
       // Post delivery journal — isRiderEntry=true → DR 1101 Receivable from Riders
       try {
-        const { postDeliveryJournal } = await import('../accountingEngine')
+        const { postDeliveryJournal, postSalesTaxJournal } = await import('../accountingEngine')
         await postDeliveryJournal(savedDelivery, selectedCustomer.id, tenantId, true)
+        if (selectedCustomer?.is_tax_applicable) {
+          const taxRate = 0 // riders don't apply tax — tax handled at admin level
+          // Only post if delivery was saved with tax_amount > 0
+          if (Number(savedDelivery.tax_amount || 0) > 0) {
+            await postSalesTaxJournal(savedDelivery, Number(savedDelivery.tax_amount), tenantId)
+          }
+        }
       } catch (err) { console.error('Journal post error:', err) }
+
+      // Generate invoice number
+      try {
+        const year = new Date().getFullYear()
+        const counterKey = `invoice_counter_${year}`
+        const { data: counterData } = await supabase.from('business_settings')
+          .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey).single()
+        const counter = Number(counterData?.setting_value || 0) + 1
+        const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
+        const code = tenantData?.tenant_code || 'INV'
+        const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
+        await supabase.from('business_settings').upsert(
+          { tenant_id: tenantId, setting_key: counterKey, setting_value: String(counter) },
+          { onConflict: 'tenant_id,setting_key' }
+        )
+        await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
+      } catch (err) { console.error('Invoice number error:', err) }
 
       // Save GPS to customer on first delivery
       if (deliveryLat && deliveryLng) {

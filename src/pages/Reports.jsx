@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import InvoiceModal from '../components/InvoiceModal'
 
 export default function Reports({ tenantId }) {
   const [activeTab, setActiveTab] = useState('daily')
@@ -9,6 +10,7 @@ export default function Reports({ tenantId }) {
     { key: 'ageing', label: '⏳ Receivables' },
     { key: 'sales', label: '📊 Sales Summary' },
     { key: 'pl', label: '📈 P&L' },
+    { key: 'tax', label: '🧾 Tax Report' },
     { key: 'bulk', label: '📨 Bulk Share' },
   ]
   return (
@@ -30,6 +32,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'ageing' && <ReceivablesAgeing tenantId={tenantId} />}
       {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
+      {activeTab === 'tax' && <SalesTaxReport tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
   )
@@ -184,6 +187,10 @@ function CustomerLedger({ tenantId }) {
   const [ledger, setLedger] = useState([])
   const [loading, setLoading] = useState(false)
   const [businessSettings, setBusinessSettings] = useState({})
+  const [showMonthlyInvoice, setShowMonthlyInvoice] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [monthlyInvoiceData, setMonthlyInvoiceData] = useState(null)
+  const [generatingInvoice, setGeneratingInvoice] = useState(false)
 
   useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
 
@@ -247,6 +254,71 @@ function CustomerLedger({ tenantId }) {
   }
 
   function handlePrint() { window.print() }
+
+  async function generateMonthlyInvoice() {
+    setGeneratingInvoice(true)
+    const [year, month] = selectedMonth.split('-')
+    const monthStart = `${selectedMonth}-01`
+    const monthEnd = new Date(year, month, 0).toISOString().split('T')[0]
+
+    // Check if invoice already exists for this customer + month
+    const { data: existing } = await supabase.from('monthly_invoices')
+      .select('*').eq('tenant_id', tenantId)
+      .eq('customer_id', selectedCustomer.id)
+      .eq('month_year', selectedMonth).single()
+
+    // Fetch deliveries for this month
+    const { data: monthDeliveries } = await supabase.from('deliveries')
+      .select('*').eq('customer_id', selectedCustomer.id)
+      .eq('tenant_id', tenantId).eq('is_voided', false)
+      .gte('delivered_at', monthStart + 'T00:00:00')
+      .lte('delivered_at', monthEnd + 'T23:59:59')
+      .order('delivered_at', { ascending: true })
+
+    const totalAmount = monthDeliveries?.reduce((s, d) => s + Number(d.total_amount || 0), 0) || 0
+    const taxAmount = monthDeliveries?.reduce((s, d) => s + Number(d.tax_amount || 0), 0) || 0
+    const grandTotal = monthDeliveries?.reduce((s, d) => s + Number(d.total_with_tax || d.total_amount || 0), 0) || 0
+    const totalPaid = monthDeliveries?.reduce((s, d) => {
+      if (d.payment_method === 'cash') return s + Number(d.amount_received || 0)
+      if (d.payment_method === 'jazzcash' && d.jazzcash_confirmed) return s + Number(d.total_amount || 0)
+      return s
+    }, 0) || 0
+
+    let invoiceNumber
+    if (existing) {
+      invoiceNumber = existing.invoice_number
+      // Update existing invoice
+      await supabase.from('monthly_invoices').update({
+        total_amount: totalAmount, tax_amount: taxAmount,
+        grand_total: grandTotal, updated_at: new Date().toISOString()
+      }).eq('id', existing.id)
+    } else {
+      // Generate new invoice number — fetch counter from settings
+      const { data: counterData } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId)
+        .eq('setting_key', `monthly_invoice_counter_${year}`).single()
+      const counter = Number(counterData?.setting_value || 0) + 1
+      const tenantCode = businessSettings.tenant_code || tenantId.slice(0, 6).toUpperCase()
+      const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
+      const code = tenantData?.tenant_code || 'INV'
+      invoiceNumber = `${code}-${year}-${String(month).padStart(2,'0')}-${String(counter).padStart(3,'0')}`
+
+      await supabase.from('business_settings').upsert(
+        { tenant_id: tenantId, setting_key: `monthly_invoice_counter_${year}`, setting_value: String(counter) },
+        { onConflict: 'tenant_id,setting_key' }
+      )
+      await supabase.from('monthly_invoices').insert([{
+        tenant_id: tenantId, invoice_number: invoiceNumber,
+        customer_id: selectedCustomer.id, month_year: selectedMonth,
+        total_amount: totalAmount, tax_amount: taxAmount,
+        grand_total: grandTotal, status: 'draft'
+      }])
+    }
+
+    setMonthlyInvoiceData({ deliveries: monthDeliveries || [], invoiceNumber, totalPaid, balanceDue: grandTotal - totalPaid })
+    setShowMonthlyInvoice(false)
+    setGeneratingInvoice(false)
+  }
 
   function buildWhatsAppMessage(customer, ledger, totalDebit, totalCredit, closingBalance, bizName) {
     const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -356,10 +428,51 @@ function CustomerLedger({ tenantId }) {
                 style={{ padding: '10px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 🖨️ Print / PDF
               </button>
+              <button onClick={() => setShowMonthlyInvoice(true)}
+                style={{ padding: '10px 16px', background: '#e65100', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                📄 Monthly Invoice
+              </button>
             </div>
           </div>
 
-          <div id="ledger-print-area">
+          {showMonthlyInvoice && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '400px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>📄 Generate Monthly Invoice</h3>
+              <p style={{ fontSize: '13px', color: '#555', margin: '0 0 8px' }}>Customer: <strong>{selectedCustomer.full_name}</strong></p>
+              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Select Month</label>
+              <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
+              <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>If an invoice already exists for this month it will be updated with latest deliveries.</p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => setShowMonthlyInvoice(false)}
+                  style={{ flex: 1, padding: '10px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                  Cancel
+                </button>
+                <button onClick={generateMonthlyInvoice} disabled={generatingInvoice}
+                  style={{ flex: 2, padding: '10px', background: '#e65100', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700' }}>
+                  {generatingInvoice ? 'Generating...' : '📄 Generate Invoice'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {monthlyInvoiceData && (
+          <InvoiceModal
+            deliveries={monthlyInvoiceData.deliveries}
+            customer={selectedCustomer}
+            settings={businessSettings}
+            invoiceNumber={monthlyInvoiceData.invoiceNumber}
+            monthlyTotalPaid={monthlyInvoiceData.totalPaid}
+            monthlyBalanceDue={monthlyInvoiceData.balanceDue}
+            onClose={() => setMonthlyInvoiceData(null)}
+          />
+        )}
+
+        <div id="ledger-print-area">
             <div style={{ borderBottom: '3px solid #0f4c81', paddingBottom: '12px', marginBottom: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -947,6 +1060,127 @@ function ReceivablesAgeing({ tenantId }) {
               <p style={{ fontWeight: '700', color: '#1a7a4a' }}>No outstanding receivables!</p>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── SALES TAX REPORT ──────────────────────────────────────────────
+function SalesTaxReport({ tenantId }) {
+  const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
+  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
+  const [filter, setFilter] = useState('taxable') // 'taxable' | 'zero' | 'all'
+  const [data, setData] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => { if (tenantId) fetchTaxReport() }, [dateFrom, dateTo, tenantId])
+
+  async function fetchTaxReport() {
+    setLoading(true)
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('*, customers(full_name, customer_code, is_tax_applicable)')
+      .eq('tenant_id', tenantId).eq('is_voided', false)
+      .gte('delivered_at', dateFrom + 'T00:00:00')
+      .lte('delivered_at', dateTo + 'T23:59:59')
+      .order('delivered_at', { ascending: false })
+    setData(deliveries || [])
+    setLoading(false)
+  }
+
+  const taxable = data.filter(d => d.customers?.is_tax_applicable)
+  const zeroRated = data.filter(d => !d.customers?.is_tax_applicable)
+  const displayed = filter === 'taxable' ? taxable : filter === 'zero' ? zeroRated : data
+
+  const totalSales = displayed.reduce((s, d) => s + Number(d.total_amount || 0), 0)
+  const totalTax = displayed.reduce((s, d) => s + Number(d.tax_amount || 0), 0)
+  const totalWithTax = displayed.reduce((s, d) => s + Number(d.total_with_tax || d.total_amount || 0), 0)
+
+  return (
+    <div>
+      <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>🧾 Sales Tax Report</h3>
+
+      <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
+        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
+        <button onClick={fetchTaxReport} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+        {[{ key: 'taxable', label: '🧾 Tax Enabled' }, { key: 'zero', label: '⭕ Zero Rated' }, { key: 'all', label: '📋 All' }].map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', background: filter === f.key ? '#0f4c81' : '#f0f0f0', color: filter === f.key ? 'white' : '#555', fontWeight: filter === f.key ? '700' : '400' }}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+        {[
+          { label: 'Total Sales (excl. tax)', value: totalSales, color: '#0f4c81' },
+          { label: 'Output Tax Collected', value: totalTax, color: '#f57f17' },
+          { label: 'Total with Tax', value: totalWithTax, color: '#1a7a4a' },
+        ].map(card => (
+          <div key={card.label} style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px' }}>{card.label}</p>
+            <p style={{ fontSize: '16px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {card.value.toLocaleString()}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ background: '#fff8e1', border: '1px solid #ffe082', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
+        <p style={{ fontSize: '13px', fontWeight: '700', color: '#f57f17', margin: '0 0 4px' }}>🏛️ Tax Payable to FBR</p>
+        <p style={{ fontSize: '11px', color: '#795548', margin: 0 }}>Output Tax Rs. {totalTax.toLocaleString()} — Input Tax Rs. 0 = <strong>Net Payable Rs. {totalTax.toLocaleString()}</strong></p>
+      </div>
+
+      {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : (
+        <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '700px' }}>
+            <thead>
+              <tr style={{ background: '#f8f9fa' }}>
+                {['Date', 'Invoice No', 'Customer', 'Sale Amount', 'Tax Rate', 'Tax Amount', 'Total'].map(h => (
+                  <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '700', borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayed.length === 0 ? (
+                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center', color: '#888' }}>No transactions found</td></tr>
+              ) : displayed.map((d, i) => (
+                <tr key={d.id} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', color: '#555', whiteSpace: 'nowrap' }}>
+                    {new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  </td>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: '600', color: '#0f4c81' }}>{d.invoice_number || '—'}</td>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', color: '#333' }}>
+                    <p style={{ margin: '0 0 2px', fontWeight: '600' }}>{d.customers?.full_name}</p>
+                    <p style={{ margin: 0, fontSize: '10px', color: '#aaa' }}>{d.customers?.customer_code}</p>
+                  </td>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: '600', color: '#333' }}>Rs. {Number(d.total_amount || 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', color: d.customers?.is_tax_applicable ? '#f57f17' : '#aaa' }}>
+                    {d.customers?.is_tax_applicable ? `${d.tax_rate || 0}%` : 'Zero Rated'}
+                  </td>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: '700', color: '#f57f17' }}>
+                    {Number(d.tax_amount || 0) > 0 ? `Rs. ${Number(d.tax_amount).toLocaleString()}` : '—'}
+                  </td>
+                  <td style={{ padding: '10px 14px', fontSize: '12px', fontWeight: '700', color: '#1a7a4a' }}>
+                    Rs. {Number(d.total_with_tax || d.total_amount || 0).toLocaleString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#f8f9fa', borderTop: '2px solid #eee' }}>
+                <td colSpan={3} style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#333' }}>Total — {displayed.length} transactions</td>
+                <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>Rs. {totalSales.toLocaleString()}</td>
+                <td></td>
+                <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#f57f17' }}>Rs. {totalTax.toLocaleString()}</td>
+                <td style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {totalWithTax.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
     </div>
