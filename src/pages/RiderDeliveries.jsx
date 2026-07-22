@@ -217,9 +217,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       try {
         const year = new Date().getFullYear()
         const counterKey = `invoice_counter_${year}`
-        const { data: counterData } = await supabase.from('business_settings')
-          .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey).single()
-        const counter = Number(counterData?.setting_value || 0) + 1
+        const { data: counterRows } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey)
+      const counter = Number(counterRows?.[0]?.setting_value || 0) + 1
         const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
         const code = tenantData?.tenant_code || 'INV'
         const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
