@@ -1268,32 +1268,31 @@ function SalesSummary({ tenantId }) {
 }
 
 // ─── PROFIT & LOSS ─────────────────────────────────────────────────
+// Replace the entire ProfitLoss function in Reports.jsx with this
 function ProfitLoss({ tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [drillDown, setDrillDown] = useState(null) // { label, entries }
+  const [drillLoading, setDrillLoading] = useState(false)
 
   useEffect(() => { if (tenantId) fetchPL() }, [dateFrom, dateTo, tenantId])
 
   async function fetchPL() {
     setLoading(true)
 
-    // ── REVENUE — from deliveries ──
+    // ── REVENUE — from deliveries (pre-tax subtotal) ──
     const { data: deliveries } = await supabase.from('deliveries')
-      .select('total_amount').eq('tenant_id', tenantId)
-      .eq('is_voided', false)
-      .gte('delivered_at', dateFrom + 'T00:00:00')
-      .lte('delivered_at', dateTo + 'T23:59:59')
+      .select('total_amount').eq('tenant_id', tenantId).eq('is_voided', false)
+      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
     const totalRevenue = deliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
 
-    // ── COGS — from journal entries account 5003 ──
+    // ── COGS — from journal entry lines account 5003 ──
     const { data: cogsLines } = await supabase.from('journal_entry_lines')
       .select('debit, je:journal_entry_id!inner(entry_date)')
-      .eq('tenant_id', tenantId)
-      .eq('account_code', '5003')
-      .gte('je.entry_date', dateFrom)
-      .lte('je.entry_date', dateTo)
+      .eq('tenant_id', tenantId).eq('account_code', '5003')
+      .gte('je.entry_date', dateFrom).lte('je.entry_date', dateTo)
     const totalCOGS = cogsLines?.reduce((s, l) => s + Number(l.debit || 0), 0) || 0
 
     // ── RAW MATERIAL PURCHASES ──
@@ -1311,62 +1310,102 @@ function ProfitLoss({ tenantId }) {
     const totalCogs = totalCOGS + totalPurchaseCost + totalProductionOverhead
     const grossProfit = totalRevenue - totalCogs
 
-// ── RIDER FIELD EXPENSES by type ──
+    // ── RIDER FIELD EXPENSES by type ──
     const { data: riderExpenses } = await supabase.from('expenses')
-      .select('expense_type, amount').eq('tenant_id', tenantId)
-      .eq('is_voided', false)
+      .select('expense_type, amount').eq('tenant_id', tenantId).eq('is_voided', false)
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-
     const riderByCategory = {}
     riderExpenses?.forEach(e => {
       const key = e.expense_type || 'other'
       riderByCategory[key] = (riderByCategory[key] || 0) + Number(e.amount)
     })
 
-    // ── OFFICE EXPENSES by category (excluding salary) ──
+    // ── OFFICE EXPENSES — grouped by COA account name ──
     const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('category, amount').eq('tenant_id', tenantId)
-      .eq('is_voided', false).neq('category', 'salary')
+      .select('category, coa_account_name, amount').eq('tenant_id', tenantId).eq('is_voided', false)
       .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-
-    const officeByCategory = {}
+    const officeByAccount = {}
     officeExpenses?.forEach(e => {
-      const key = e.category || 'other'
-      officeByCategory[key] = (officeByCategory[key] || 0) + Number(e.amount)
+      const key = e.coa_account_name || e.category || 'other'
+      officeByAccount[key] = (officeByAccount[key] || 0) + Number(e.amount)
     })
 
-    // ── SALARY PAYMENTS ──
-    const { data: officeSalaries } = await supabase.from('office_expenses')
-      .select('amount').eq('tenant_id', tenantId)
-      .eq('is_voided', false).eq('category', 'salary')
-      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-    const totalOfficeSalaries = officeSalaries?.reduce((s, e) => s + Number(e.amount), 0) || 0
-
+    // ── SALARY PAYMENTS (from salary_payments table only) ──
     const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('amount_paid').eq('tenant_id', tenantId)
+      .select('amount_paid, riders(full_name)').eq('tenant_id', tenantId)
       .gte('payment_date', dateFrom).lte('payment_date', dateTo)
-    const totalSalaryPayments = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
-    const totalSalaries = totalOfficeSalaries + totalSalaryPayments
+    const salaryByRider = {}
+    salaryPayments?.forEach(p => {
+      const name = p.riders?.full_name || 'Rider'
+      salaryByRider[name] = (salaryByRider[name] || 0) + Number(p.amount_paid)
+    })
+    const totalSalaries = Object.values(salaryByRider).reduce((s, v) => s + v, 0)
 
     const totalRiderExpenses = Object.values(riderByCategory).reduce((s, v) => s + v, 0)
-    const totalOfficeExpenses = Object.values(officeByCategory).reduce((s, v) => s + v, 0)
+    const totalOfficeExpenses = Object.values(officeByAccount).reduce((s, v) => s + v, 0)
     const totalOperatingExpenses = totalRiderExpenses + totalOfficeExpenses + totalSalaries
     const netProfit = grossProfit - totalOperatingExpenses
 
     setData({
       totalRevenue, totalCOGS, totalPurchaseCost, totalProductionOverhead,
-      totalCogs, grossProfit, riderByCategory, officeByCategory,
+      totalCogs, grossProfit, riderByCategory, officeByAccount, salaryByRider,
       totalRiderExpenses, totalOfficeExpenses, totalSalaries,
       totalOperatingExpenses, netProfit
     })
     setLoading(false)
   }
 
-  function PLRow({ label, value, color, bold, indent, separator }) {
+  async function openDrillDown(type, key) {
+    setDrillLoading(true)
+    setDrillDown({ label: key, entries: [] })
+    let entries = []
+
+    if (type === 'rider_expense') {
+      const { data } = await supabase.from('expenses')
+        .select('*, riders(full_name)').eq('tenant_id', tenantId).eq('is_voided', false)
+        .eq('expense_type', key).gte('expense_date', dateFrom).lte('expense_date', dateTo)
+        .order('expense_date', { ascending: false })
+      entries = (data || []).map(e => ({
+        date: e.expense_date, description: e.description || e.expense_type,
+        party: e.riders?.full_name || '—', amount: Number(e.amount)
+      }))
+    } else if (type === 'office_expense') {
+      const { data } = await supabase.from('office_expenses')
+        .select('*').eq('tenant_id', tenantId).eq('is_voided', false)
+        .or(`coa_account_name.eq.${key},category.eq.${key}`)
+        .gte('expense_date', dateFrom).lte('expense_date', dateTo)
+        .order('expense_date', { ascending: false })
+      entries = (data || []).map(e => ({
+        date: e.expense_date, description: e.description || e.category,
+        party: '—', amount: Number(e.amount)
+      }))
+    } else if (type === 'salary') {
+      const { data } = await supabase.from('salary_payments')
+        .select('*, riders(full_name)').eq('tenant_id', tenantId)
+        .gte('payment_date', dateFrom).lte('payment_date', dateTo)
+        .order('payment_date', { ascending: false })
+      entries = (data || []).filter(p => (p.riders?.full_name || 'Rider') === key).map(p => ({
+        date: p.payment_date, description: p.notes || p.month_year,
+        party: p.riders?.full_name || '—', amount: Number(p.amount_paid)
+      }))
+    }
+
+    setDrillDown({ label: key, entries })
+    setDrillLoading(false)
+  }
+
+  function PLRow({ label, value, color, bold, indent, separator, onClick }) {
     return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: separator ? '2px solid #eee' : '1px solid #f0f0f0', marginTop: separator ? '4px' : '0' }}>
-        <span style={{ fontSize: '13px', color: color || '#555', fontWeight: bold ? '700' : '400', paddingLeft: indent ? '16px' : '0' }}>{label}</span>
-        <span style={{ fontSize: bold ? '15px' : '13px', fontWeight: '700', color: color || (value < 0 ? '#f44336' : '#333') }}>{value < 0 ? '− ' : ''}Rs. {Math.abs(value).toLocaleString()}</span>
+      <div onClick={onClick}
+        style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: separator ? '2px solid #eee' : '1px solid #f0f0f0', marginTop: separator ? '4px' : '0', cursor: onClick ? 'pointer' : 'default', borderRadius: '4px' }}
+        onMouseEnter={e => { if (onClick) e.currentTarget.style.background = '#f0f7ff' }}
+        onMouseLeave={e => { if (onClick) e.currentTarget.style.background = 'transparent' }}>
+        <span style={{ fontSize: '13px', color: color || '#555', fontWeight: bold ? '700' : '400', paddingLeft: indent ? '16px' : '0' }}>
+          {label}{onClick && <span style={{ fontSize: '10px', color: '#0f4c81', marginLeft: '6px' }}>🔍</span>}
+        </span>
+        <span style={{ fontSize: bold ? '15px' : '13px', fontWeight: '700', color: color || (value < 0 ? '#f44336' : '#333') }}>
+          {value < 0 ? '− ' : ''}Rs. {Math.abs(value).toLocaleString()}
+        </span>
       </div>
     )
   }
@@ -1374,39 +1413,104 @@ function ProfitLoss({ tenantId }) {
   return (
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📈 Profit & Loss Statement</h3>
+
+      {/* Drill Down Modal */}
+      {drillDown && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', maxWidth: '700px', width: '100%', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#e65100' }}>🔍 {drillDown.label}</h3>
+              <button onClick={() => setDrillDown(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}>✕</button>
+            </div>
+            {drillLoading ? <p style={{ textAlign: 'center', color: '#888', padding: '20px' }}>Loading...</p> : drillDown.entries.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#888', padding: '20px' }}>No entries found</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    {['Date', 'Description', 'Party/Rider', 'Amount'].map(h => (
+                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {drillDown.entries.map((e, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#555', whiteSpace: 'nowrap' }}>
+                        {e.date ? new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>{e.description || '—'}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#888' }}>{e.party}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: '700', color: '#e65100', textAlign: 'right' }}>Rs. {e.amount.toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#e65100', color: 'white' }}>
+                    <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700' }}>Total</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>
+                      Rs. {drillDown.entries.reduce((s, e) => s + e.amount, 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
+          </div>
+        </div>
+      )}
+
       <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
+        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
+        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
         <button onClick={fetchPL} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
       </div>
+
+      <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
+        <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>🔍 Click any expense line to see individual transactions that make up that total.</p>
+      </div>
+
       {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : data && (
         <div>
           <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '16px' }}>
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #e3f0ff' }}>REVENUE</p>
             <PLRow label="Sales Revenue" value={data.totalRevenue} color="#1a7a4a" indent />
             <PLRow label="Total Revenue" value={data.totalRevenue} color="#1a7a4a" bold separator />
+
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#f44336', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #ffebee' }}>COST OF GOODS</p>
             {data.totalCOGS > 0 && <PLRow label="Cost of Goods Sold" value={data.totalCOGS} color="#f44336" indent />}
             {data.totalPurchaseCost > 0 && <PLRow label="Raw Material Purchases" value={data.totalPurchaseCost} color="#f44336" indent />}
             {data.totalProductionOverhead > 0 && <PLRow label="Production Overhead" value={data.totalProductionOverhead} color="#f44336" indent />}
             <PLRow label="Total Cost of Goods" value={data.totalCogs} color="#f44336" bold separator />
             <PLRow label="GROSS PROFIT" value={data.grossProfit} color={data.grossProfit >= 0 ? '#1a7a4a' : '#f44336'} bold separator />
+
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #fff3e0' }}>OPERATING EXPENSES</p>
-            {/* Rider Field Expenses by type */}
+
             {Object.entries(data.riderByCategory || {}).map(([cat, amt]) => (
-              <PLRow key={'r-'+cat} label={`🚴 ${cat.charAt(0).toUpperCase() + cat.slice(1)}`} value={amt} color="#e65100" indent />
+              <PLRow key={'r-' + cat}
+                label={`🚴 ${cat.charAt(0).toUpperCase() + cat.slice(1)}`}
+                value={amt} color="#e65100" indent
+                onClick={() => openDrillDown('rider_expense', cat)} />
             ))}
 
-            {/* Office Expenses by category */}
-            {Object.entries(data.officeByCategory || {}).map(([cat, amt]) => (
-              <PLRow key={'o-'+cat} label={`🏢 ${cat.charAt(0).toUpperCase() + cat.slice(1)}`} value={amt} color="#e65100" indent />
+            {Object.entries(data.officeByAccount || {}).map(([acc, amt]) => (
+              <PLRow key={'o-' + acc}
+                label={`🏢 ${acc.charAt(0).toUpperCase() + acc.slice(1)}`}
+                value={amt} color="#e65100" indent
+                onClick={() => openDrillDown('office_expense', acc)} />
             ))}
 
-            {/* Salaries */}
-            {data.totalSalaries > 0 && <PLRow label="💼 Salaries Paid" value={data.totalSalaries} color="#e65100" indent />}
+            {Object.entries(data.salaryByRider || {}).map(([name, amt]) => (
+              <PLRow key={'s-' + name}
+                label={`💼 Salary — ${name}`}
+                value={amt} color="#e65100" indent
+                onClick={() => openDrillDown('salary', name)} />
+            ))}
 
             <PLRow label="Total Operating Expenses" value={data.totalOperatingExpenses} color="#e65100" bold separator />
           </div>
+
           <div style={{ background: data.netProfit >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
             <p style={{ fontSize: '14px', opacity: 0.8, margin: '0 0 8px' }}>NET PROFIT / (LOSS)</p>
             <p style={{ fontSize: '44px', fontWeight: '700', margin: '0 0 6px' }}>{data.netProfit < 0 ? '−' : ''} Rs. {Math.abs(data.netProfit).toLocaleString()}</p>

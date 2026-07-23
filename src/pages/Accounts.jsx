@@ -4,10 +4,9 @@ import { supabase } from '../supabase'
 export default function Accounts({ tenantId }) {
   const [activeTab, setActiveTab] = useState('coa')
   const tabs = [
-    { key: 'coa', label: '📋 Chart of Accounts' },
-    { key: 'trial', label: '⚖️ Trial Balance' },
-    { key: 'pl', label: '📈 Income Statement' },
-    { key: 'bs', label: '🏦 Balance Sheet' },
+    { key: 'coa',     label: '📋 Chart of Accounts' },
+    { key: 'trial',   label: '⚖️ Trial Balance' },
+    { key: 'bs',      label: '🏦 Balance Sheet' },
     { key: 'journal', label: '📒 Journal Entries' },
   ]
   return (
@@ -24,10 +23,9 @@ export default function Accounts({ tenantId }) {
           </button>
         ))}
       </div>
-      {activeTab === 'coa' && <ChartOfAccounts tenantId={tenantId} />}
-      {activeTab === 'trial' && <TrialBalance tenantId={tenantId} />}
-      {activeTab === 'pl' && <IncomeStatement tenantId={tenantId} />}
-      {activeTab === 'bs' && <BalanceSheet tenantId={tenantId} />}
+      {activeTab === 'coa'     && <ChartOfAccounts tenantId={tenantId} />}
+      {activeTab === 'trial'   && <TrialBalance tenantId={tenantId} />}
+      {activeTab === 'bs'      && <BalanceSheet tenantId={tenantId} />}
       {activeTab === 'journal' && <JournalEntries tenantId={tenantId} />}
     </div>
   )
@@ -46,10 +44,7 @@ function ChartOfAccounts({ tenantId }) {
 
   async function fetchAccounts() {
     setLoading(true)
-    const { data } = await supabase.from('chart_of_accounts')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('account_code')
+    const { data } = await supabase.from('chart_of_accounts').select('*').eq('tenant_id', tenantId).order('account_code')
     setAccounts(data || [])
     setLoading(false)
   }
@@ -71,89 +66,35 @@ function ChartOfAccounts({ tenantId }) {
     setSaving(true)
     if (editAccount) {
       const { error } = await supabase.from('chart_of_accounts').update({
-        account_name: form.account_name,
-        account_type: form.account_type,
-        account_subtype: form.account_subtype,
-        description: form.description,
+        account_name: form.account_name, account_type: form.account_type,
+        account_subtype: form.account_subtype, description: form.description,
         opening_balance: Number(form.opening_balance) || 0
-      })
-        .eq('id', editAccount.id)
-        .eq('tenant_id', tenantId)
+      }).eq('id', editAccount.id).eq('tenant_id', tenantId)
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
     } else {
       const { error } = await supabase.from('chart_of_accounts').insert([{
-        tenant_id: tenantId,
-        account_code: form.account_code,
-        account_name: form.account_name,
-        account_type: form.account_type,
-        account_subtype: form.account_subtype,
-        description: form.description,
-        is_system: false,
-        is_active: true,
+        tenant_id: tenantId, account_code: form.account_code, account_name: form.account_name,
+        account_type: form.account_type, account_subtype: form.account_subtype,
+        description: form.description, is_system: false, is_active: true,
         opening_balance: Number(form.opening_balance) || 0
       }])
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
     }
-    // Post opening balance journal entry if amount > 0
-    if (Number(form.opening_balance) > 0) {
-      try {
-        const { data: je } = await supabase.from('journal_entries').insert([{
-          tenant_id: tenantId,
-          entry_date: new Date().toISOString().split('T')[0],
-          reference_type: 'opening_balance',
-          reference_id: editAccount?.id || form.account_code,
-          narration: `Opening balance — ${form.account_name}`,
-          total_amount: Number(form.opening_balance),
-          created_by: 'system'
-        }]).select().single()
-
-        if (je) {
-          await supabase.from('journal_entry_lines').insert([
-            { tenant_id: tenantId, journal_entry_id: je.id, account_code: form.account_code, account_name: form.account_name, debit: Number(form.opening_balance), credit: 0 },
-            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Number(form.opening_balance) }
-          ])
-        }
-      } catch (err) { console.error('Opening balance journal error:', err) }
-    }
-
-    // Handle opening balance journal entry
     if (Number(form.opening_balance) !== 0) {
       try {
-        // Check if opening balance journal already exists for this account
-        const { data: existingJE } = await supabase.from('journal_entries')
-          .select('id')
-          .eq('tenant_id', tenantId)
-          .eq('reference_type', 'opening_balance')
-          .eq('reference_id', editAccount?.id || form.account_code)
-          .single()
-
+        const { data: existingJE } = await supabase.from('journal_entries').select('id')
+          .eq('tenant_id', tenantId).eq('reference_type', 'opening_balance')
+          .eq('reference_id', editAccount?.id || form.account_code).single()
         if (existingJE) {
-          // Update existing journal entry lines with new amount
-          await supabase.from('journal_entry_lines')
-            .update({ debit: Number(form.opening_balance), credit: 0 })
-            .eq('journal_entry_id', existingJE.id)
-            .eq('account_code', form.account_code)
-
-          await supabase.from('journal_entry_lines')
-            .update({ debit: 0, credit: Number(form.opening_balance) })
-            .eq('journal_entry_id', existingJE.id)
-            .eq('account_code', '3001')
-
-          await supabase.from('journal_entries')
-            .update({ total_amount: Number(form.opening_balance) })
-            .eq('id', existingJE.id)
+          await supabase.from('journal_entry_lines').update({ debit: Number(form.opening_balance), credit: 0 }).eq('journal_entry_id', existingJE.id).eq('account_code', form.account_code)
+          await supabase.from('journal_entry_lines').update({ debit: 0, credit: Number(form.opening_balance) }).eq('journal_entry_id', existingJE.id).eq('account_code', '3001')
+          await supabase.from('journal_entries').update({ total_amount: Number(form.opening_balance) }).eq('id', existingJE.id)
         } else {
-          // Post new opening balance journal entry
           const { data: je } = await supabase.from('journal_entries').insert([{
-            tenant_id: tenantId,
-            entry_date: new Date().toISOString().split('T')[0],
-            reference_type: 'opening_balance',
-            reference_id: editAccount?.id || form.account_code,
-            narration: `Opening balance — ${form.account_name}`,
-            total_amount: Number(form.opening_balance),
-            created_by: 'system'
+            tenant_id: tenantId, entry_date: new Date().toISOString().split('T')[0],
+            reference_type: 'opening_balance', reference_id: editAccount?.id || form.account_code,
+            narration: `Opening balance — ${form.account_name}`, total_amount: Number(form.opening_balance), created_by: 'system'
           }]).select().single()
-
           if (je) {
             await supabase.from('journal_entry_lines').insert([
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: form.account_code, account_name: form.account_name, debit: Number(form.opening_balance), credit: 0 },
@@ -163,19 +104,12 @@ function ChartOfAccounts({ tenantId }) {
         }
       } catch (err) { console.error('Opening balance journal error:', err) }
     }
-
-    setShowForm(false)
-    setEditAccount(null)
-    fetchAccounts()
-    setSaving(false)
+    setShowForm(false); setEditAccount(null); fetchAccounts(); setSaving(false)
   }
 
   async function toggleActive(acc) {
     if (acc.is_system) return alert('System accounts cannot be deactivated')
-    await supabase.from('chart_of_accounts')
-      .update({ is_active: !acc.is_active })
-      .eq('id', acc.id)
-      .eq('tenant_id', tenantId)
+    await supabase.from('chart_of_accounts').update({ is_active: !acc.is_active }).eq('id', acc.id).eq('tenant_id', tenantId)
     fetchAccounts()
   }
 
@@ -188,10 +122,7 @@ function ChartOfAccounts({ tenantId }) {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>{accounts.filter(a => a.is_active).length} active accounts</p>
-        <button onClick={openAdd}
-          style={{ padding: '10px 18px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-          + Add Account
-        </button>
+        <button onClick={openAdd} style={{ padding: '10px 18px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>+ Add Account</button>
       </div>
 
       {showForm && (
@@ -203,48 +134,36 @@ function ChartOfAccounts({ tenantId }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px', marginBottom: '12px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Account Code *</label>
-              <input value={form.account_code} onChange={e => setForm({ ...form, account_code: e.target.value })}
-                placeholder="e.g. 6010" style={inp} disabled={!!editAccount} />
+              <input value={form.account_code} onChange={e => setForm({ ...form, account_code: e.target.value })} placeholder="e.g. 6010" style={inp} disabled={!!editAccount} />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Account Name *</label>
-              <input value={form.account_name} onChange={e => setForm({ ...form, account_name: e.target.value })}
-                placeholder="e.g. Water Testing Fee" style={inp} />
+              <input value={form.account_name} onChange={e => setForm({ ...form, account_name: e.target.value })} placeholder="e.g. Water Testing Fee" style={inp} />
             </div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Account Type *</label>
               <select value={form.account_type} onChange={e => setForm({ ...form, account_type: e.target.value })} style={inp}>
-                <option value="asset">Asset</option>
-                <option value="liability">Liability</option>
-                <option value="equity">Equity</option>
-                <option value="revenue">Revenue</option>
-                <option value="expense">Expense</option>
+                <option value="asset">Asset</option><option value="liability">Liability</option>
+                <option value="equity">Equity</option><option value="revenue">Revenue</option><option value="expense">Expense</option>
               </select>
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Sub Type</label>
-              <input value={form.account_subtype} onChange={e => setForm({ ...form, account_subtype: e.target.value })}
-                placeholder="e.g. admin, salary, sales" style={inp} />
+              <input value={form.account_subtype} onChange={e => setForm({ ...form, account_subtype: e.target.value })} placeholder="e.g. admin, salary, sales" style={inp} />
             </div>
           </div>
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Description (optional)</label>
-            <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-              placeholder="What is this account for?" style={inp} />
+            <input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="What is this account for?" style={inp} />
           </div>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Opening Balance (Rs.)</label>
-            <input type="number" value={form.opening_balance}
-              onChange={e => setForm({ ...form, opening_balance: Number(e.target.value) || 0 })}
-              placeholder="0" style={inp} />
-            <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>
-              💡 Balance this account had before you started using AquaRun
-            </p>
+            <input type="number" value={form.opening_balance} onChange={e => setForm({ ...form, opening_balance: Number(e.target.value) || 0 })} placeholder="0" style={inp} />
+            <p style={{ fontSize: '11px', color: '#888', margin: '4px 0 0' }}>💡 Balance this account had before you started using AquaRun</p>
           </div>
-          <button onClick={saveAccount} disabled={saving}
-            style={{ padding: '10px 24px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
+          <button onClick={saveAccount} disabled={saving} style={{ padding: '10px 24px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
             {saving ? 'Saving...' : editAccount ? '✓ Update' : '✓ Add Account'}
           </button>
         </div>
@@ -257,9 +176,7 @@ function ChartOfAccounts({ tenantId }) {
             if (typeAccounts.length === 0) return null
             return (
               <div key={type} style={{ marginBottom: '20px' }}>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: typeColors[type], marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  {typeLabels[type]}
-                </p>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: typeColors[type], marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{typeLabels[type]}</p>
                 <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
@@ -285,10 +202,7 @@ function ChartOfAccounts({ tenantId }) {
                             </span>
                           </td>
                           <td style={{ padding: '10px 14px' }}>
-                            <button onClick={() => openEdit(acc)}
-                              style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                              ✏️ Edit
-                            </button>
+                            <button onClick={() => openEdit(acc)} style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>✏️ Edit</button>
                           </td>
                         </tr>
                       ))}
@@ -315,22 +229,15 @@ function TrialBalance({ tenantId }) {
 
   async function fetchTrialBalance() {
     setLoading(true)
-    const { data: accounts } = await supabase.from('chart_of_accounts')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true).order('account_code')
-    // Get journal entry IDs for this tenant and date range first
-    const { data: journalEntries } = await supabase.from('journal_entries')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .gte('entry_date', dateFrom)
-      .lte('entry_date', dateTo)
 
-    if (!lines || lines.length === 0) {
-      setData({ revenue: {}, cogs: {}, expenses: {}, totalRevenue: 0, totalCogs: 0, grossProfit: 0, totalExpenses: 0, netProfit: 0 })
-      setLoading(false)
-      return
-    }
+    const { data: accounts } = await supabase.from('chart_of_accounts')
+      .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('account_code')
+
+    const { data: lines } = await supabase.from('journal_entry_lines')
+      .select('*, je:journal_entry_id!inner(entry_date)')
+      .eq('tenant_id', tenantId)
+      .gte('je.entry_date', dateFrom)
+      .lte('je.entry_date', dateTo)
 
     const balances = {}
     lines?.forEach(l => {
@@ -343,7 +250,6 @@ function TrialBalance({ tenantId }) {
       ...acc,
       totalDebit: balances[acc.account_code]?.debit || 0,
       totalCredit: balances[acc.account_code]?.credit || 0,
-      netBalance: (balances[acc.account_code]?.debit || 0) - (balances[acc.account_code]?.credit || 0)
     })).filter(a => a.totalDebit > 0 || a.totalCredit > 0)
 
     setData(result)
@@ -357,34 +263,27 @@ function TrialBalance({ tenantId }) {
   return (
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>⚖️ Trial Balance</h3>
-
       <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
         <div>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
-        <button onClick={fetchTrialBalance}
-          style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-          🔄 Refresh
-        </button>
+        <button onClick={fetchTrialBalance} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
       </div>
 
       {totalDebit !== totalCredit && totalDebit > 0 && (
         <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#c62828', margin: '0 0 2px' }}>⚠️ Trial Balance does not balance</p>
-          <p style={{ fontSize: '12px', color: '#e57373', margin: 0 }}>Difference: Rs. {Math.abs(totalDebit - totalCredit).toLocaleString()} — check for missing journal entries</p>
+          <p style={{ fontSize: '12px', color: '#e57373', margin: 0 }}>Difference: Rs. {Math.abs(totalDebit - totalCredit).toLocaleString()}</p>
         </div>
       )}
-
       {totalDebit === totalCredit && totalDebit > 0 && (
         <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
-          <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Trial Balance is balanced — Debits = Credits = Rs. {totalDebit.toLocaleString()}</p>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Trial Balance is balanced — Rs. {totalDebit.toLocaleString()}</p>
         </div>
       )}
 
@@ -392,7 +291,6 @@ function TrialBalance({ tenantId }) {
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>📒</p>
           <p style={{ color: '#888' }}>No journal entries found for this period.</p>
-          <p style={{ fontSize: '12px', color: '#aaa' }}>Journal entries are created automatically when you record transactions going forward.</p>
         </div>
       ) : (
         <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'auto' }}>
@@ -433,181 +331,26 @@ function TrialBalance({ tenantId }) {
   )
 }
 
-// ─── INCOME STATEMENT ──────────────────────────────────────────────
-function IncomeStatement({ tenantId }) {
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
-  const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
-
-  useEffect(() => { if (tenantId) fetchData() }, [dateFrom, dateTo, tenantId])
-
-  async function fetchData() {
-    setLoading(true)
-
-    // Fetch COA separately to get account types
-    const { data: coaData } = await supabase.from('chart_of_accounts')
-      .select('account_code, account_name, account_type, account_subtype')
-      .eq('tenant_id', tenantId)
-    const coaMap = {}
-    coaData?.forEach(a => { coaMap[a.account_code] = a })
-
-    const { data: journalEntries } = await supabase.from('journal_entries')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .gte('entry_date', dateFrom)
-      .lte('entry_date', dateTo)
-
-    const { data: lines } = await supabase
-      .from('journal_entry_lines')
-      .select('*, je:journal_entry_id!inner(entry_date)')
-      .eq('tenant_id', tenantId)
-      .gte('je.entry_date', dateFrom)
-      .lte('je.entry_date', dateTo)
-
-    const revenue = {}
-    const cogs = {}
-    const expenses = {}
-
-    lines?.forEach(l => {
-      const acc = coaMap[l.account_code]
-      const type = acc?.account_type
-      const subtype = acc?.account_subtype
-      const name = acc?.account_name || l.account_name
-      const code = l.account_code
-      const net = Number(l.credit || 0) - Number(l.debit || 0)
-
-      if (type === 'revenue') {
-        if (!revenue[code]) revenue[code] = { name, amount: 0 }
-        revenue[code].amount += net
-      } else if (type === 'expense' && subtype === 'cogs') {
-        if (!cogs[code]) cogs[code] = { name, amount: 0 }
-        cogs[code].amount += Number(l.debit || 0) - Number(l.credit || 0)
-      } else if (type === 'expense') {
-        if (!expenses[code]) expenses[code] = { name, amount: 0 }
-        expenses[code].amount += Number(l.debit || 0) - Number(l.credit || 0)
-      }
-    })
-
-    const totalRevenue = Object.values(revenue).reduce((s, v) => s + v.amount, 0)
-    const totalCogs = Object.values(cogs).reduce((s, v) => s + v.amount, 0)
-    const grossProfit = totalRevenue - totalCogs
-    const totalExpenses = Object.values(expenses).reduce((s, v) => s + v.amount, 0)
-    const netProfit = grossProfit - totalExpenses
-
-    setData({ revenue, cogs, expenses, totalRevenue, totalCogs, grossProfit, totalExpenses, netProfit })
-    setLoading(false)
-  }
-
-  function Section({ title, items, color, total, sign = '+' }) {
-    return (
-      <div style={{ marginBottom: '16px' }}>
-        <p style={{ fontSize: '13px', fontWeight: '700', color, marginBottom: '8px', paddingBottom: '6px', borderBottom: `2px solid ${color}20` }}>{title}</p>
-        {Object.entries(items).map(([code, item]) => (
-          <div key={code} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 6px 16px', borderBottom: '1px solid #f0f0f0' }}>
-            <span style={{ fontSize: '13px', color: '#555' }}>{item.name}</span>
-            <span style={{ fontSize: '13px', fontWeight: '600', color }}>{sign} Rs. {item.amount.toLocaleString()}</span>
-          </div>
-        ))}
-        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderTop: `1px solid ${color}40`, marginTop: '4px' }}>
-          <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>Total</span>
-          <span style={{ fontSize: '14px', fontWeight: '700', color }}>{sign} Rs. {total.toLocaleString()}</span>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div>
-      <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📈 Income Statement</h3>
-
-      <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div>
-          <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
-        </div>
-        <div>
-          <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
-        </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          {[
-            { label: 'Today', from: new Date().toISOString().split('T')[0], to: new Date().toISOString().split('T')[0] },
-            { label: 'Month', from: new Date().toISOString().slice(0, 7) + '-01', to: new Date().toISOString().split('T')[0] },
-            { label: 'All', from: '2024-01-01', to: new Date().toISOString().split('T')[0] },
-          ].map(p => (
-            <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
-              style={{ padding: '8px 12px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: '#f0f0f0', color: '#555', fontSize: '12px' }}>
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : !data ? null : (
-        <div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '16px' }}>
-            <Section title="REVENUE" items={data.revenue} color="#1a7a4a" total={data.totalRevenue} />
-            {Object.keys(data.cogs).length > 0 && (
-              <>
-                <Section title="COST OF GOODS SOLD" items={data.cogs} color="#f44336" total={data.totalCogs} sign="−" />
-                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid #eee', marginBottom: '16px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>GROSS PROFIT</span>
-                  <span style={{ fontSize: '16px', fontWeight: '700', color: data.grossProfit >= 0 ? '#1a7a4a' : '#f44336' }}>
-                    Rs. {data.grossProfit.toLocaleString()}
-                  </span>
-                </div>
-              </>
-            )}
-            {Object.keys(data.expenses).length > 0 && (
-              <Section title="OPERATING EXPENSES" items={data.expenses} color="#e65100" total={data.totalExpenses} sign="−" />
-            )}
-          </div>
-
-          <div style={{
-            background: data.netProfit >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)',
-            color: 'white', borderRadius: '14px', padding: '24px', textAlign: 'center'
-          }}>
-            <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px', textTransform: 'uppercase' }}>Net Profit / (Loss)</p>
-            <p style={{ fontSize: '44px', fontWeight: '700', margin: '0 0 4px' }}>
-              {data.netProfit < 0 ? '−' : ''} Rs. {Math.abs(data.netProfit).toLocaleString()}
-            </p>
-            <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>
-              Revenue Rs. {data.totalRevenue.toLocaleString()} − COGS Rs. {data.totalCogs.toLocaleString()} − Expenses Rs. {data.totalExpenses.toLocaleString()}
-            </p>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ─── BALANCE SHEET ─────────────────────────────────────────────────
 function BalanceSheet({ tenantId }) {
   const [asOf, setAsOf] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [drillDown, setDrillDown] = useState(null) // { code, name, entries }
+  const [drillLoading, setDrillLoading] = useState(false)
 
   useEffect(() => { if (tenantId) fetchData() }, [asOf, tenantId])
 
   async function fetchData() {
     setLoading(true)
-
-    // Fetch COA separately to get account types
     const { data: coaData } = await supabase.from('chart_of_accounts')
-      .select('account_code, account_name, account_type, account_subtype')
-      .eq('tenant_id', tenantId)
+      .select('account_code, account_name, account_type, account_subtype').eq('tenant_id', tenantId)
     const coaMap = {}
     coaData?.forEach(a => { coaMap[a.account_code] = a })
 
-    const { data: lines } = await supabase
-      .from('journal_entry_lines')
-      .select('*, je:journal_entry_id!inner(entry_date)')
-      .eq('tenant_id', tenantId)
-      .lte('je.entry_date', asOf)
-
+    const { data: lines } = await supabase.from('journal_entry_lines')
+      .select('*, je:journal_entry_id!inner(entry_date, narration, reference_type)')
+      .eq('tenant_id', tenantId).lte('je.entry_date', asOf)
 
     const balances = {}
     lines?.forEach(l => {
@@ -619,9 +362,7 @@ function BalanceSheet({ tenantId }) {
       balances[code].credit += Number(l.credit || 0)
     })
 
-    const assets = {}
-    const liabilities = {}
-    const equity = {}
+    const assets = {}; const liabilities = {}; const equity = {}
     let retainedEarnings = 0
 
     lines?.forEach(l => {
@@ -646,22 +387,29 @@ function BalanceSheet({ tenantId }) {
     setLoading(false)
   }
 
-  function Section({ title, items, color, extra }) {
+  async function openDrillDown(code, name) {
+    setDrillLoading(true)
+    setDrillDown({ code, name, entries: [] })
+    const { data: lines } = await supabase.from('journal_entry_lines')
+      .select('*, je:journal_entry_id!inner(entry_date, narration, reference_type)')
+      .eq('tenant_id', tenantId).eq('account_code', code).lte('je.entry_date', asOf)
+      .order('je.entry_date', { ascending: false })
+    setDrillDown({ code, name, entries: lines || [] })
+    setDrillLoading(false)
+  }
+
+  function AccountRow({ code, name, amount, color }) {
     return (
-      <div style={{ marginBottom: '12px' }}>
-        <p style={{ fontSize: '12px', fontWeight: '700', color, margin: '0 0 6px', textTransform: 'uppercase' }}>{title}</p>
-        {Object.entries(items).map(([code, item]) => (
-          <div key={code} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 6px 12px', borderBottom: '1px solid #f0f0f0' }}>
-            <span style={{ fontSize: '13px', color: '#555' }}>{item.name}</span>
-            <span style={{ fontSize: '13px', fontWeight: '600', color }}>Rs. {item.amount.toLocaleString()}</span>
-          </div>
-        ))}
-        {extra && extra.map(e => (
-          <div key={e.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0 6px 12px', borderBottom: '1px solid #f0f0f0' }}>
-            <span style={{ fontSize: '13px', color: '#555' }}>{e.label}</span>
-            <span style={{ fontSize: '13px', fontWeight: '600', color }}>Rs. {e.amount.toLocaleString()}</span>
-          </div>
-        ))}
+      <div onClick={() => openDrillDown(code, name)}
+        style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', borderRadius: '4px' }}
+        onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
+        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+        <span style={{ fontSize: '13px', color: '#555' }}>
+          <span style={{ fontSize: '10px', color: '#aaa', marginRight: '6px' }}>{code}</span>
+          {name}
+          <span style={{ fontSize: '10px', color: '#0f4c81', marginLeft: '6px' }}>🔍</span>
+        </span>
+        <span style={{ fontSize: '13px', fontWeight: '600', color }}>Rs. {amount.toLocaleString()}</span>
       </div>
     )
   }
@@ -669,48 +417,117 @@ function BalanceSheet({ tenantId }) {
   return (
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>🏦 Balance Sheet</h3>
-
       <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
         <div>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>As of Date</label>
-          <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+          <input type="date" value={asOf} onChange={e => setAsOf(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
-        <button onClick={fetchData}
-          style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-          🔄 Refresh
-        </button>
+        <button onClick={fetchData} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
       </div>
 
-      {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : !data ? null : (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 12px', paddingBottom: '8px', borderBottom: '2px solid #e3f0ff' }}>ASSETS</p>
-            <Section title="Current Assets" items={data.assets} color="#0f4c81" />
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid #0f4c81', marginTop: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Assets</span>
-              <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81' }}>Rs. {data.totalAssets.toLocaleString()}</span>
+      {/* Drill Down Modal */}
+      {drillDown && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', maxWidth: '700px', width: '100%', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#0f4c81' }}>
+                🔍 {drillDown.code} — {drillDown.name}
+              </h3>
+              <button onClick={() => setDrillDown(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}>✕</button>
             </div>
-          </div>
-
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '14px', fontWeight: '700', color: '#c62828', margin: '0 0 12px', paddingBottom: '8px', borderBottom: '2px solid #ffebee' }}>LIABILITIES & EQUITY</p>
-            {Object.keys(data.liabilities).length > 0 && (
-              <Section title="Liabilities" items={data.liabilities} color="#c62828" />
-            )}
-            <Section title="Equity" items={data.equity} color="#6a1b9a"
-              extra={data.retainedEarnings !== 0 ? [{ label: 'Retained Earnings (Net Profit)', amount: data.retainedEarnings }] : []} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid #333', marginTop: '8px' }}>
-              <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total L + E</span>
-              <span style={{ fontSize: '16px', fontWeight: '700', color: data.totalAssets === data.totalLiabilitiesEquity ? '#1a7a4a' : '#f44336' }}>
-                Rs. {data.totalLiabilitiesEquity.toLocaleString()}
-              </span>
-            </div>
-            {data.totalAssets === data.totalLiabilitiesEquity ? (
-              <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '6px 0 0', textAlign: 'center' }}>✅ Balance Sheet is balanced</p>
+            {drillLoading ? <p style={{ textAlign: 'center', color: '#888', padding: '20px' }}>Loading...</p> : drillDown.entries.length === 0 ? (
+              <p style={{ textAlign: 'center', color: '#888', padding: '20px' }}>No entries found</p>
             ) : (
-              <p style={{ fontSize: '11px', color: '#f44336', margin: '6px 0 0', textAlign: 'center' }}>⚠️ Difference: Rs. {Math.abs(data.totalAssets - data.totalLiabilitiesEquity).toLocaleString()}</p>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa' }}>
+                    {['Date', 'Description', 'Debit', 'Credit'].map(h => (
+                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {drillDown.entries.map((l, i) => (
+                    <tr key={l.id} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#555', whiteSpace: 'nowrap' }}>
+                        {new Date(l.je.entry_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>{l.je.narration}</td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: l.debit > 0 ? '#0f4c81' : '#aaa', textAlign: 'right' }}>
+                        {l.debit > 0 ? `Rs. ${Number(l.debit).toLocaleString()}` : '—'}
+                      </td>
+                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: l.credit > 0 ? '#1a7a4a' : '#aaa', textAlign: 'right' }}>
+                        {l.credit > 0 ? `Rs. ${Number(l.credit).toLocaleString()}` : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr style={{ background: '#0f4c81', color: 'white' }}>
+                    <td colSpan={2} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700' }}>Total</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>
+                      Rs. {drillDown.entries.reduce((s, l) => s + Number(l.debit || 0), 0).toLocaleString()}
+                    </td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>
+                      Rs. {drillDown.entries.reduce((s, l) => s + Number(l.credit || 0), 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             )}
+          </div>
+        </div>
+      )}
+
+      {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : !data ? null : (
+        <div>
+          <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
+            <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>🔍 Click any account line to see the individual journal entries that make up the balance.</p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 12px', paddingBottom: '8px', borderBottom: '2px solid #e3f0ff' }}>ASSETS</p>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#0f4c81', margin: '0 0 6px', textTransform: 'uppercase' }}>Current Assets</p>
+              {Object.entries(data.assets).map(([code, item]) => (
+                <AccountRow key={code} code={code} name={item.name} amount={item.amount} color="#0f4c81" />
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid #0f4c81', marginTop: '8px' }}>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total Assets</span>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81' }}>Rs. {data.totalAssets.toLocaleString()}</span>
+              </div>
+            </div>
+
+            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#c62828', margin: '0 0 12px', paddingBottom: '8px', borderBottom: '2px solid #ffebee' }}>LIABILITIES & EQUITY</p>
+              {Object.keys(data.liabilities).length > 0 && (
+                <>
+                  <p style={{ fontSize: '11px', fontWeight: '700', color: '#c62828', margin: '0 0 6px', textTransform: 'uppercase' }}>Liabilities</p>
+                  {Object.entries(data.liabilities).map(([code, item]) => (
+                    <AccountRow key={code} code={code} name={item.name} amount={item.amount} color="#c62828" />
+                  ))}
+                </>
+              )}
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#6a1b9a', margin: '10px 0 6px', textTransform: 'uppercase' }}>Equity</p>
+              {Object.entries(data.equity).map(([code, item]) => (
+                <AccountRow key={code} code={code} name={item.name} amount={item.amount} color="#6a1b9a" />
+              ))}
+              {data.retainedEarnings !== 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #f0f0f0' }}>
+                  <span style={{ fontSize: '13px', color: '#555' }}>Retained Earnings (Net Profit)</span>
+                  <span style={{ fontSize: '13px', fontWeight: '600', color: '#6a1b9a' }}>Rs. {data.retainedEarnings.toLocaleString()}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderTop: '2px solid #333', marginTop: '8px' }}>
+                <span style={{ fontSize: '14px', fontWeight: '700', color: '#333' }}>Total L + E</span>
+                <span style={{ fontSize: '16px', fontWeight: '700', color: data.totalAssets === data.totalLiabilitiesEquity ? '#1a7a4a' : '#f44336' }}>
+                  Rs. {data.totalLiabilitiesEquity.toLocaleString()}
+                </span>
+              </div>
+              {data.totalAssets === data.totalLiabilitiesEquity
+                ? <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '6px 0 0', textAlign: 'center' }}>✅ Balance Sheet is balanced</p>
+                : <p style={{ fontSize: '11px', color: '#f44336', margin: '6px 0 0', textAlign: 'center' }}>⚠️ Difference: Rs. {Math.abs(data.totalAssets - data.totalLiabilitiesEquity).toLocaleString()}</p>
+              }
+            </div>
           </div>
         </div>
       )}
@@ -741,38 +558,32 @@ function JournalEntries({ tenantId }) {
 
   const refTypeLabels = {
     delivery: '📦 Delivery', payment: '💵 Payment', office_expense: '🏢 Office Expense',
-    rider_expense: '⛽ Rider Expense', salary_payment: '💼 Salary', salary_advance: '💰 Advance',
-    stock_purchase: '📥 Purchase', owner_transaction: '👤 Owner', account_transfer: '🔄 Transfer',
-    cash_transfer: '💸 Cash Transfer', delivery_jazzcash_confirmed: '📱 JazzCash Confirmed',
-    payment_jazzcash_confirmed: '📱 JazzCash Confirmed'
+    rider_expense: '⛽ Rider Expense', salary_payment: '💼 Salary', salary_accrual: '📋 Salary Accrual',
+    salary_advance: '💰 Advance', stock_purchase: '📥 Purchase', owner_transaction: '👤 Owner',
+    account_transfer: '🔄 Transfer', cash_transfer: '💸 Cash Transfer', sales_tax: '🧾 Tax',
+    cogs: '📦 COGS', commission_accrual: '💼 Commission', opening_balance: '📋 Opening Balance',
+    delivery_jazzcash_confirmed: '📱 JazzCash Confirmed', payment_jazzcash_confirmed: '📱 JazzCash Confirmed'
   }
 
   return (
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📒 Journal Entries</h3>
-
       <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
         <div>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} />
         </div>
-        <button onClick={fetchEntries}
-          style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-          🔄 Refresh
-        </button>
+        <button onClick={fetchEntries} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
       </div>
 
       {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : entries.length === 0 ? (
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
           <p style={{ fontSize: '32px', marginBottom: '8px' }}>📒</p>
           <p style={{ color: '#888' }}>No journal entries for this period.</p>
-          <p style={{ fontSize: '12px', color: '#aaa' }}>Journal entries are created automatically when you record transactions.</p>
         </div>
       ) : (
         <div>
