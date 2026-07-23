@@ -463,7 +463,7 @@ export async function postSalaryAdvanceJournal(advance, tenantId) {
       date: new Date().toISOString().split('T')[0],
       referenceType: 'salary_advance',
       referenceId: advance.id,
-      narration: `Salary advance — ${advance.rider_id || ''} — paid from ${advance.payment_method || 'cash'}`,
+      narration: `Salary advance — ${advance.notes || ''} — paid from ${advance.payment_method || 'cash'}`,
       lines
     })
 

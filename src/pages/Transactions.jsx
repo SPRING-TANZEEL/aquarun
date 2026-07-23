@@ -3,13 +3,15 @@ import { supabase } from '../supabase'
 import InvoiceModal from '../components/InvoiceModal'
 
 const TRANSACTION_TYPES = [
-  { key: 'all', label: 'All Transactions' },
-  { key: 'deliveries', label: '📦 Deliveries' },
-  { key: 'payments', label: '💵 Payments' },
-  { key: 'expenses', label: '💸 Expenses' },
-  { key: 'office_expenses', label: '🏢 Office Expenses' },
-  { key: 'cash_transfers', label: '🔄 Cash Transfers' },
-  { key: 'salary_advances', label: '💼 Salary Advances' },
+  { key: 'all',              label: 'All Transactions' },
+  { key: 'deliveries',       label: '📦 Deliveries' },
+  { key: 'payments',         label: '💵 Payments' },
+  { key: 'expenses',         label: '💸 Rider Expenses' },
+  { key: 'office_expenses',  label: '🏢 Office Expenses' },
+  { key: 'cash_transfers',   label: '🔄 Cash Transfers' },
+  { key: 'salary_advances',  label: '💼 Advances' },
+  { key: 'salary_payments',  label: '🧾 Salary Payments' },
+  { key: 'stock_purchases',  label: '📥 Stock Purchases' },
 ]
 
 export default function Transactions({ tenantId }) {
@@ -24,7 +26,7 @@ export default function Transactions({ tenantId }) {
   const [showVoidForm, setShowVoidForm] = useState(false)
   const [voidReason, setVoidReason] = useState('')
   const [processing, setProcessing] = useState(false)
-  const [invoiceData, setInvoiceData] = useState(null) // { delivery, customer, settings }
+  const [invoiceData, setInvoiceData] = useState(null)
   const [businessSettings, setBusinessSettings] = useState({})
 
   useEffect(() => { if (tenantId) fetchTransactions() }, [activeType, dateFrom, dateTo, showVoided, tenantId])
@@ -46,9 +48,10 @@ export default function Transactions({ tenantId }) {
     setLoading(true)
     const all = []
 
+    // ── DELIVERIES ──────────────────────────────────────────────────
     if (activeType === 'all' || activeType === 'deliveries') {
       const { data } = await supabase.from('deliveries')
-        .select('*, notes, customers(full_name, customer_code), riders(full_name)')
+        .select('*, customers(full_name, customer_code), riders(full_name)')
         .eq('tenant_id', tenantId)
         .gte('delivered_at', dateFrom + 'T00:00:00')
         .lte('delivered_at', dateTo + 'T23:59:59')
@@ -57,11 +60,11 @@ export default function Transactions({ tenantId }) {
       data?.forEach(d => all.push({
         id: d.id, type: 'delivery', table: 'deliveries',
         date: d.delivered_at,
-         description: d.notes || [
-          d.qty_19l > 0 ? `🍶 19L ×${d.qty_19l} @ Rs.${d.rate_applied}` : '',
-          d.qty_half_litre > 0 ? `💧 Half ×${d.qty_half_litre}` : '',
-          d.qty_1_5l > 0 ? `🧴 1.5L ×${d.qty_1_5l}` : ''
-        ].filter(Boolean).join(' · '),
+        description: [
+          d.qty_19l > 0 ? `19L ×${d.qty_19l} @ Rs.${d.rate_applied}` : '',
+          d.qty_half_litre > 0 ? `Half ×${d.qty_half_litre}` : '',
+          d.qty_1_5l > 0 ? `1.5L ×${d.qty_1_5l}` : ''
+        ].filter(Boolean).join(' · ') || d.notes || 'Delivery',
         party: d.customers?.full_name || 'Walk-in',
         party_code: d.customers?.customer_code || '—',
         rider: d.riders?.full_name || '—',
@@ -74,6 +77,7 @@ export default function Transactions({ tenantId }) {
       }))
     }
 
+    // ── CUSTOMER PAYMENTS ───────────────────────────────────────────
     if (activeType === 'all' || activeType === 'payments') {
       const { data } = await supabase.from('payments')
         .select('*, customers(full_name, customer_code), riders(full_name)')
@@ -85,7 +89,7 @@ export default function Transactions({ tenantId }) {
       data?.forEach(p => all.push({
         id: p.id, type: 'payment', table: 'payments',
         date: p.created_at,
-        description: `Payment — ${p.payment_method}${!p.jazzcash_confirmed && p.payment_method === 'jazzcash' ? ' (Pending)' : ''}`,
+        description: `Customer Payment — ${p.payment_method}${!p.jazzcash_confirmed && p.payment_method === 'jazzcash' ? ' (Pending)' : ''}`,
         party: p.customers?.full_name || '—',
         party_code: p.customers?.customer_code || '—',
         rider: p.riders?.full_name || '—',
@@ -98,6 +102,7 @@ export default function Transactions({ tenantId }) {
       }))
     }
 
+    // ── RIDER EXPENSES ──────────────────────────────────────────────
     if (activeType === 'all' || activeType === 'expenses') {
       const { data } = await supabase.from('expenses')
         .select('*, riders(full_name)')
@@ -108,10 +113,9 @@ export default function Transactions({ tenantId }) {
         .order('created_at', { ascending: false })
       data?.forEach(e => all.push({
         id: e.id, type: 'expense', table: 'expenses',
-        date: e.created_at,
-        description: `Expense — ${e.expense_type}${e.description ? ': ' + e.description : ''}`,
-        party: '—',
-        party_code: '—',
+        date: e.expense_date || e.created_at,
+        description: `Rider Expense — ${e.expense_type}${e.description ? ': ' + e.description : ''}`,
+        party: '—', party_code: '—',
         rider: e.riders?.full_name || '—',
         amount: Number(e.amount),
         payment_method: 'cash',
@@ -122,30 +126,29 @@ export default function Transactions({ tenantId }) {
       }))
     }
 
+    // ── OFFICE EXPENSES ─────────────────────────────────────────────
     if (activeType === 'all' || activeType === 'office_expenses') {
       const { data } = await supabase.from('office_expenses')
         .select('*')
         .eq('tenant_id', tenantId)
         .gte('expense_date', dateFrom)
         .lte('expense_date', dateTo)
+        .eq('is_voided', false)
         .order('created_at', { ascending: false })
-
       data?.forEach(a => all.push({
         id: a.id, type: 'office_expense', table: 'office_expenses',
         date: a.expense_date || a.created_at,
-        description: `Office Expense — ${a.category}${a.description ? ': ' + a.description : ''}`,
-        party: '—',
-        party_code: '—',
-        rider: '—',
+        description: `${a.coa_account_name || a.category}${a.description ? ': ' + a.description : ''}`,
+        party: '—', party_code: '—', rider: '—',
         amount: Number(a.amount),
         payment_method: a.payment_method || 'cash',
         is_voided: false,
-        void_reason: null,
-        voided_at: null,
+        void_reason: null, voided_at: null,
         raw: a
       }))
     }
 
+    // ── CASH TRANSFERS ──────────────────────────────────────────────
     if (activeType === 'all' || activeType === 'cash_transfers') {
       const { data } = await supabase.from('cash_transfers')
         .select('*, from_rider:from_rider_id(full_name)')
@@ -156,40 +159,81 @@ export default function Transactions({ tenantId }) {
         .order('created_at', { ascending: false })
       data?.forEach(t => all.push({
         id: t.id, type: 'cash_transfer', table: 'cash_transfers',
-        date: t.created_at,
-        description: `Cash Transfer — ${t.to_office ? 'To Office' : 'To Main Rider'} — ${t.status}`,
-        party: '—',
-        party_code: '—',
+        date: t.transfer_date || t.created_at,
+        description: `Cash Transfer — ${t.to_office ? 'Rider → Office' : 'To Main Rider'} — ${t.status}`,
+        party: '—', party_code: '—',
         rider: t.from_rider?.full_name || '—',
         amount: Number(t.amount),
-        payment_method: 'cash',
+        payment_method: t.transfer_type || 'cash',
         is_voided: t.is_voided,
-        void_reason: t.void_reason,
-        voided_at: t.voided_at,
+        void_reason: t.void_reason, voided_at: t.voided_at,
         raw: t
       }))
     }
 
+    // ── SALARY ADVANCES (approved only) ────────────────────────────
     if (activeType === 'all' || activeType === 'salary_advances') {
       const { data } = await supabase.from('salary_advances')
         .select('*, riders(full_name)')
         .eq('tenant_id', tenantId)
+        .eq('status', 'approved')
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
         .order('created_at', { ascending: false })
       data?.forEach(a => all.push({
         id: a.id, type: 'salary_advance', table: 'salary_advances',
         date: a.created_at,
-        description: `Salary Advance — ${a.status} — from ${a.requested_from}`,
-        party: '—',
-        party_code: '—',
+        description: `Salary Advance${a.notes ? ': ' + a.notes : ''} — from ${a.requested_from === 'ceo' ? 'CEO' : 'Main Rider'}`,
+        party: '—', party_code: '—',
         rider: a.riders?.full_name || '—',
         amount: Number(a.amount),
-        payment_method: 'cash',
+        payment_method: a.payment_method || 'cash',
         is_voided: a.is_voided,
-        void_reason: a.void_reason,
-        voided_at: a.voided_at,
+        void_reason: a.void_reason, voided_at: a.voided_at,
         raw: a
+      }))
+    }
+
+    // ── SALARY PAYMENTS ─────────────────────────────────────────────
+    if (activeType === 'all' || activeType === 'salary_payments') {
+      const { data } = await supabase.from('salary_payments')
+        .select('*, riders(full_name)')
+        .eq('tenant_id', tenantId)
+        .gte('payment_date', dateFrom)
+        .lte('payment_date', dateTo)
+        .order('created_at', { ascending: false })
+      data?.forEach(p => all.push({
+        id: p.id, type: 'salary_payment', table: 'salary_payments',
+        date: p.payment_date || p.created_at,
+        description: `Salary Payment — ${p.month_year || ''}${p.notes ? ': ' + p.notes : ''}`,
+        party: '—', party_code: '—',
+        rider: p.riders?.full_name || '—',
+        amount: Number(p.amount_paid),
+        payment_method: p.payment_method || 'cash',
+        is_voided: false,
+        void_reason: null, voided_at: null,
+        raw: p
+      }))
+    }
+
+    // ── STOCK PURCHASES ─────────────────────────────────────────────
+    if (activeType === 'all' || activeType === 'stock_purchases') {
+      const { data } = await supabase.from('stock_purchases')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .gte('purchase_date', dateFrom)
+        .lte('purchase_date', dateTo)
+        .order('created_at', { ascending: false })
+      data?.forEach(s => all.push({
+        id: s.id, type: 'stock_purchase', table: 'stock_purchases',
+        date: s.purchase_date || s.created_at,
+        description: `Stock Purchase — ${s.supplier || 'Supplier'}${s.description ? ': ' + s.description : ''}`,
+        party: s.supplier || '—', party_code: '—', rider: '—',
+        amount: Number(s.total_cost),
+        payment_method: s.payment_method || 'cash',
+        is_voided: false,
+        void_reason: null, voided_at: null,
+        raw: s
       }))
     }
 
@@ -201,175 +245,61 @@ export default function Transactions({ tenantId }) {
   async function voidTransaction() {
     if (!voidReason.trim()) return alert('Please enter a reason for voiding')
     setProcessing(true)
-
     const tx = selectedTx
     const now = new Date().toISOString()
 
     await supabase.from(tx.table).update({
-      is_voided: true,
-      voided_at: now,
-      voided_by: 'Admin',
-      void_reason: voidReason
-    })
-      .eq('id', tx.id)
-      .eq('tenant_id', tenantId)
+      is_voided: true, voided_at: now, voided_by: 'Admin', void_reason: voidReason
+    }).eq('id', tx.id).eq('tenant_id', tenantId)
 
-    // Reverse effects based on transaction type
     if (tx.type === 'delivery' && tx.raw.customer_id) {
-      const { data: customer } = await supabase.from('customers')
-        .select('balance')
-        .eq('id', tx.raw.customer_id)
-        .eq('tenant_id', tenantId)
-        .single()
+      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).eq('tenant_id', tenantId).single()
       if (customer) {
         const creditPortion = Number(tx.raw.credit_amount || 0)
-        if (creditPortion > 0) {
-          await supabase.from('customers').update({
-            balance: Number(customer.balance) - creditPortion
-          })
-            .eq('id', tx.raw.customer_id)
-            .eq('tenant_id', tenantId)
-        }
-        if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
-          await supabase.from('customers').update({
-            balance: Number(customer.balance) - Number(tx.raw.total_amount)
-          })
-            .eq('id', tx.raw.customer_id)
-            .eq('tenant_id', tenantId)
-        }
+        if (creditPortion > 0) await supabase.from('customers').update({ balance: Number(customer.balance) - creditPortion }).eq('id', tx.raw.customer_id).eq('tenant_id', tenantId)
+        if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) await supabase.from('customers').update({ balance: Number(customer.balance) - Number(tx.raw.total_amount) }).eq('id', tx.raw.customer_id).eq('tenant_id', tenantId)
       }
-      if (tx.raw.order_id) {
-        await supabase.from('orders').update({
-          status: 'assigned', completed_at: null
-        })
-          .eq('id', tx.raw.order_id)
-          .eq('tenant_id', tenantId)
-      }
-    }
-
-    if (tx.type === 'payment') {
-      if (tx.raw.customer_id) {
-        const { data: customer } = await supabase.from('customers')
-          .select('balance')
-          .eq('id', tx.raw.customer_id)
-          .eq('tenant_id', tenantId)
-          .single()
-        if (customer) {
-          if (tx.raw.payment_method === 'cash') {
-            await supabase.from('customers').update({
-              balance: Number(customer.balance) + Number(tx.raw.amount)
-            })
-              .eq('id', tx.raw.customer_id)
-              .eq('tenant_id', tenantId)
-          }
-          if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
-            await supabase.from('customers').update({
-              balance: Number(customer.balance) + Number(tx.raw.amount)
-            })
-              .eq('id', tx.raw.customer_id)
-              .eq('tenant_id', tenantId)
-          }
-        }
-      }
-    }
-
-    if (tx.type === 'cash_transfer') {
-      await supabase.from('cash_transfers').update({
-        is_voided: true,
-        voided_at: now,
-        voided_by: 'Admin',
-        void_reason: voidReason
-      })
-        .eq('id', tx.id)
-        .eq('tenant_id', tenantId)
-    }
-
-    if (tx.type === 'salary_advance') {
-      await supabase.from('salary_advances').update({
-        is_voided: true,
-        voided_at: now,
-        voided_by: 'Admin',
-        void_reason: voidReason
-      })
-        .eq('id', tx.id)
-        .eq('tenant_id', tenantId)
-    }
-
-    setShowVoidForm(false)
-    setSelectedTx(null)
-    setVoidReason('')
-    setProcessing(false)
-    fetchTransactions()
-    alert('✅ Transaction voided. All balances have been reversed.')
-  }
-
-  async function restoreTransaction(tx) {
-    if (!window.confirm(`Restore this transaction?\n\n${tx.description}\nRs. ${tx.amount.toLocaleString()}\n\nAll balances will be re-applied.`)) return
-    setProcessing(true) 
-
-    await supabase.from(tx.table).update({
-      is_voided: false,
-      voided_at: null,
-      voided_by: null,
-      void_reason: null
-    })
-      .eq('id', tx.id)
-      .eq('tenant_id', tenantId)
-
-    // Re-apply effects
-    if (tx.type === 'delivery' && tx.raw.customer_id) {
-      const creditPortion = Number(tx.raw.credit_amount || 0)
-      if (creditPortion > 0) {
-        const { data: customer } = await supabase.from('customers')
-          .select('balance')
-          .eq('id', tx.raw.customer_id)
-          .eq('tenant_id', tenantId)
-          .single()
-        if (customer) {
-          await supabase.from('customers').update({
-            balance: Number(customer.balance) + creditPortion
-          })
-            .eq('id', tx.raw.customer_id)
-            .eq('tenant_id', tenantId)
-        }
-      }
-      if (tx.raw.order_id) {
-        await supabase.from('orders').update({
-          status: 'completed', completed_at: tx.raw.delivered_at
-        })
-          .eq('id', tx.raw.order_id)
-          .eq('tenant_id', tenantId)
-      }
+      if (tx.raw.order_id) await supabase.from('orders').update({ status: 'assigned', completed_at: null }).eq('id', tx.raw.order_id).eq('tenant_id', tenantId)
     }
 
     if (tx.type === 'payment' && tx.raw.customer_id) {
-      const { data: customer } = await supabase.from('customers')
-        .select('balance')
-        .eq('id', tx.raw.customer_id)
-        .eq('tenant_id', tenantId)
-        .single()
+      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).eq('tenant_id', tenantId).single()
       if (customer) {
-        if (tx.raw.payment_method === 'cash') {
-          await supabase.from('customers').update({
-            balance: Number(customer.balance) - Number(tx.raw.amount)
-          })
-            .eq('id', tx.raw.customer_id)
-            .eq('tenant_id', tenantId)
-        }
-        if (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed) {
-          await supabase.from('customers').update({
-            balance: Number(customer.balance) - Number(tx.raw.amount)
-          })
-            .eq('id', tx.raw.customer_id)
-            .eq('tenant_id', tenantId)
+        if (tx.raw.payment_method === 'cash' || (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed)) {
+          await supabase.from('customers').update({ balance: Number(customer.balance) + Number(tx.raw.amount) }).eq('id', tx.raw.customer_id).eq('tenant_id', tenantId)
         }
       }
     }
 
-    setSelectedTx(null)
-    setProcessing(false)
+    setShowVoidForm(false); setSelectedTx(null); setVoidReason(''); setProcessing(false)
     fetchTransactions()
-    alert('✅ Transaction restored. All balances have been re-applied.')
+    alert('✅ Transaction voided.')
+  }
+
+  async function restoreTransaction(tx) {
+    if (!window.confirm(`Restore this transaction?\n\n${tx.description}\nRs. ${tx.amount.toLocaleString()}`)) return
+    setProcessing(true)
+    await supabase.from(tx.table).update({ is_voided: false, voided_at: null, voided_by: null, void_reason: null }).eq('id', tx.id).eq('tenant_id', tenantId)
+
+    if (tx.type === 'delivery' && tx.raw.customer_id) {
+      const creditPortion = Number(tx.raw.credit_amount || 0)
+      if (creditPortion > 0) {
+        const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).eq('tenant_id', tenantId).single()
+        if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) + creditPortion }).eq('id', tx.raw.customer_id).eq('tenant_id', tenantId)
+      }
+      if (tx.raw.order_id) await supabase.from('orders').update({ status: 'completed', completed_at: tx.raw.delivered_at }).eq('id', tx.raw.order_id).eq('tenant_id', tenantId)
+    }
+
+    if (tx.type === 'payment' && tx.raw.customer_id) {
+      const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).eq('tenant_id', tenantId).single()
+      if (customer && (tx.raw.payment_method === 'cash' || (tx.raw.payment_method === 'jazzcash' && tx.raw.jazzcash_confirmed))) {
+        await supabase.from('customers').update({ balance: Number(customer.balance) - Number(tx.raw.amount) }).eq('id', tx.raw.customer_id).eq('tenant_id', tenantId)
+      }
+    }
+
+    setSelectedTx(null); setProcessing(false)
+    fetchTransactions()
+    alert('✅ Transaction restored.')
   }
 
   const filtered = transactions.filter(t =>
@@ -383,21 +313,22 @@ export default function Transactions({ tenantId }) {
   const totalAmount = filtered.reduce((s, t) => s + t.amount, 0)
 
   const typeColors = {
-    delivery: { bg: '#e3f0ff', color: '#0f4c81', label: '📦 Delivery' },
-    payment: { bg: '#e8f5e9', color: '#1a7a4a', label: '💵 Payment' },
-    expense: { bg: '#fff3e0', color: '#e65100', label: '💸 Expense' },
-    office_expense: { bg: '#fff3e0', color: '#e65100', label: '🏢 Office Expense' },
-    cash_transfer: { bg: '#f3e5f5', color: '#7b1fa2', label: '🔄 Transfer' },
-    salary_advance: { bg: '#fce4ec', color: '#c62828', label: '💼 Advance' },
+    delivery:       { bg: '#e3f0ff', color: '#0f4c81',  label: '📦 Delivery' },
+    payment:        { bg: '#e8f5e9', color: '#1a7a4a',  label: '💵 Payment' },
+    expense:        { bg: '#fff3e0', color: '#e65100',  label: '💸 Rider Expense' },
+    office_expense: { bg: '#fff3e0', color: '#e65100',  label: '🏢 Office Expense' },
+    cash_transfer:  { bg: '#f3e5f5', color: '#7b1fa2',  label: '🔄 Transfer' },
+    salary_advance: { bg: '#fce4ec', color: '#c62828',  label: '💼 Advance' },
+    salary_payment: { bg: '#e8f5e9', color: '#1a7a4a',  label: '🧾 Salary' },
+    stock_purchase: { bg: '#e3f0ff', color: '#0f4c81',  label: '📥 Stock' },
   }
 
-  const paymentColors = {
-    cash: '#1a7a4a',
-    jazzcash: '#9c27b0',
-    credit: '#f44336'
-  }
+  const paymentColors = { cash: '#1a7a4a', jazzcash: '#9c27b0', credit: '#f44336', bank: '#0f4c81' }
 
- return (
+  // Which types can be voided
+  const voidableTypes = ['delivery', 'payment', 'expense', 'cash_transfer', 'salary_advance']
+
+  return (
     <div>
       {invoiceData && (
         <InvoiceModal
@@ -433,7 +364,7 @@ export default function Transactions({ tenantId }) {
               style={{ width: '100%', padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
           </div>
           <div>
-            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Status Filter</label>
+            <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>Status</label>
             <div style={{ display: 'flex', gap: '6px' }}>
               <button onClick={() => setShowVoided(false)}
                 style={{ padding: '8px 14px', border: '2px solid', borderColor: !showVoided ? '#1a7a4a' : '#eee', borderRadius: '8px', cursor: 'pointer', background: !showVoided ? '#1a7a4a' : 'white', color: !showVoided ? 'white' : '#555', fontSize: '12px', fontWeight: '700' }}>
@@ -456,29 +387,26 @@ export default function Transactions({ tenantId }) {
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
         {TRANSACTION_TYPES.map(t => (
           <button key={t.key} onClick={() => setActiveType(t.key)}
-            style={{
-              padding: '7px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer',
-              background: activeType === t.key ? '#0f4c81' : '#f0f0f0',
-              color: activeType === t.key ? 'white' : '#555',
-              fontWeight: activeType === t.key ? '700' : '400', fontSize: '12px'
-            }}>{t.label}</button>
+            style={{ padding: '7px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: activeType === t.key ? '#0f4c81' : '#f0f0f0', color: activeType === t.key ? 'white' : '#555', fontWeight: activeType === t.key ? '700' : '400', fontSize: '12px' }}>
+            {t.label}
+          </button>
         ))}
       </div>
 
       {/* Summary */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Total Transactions</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{filtered.length}</p>
-        </div>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>Total Amount</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {totalAmount.toLocaleString()}</p>
-        </div>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{showVoided ? 'Voided' : 'Active'} Entries</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: showVoided ? '#f44336' : '#1a7a4a', margin: 0 }}>{filtered.length}</p>
-        </div>
+        {[
+          { label: 'Total Transactions', value: filtered.length, color: '#0f4c81', isCount: true },
+          { label: 'Total Amount', value: totalAmount, color: '#1a7a4a', isCount: false },
+          { label: `${showVoided ? 'Voided' : 'Active'} Entries`, value: filtered.length, color: showVoided ? '#f44336' : '#1a7a4a', isCount: true },
+        ].map(card => (
+          <div key={card.label} style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
+            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>{card.label}</p>
+            <p style={{ fontSize: '22px', fontWeight: '700', color: card.color, margin: 0 }}>
+              {card.isCount ? card.value : `Rs. ${card.value.toLocaleString()}`}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Void Form */}
@@ -491,19 +419,15 @@ export default function Transactions({ tenantId }) {
             <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {selectedTx.amount.toLocaleString()}</p>
           </div>
           <div style={{ background: '#fff3e0', borderRadius: '8px', padding: '10px', marginBottom: '14px' }}>
-            <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>
-              ⚠️ Voiding this transaction will automatically reverse any balance changes on the customer account.
-            </p>
+            <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Voiding will reverse all balance changes on the customer account.</p>
           </div>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Reason for Voiding *</label>
           <input value={voidReason} onChange={e => setVoidReason(e.target.value)}
-            placeholder="e.g. Wrong amount entered, duplicate entry, customer cancelled..."
+            placeholder="e.g. Wrong amount entered, duplicate entry..."
             style={{ width: '100%', padding: '10px 12px', border: '2px solid #ffcdd2', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '14px' }} />
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => { setShowVoidForm(false); setSelectedTx(null); setVoidReason('') }}
-              style={{ flex: 1, padding: '10px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>
-              Cancel
-            </button>
+              style={{ flex: 1, padding: '10px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}>Cancel</button>
             <button onClick={voidTransaction} disabled={processing}
               style={{ flex: 2, padding: '10px', background: '#c62828', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700' }}>
               {processing ? 'Processing...' : '🗑️ Confirm Void'}
@@ -525,7 +449,7 @@ export default function Transactions({ tenantId }) {
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
-                {['Date', 'Type', 'Description', 'Party', 'Rider', 'Amount', 'Method', 'Status', 'Action'].map(h => (
+                {['Date', 'Type', 'Description', 'Party / Rider', 'Amount', 'Method', 'Status', 'Action'].map(h => (
                   <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
@@ -546,7 +470,7 @@ export default function Transactions({ tenantId }) {
                         {typeInfo.label}
                       </span>
                     </td>
-                    <td style={{ padding: '10px 14px', fontSize: '12px', color: '#333', maxWidth: '200px' }}>
+                    <td style={{ padding: '10px 14px', fontSize: '12px', color: '#333', maxWidth: '220px' }}>
                       {tx.description}
                       {tx.type === 'delivery' && tx.raw.invoice_number && (
                         <p style={{ fontSize: '10px', color: '#0f4c81', margin: '2px 0 0', fontWeight: '600' }}>🧾 {tx.raw.invoice_number}</p>
@@ -556,24 +480,23 @@ export default function Transactions({ tenantId }) {
                       )}
                     </td>
                     <td style={{ padding: '10px 14px', fontSize: '12px', color: '#555' }}>
-                      <p style={{ margin: '0 0 2px', fontWeight: '600' }}>{tx.party}</p>
-                      {tx.party_code !== '—' && <p style={{ margin: 0, fontSize: '10px', color: '#aaa' }}>{tx.party_code}</p>}
+                      {tx.party !== '—' && <p style={{ margin: '0 0 2px', fontWeight: '600' }}>{tx.party}</p>}
+                      {tx.party_code !== '—' && <p style={{ margin: '0 0 2px', fontSize: '10px', color: '#aaa' }}>{tx.party_code}</p>}
+                      {tx.rider !== '—' && <p style={{ margin: 0, fontSize: '11px', color: '#888' }}>🚴 {tx.rider}</p>}
                     </td>
-                    <td style={{ padding: '10px 14px', fontSize: '12px', color: '#555' }}>{tx.rider}</td>
                     <td style={{ padding: '10px 14px', fontSize: '13px', fontWeight: '700', color: '#0f4c81', whiteSpace: 'nowrap' }}>
                       Rs. {tx.amount.toLocaleString()}
                     </td>
                     <td style={{ padding: '10px 14px' }}>
                       <span style={{ fontSize: '11px', fontWeight: '600', color: paymentColors[tx.payment_method] || '#555' }}>
-                        {tx.payment_method === 'cash' ? '💵 Cash' : tx.payment_method === 'jazzcash' ? '📱 JazzCash' : tx.payment_method === 'credit' ? '📋 Credit' : tx.payment_method}
+                        {tx.payment_method === 'cash' ? '💵 Cash' : tx.payment_method === 'jazzcash' ? '📱 JazzCash' : tx.payment_method === 'credit' ? '📋 Credit' : tx.payment_method === 'bank' ? '🏦 Bank' : tx.payment_method || '—'}
                       </span>
                     </td>
                     <td style={{ padding: '10px 14px' }}>
-                      {tx.is_voided ? (
-                        <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', background: '#ffebee', color: '#c62828' }}>🗑️ Voided</span>
-                      ) : (
-                        <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', background: '#e8f5e9', color: '#2e7d32' }}>✅ Active</span>
-                      )}
+                      {tx.is_voided
+                        ? <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', background: '#ffebee', color: '#c62828' }}>🗑️ Voided</span>
+                        : <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '10px', fontWeight: '700', background: '#e8f5e9', color: '#2e7d32' }}>✅ Active</span>
+                      }
                     </td>
                     <td style={{ padding: '10px 14px' }}>
                       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -583,16 +506,18 @@ export default function Transactions({ tenantId }) {
                             🧾 Invoice
                           </button>
                         )}
-                        {tx.is_voided ? (
-                          <button onClick={() => restoreTransaction(tx)}
-                            style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
-                            ↩️ Restore
-                          </button>
-                        ) : (
-                          <button onClick={() => { setSelectedTx(tx); setShowVoidForm(true) }}
-                            style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
-                            🗑️ Void
-                          </button>
+                        {voidableTypes.includes(tx.type) && (
+                          tx.is_voided ? (
+                            <button onClick={() => restoreTransaction(tx)}
+                              style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                              ↩️ Restore
+                            </button>
+                          ) : (
+                            <button onClick={() => { setSelectedTx(tx); setShowVoidForm(true) }}
+                              style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                              🗑️ Void
+                            </button>
+                          )
                         )}
                       </div>
                     </td>
@@ -602,7 +527,7 @@ export default function Transactions({ tenantId }) {
             </tbody>
             <tfoot>
               <tr style={{ background: '#f8f9fa', borderTop: '2px solid #eee' }}>
-                <td colSpan={5} style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#333' }}>
+                <td colSpan={4} style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#333' }}>
                   Total — {filtered.length} transactions
                 </td>
                 <td style={{ padding: '12px 14px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
