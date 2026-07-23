@@ -173,13 +173,15 @@ export default function Transactions({ tenantId }) {
 
     // ── SALARY ADVANCES (approved only) ────────────────────────────
     if (activeType === 'all' || activeType === 'salary_advances') {
-      const { data } = await supabase.from('salary_advances')
+      const { data, error: advError } = await supabase.from('salary_advances')
         .select('*, riders(full_name)')
         .eq('tenant_id', tenantId)
         .eq('status', 'approved')
+        .eq('is_voided', false)
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
         .order('created_at', { ascending: false })
+      if (advError) console.error('salary_advances error:', advError)
       data?.forEach(a => all.push({
         id: a.id, type: 'salary_advance', table: 'salary_advances',
         date: a.created_at,
