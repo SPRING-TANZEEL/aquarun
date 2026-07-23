@@ -174,7 +174,7 @@ export default function Transactions({ tenantId }) {
     // ── SALARY ADVANCES (approved only) ────────────────────────────
     if (activeType === 'all' || activeType === 'salary_advances') {
       const { data, error: advError } = await supabase.from('salary_advances')
-        .select('*, riders(full_name)')
+        .select('*, riders!salary_advances_rider_id_fkey(full_name)')
         .eq('tenant_id', tenantId)
         .eq('status', 'approved')
         .eq('is_voided', false)
