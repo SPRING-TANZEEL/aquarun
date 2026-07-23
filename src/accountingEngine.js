@@ -113,19 +113,22 @@ function getExpenseAccount(category, isRider = false) {
 }
 
 // ─── 1. POST DELIVERY JOURNAL ENTRY ───────────────────────────────
+// Compound entry — debit side uses full amount including tax
+// Credit side splits: pre-tax amount to sales accounts + tax to 2300 Tax Payable
 // isRiderEntry = true when rider logs delivery (rider_id is NOT NULL)
 // isRiderEntry = false when admin logs via Quick Sale (rider_id IS NULL)
 export async function postDeliveryJournal(delivery, customerId, tenantId, isRiderEntry = true) {
   try {
-    const totalAmount = Number(delivery.total_amount || 0)
+    const subTotal = Number(delivery.total_amount || 0)         // pre-tax
+    const taxAmount = Number(delivery.tax_amount || 0)          // tax portion
+    const grandTotal = Number(delivery.total_with_tax || subTotal) // full amount incl tax
     const cashReceived = Number(delivery.amount_received || 0)
     const creditPortion = Number(delivery.credit_amount || 0)
     const paymentMethod = delivery.payment_method
-    const salesLines = getSalesBreakdown(delivery)
     const lines = []
 
+    // ── DEBIT SIDE — full amount including tax ──────────────────
     if (paymentMethod === 'cash') {
-      // Cash received goes to rider holding (if rider) or directly to CEO cash (if admin)
       if (cashReceived > 0) {
         if (isRiderEntry) {
           lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashReceived })
@@ -133,30 +136,50 @@ export async function postDeliveryJournal(delivery, customerId, tenantId, isRide
           lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashReceived })
         }
       }
-      // Credit portion always goes to customer AR
       if (creditPortion > 0) {
         lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
       }
     } else if (paymentMethod === 'jazzcash') {
-      // Jazz always goes to clearing — confirmed later via reconciliation
-      lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: totalAmount })
+      lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: grandTotal })
     } else if (paymentMethod === 'easypaisa') {
-      // EasyPaisa goes to its own clearing
-      lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: totalAmount })
+      lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: grandTotal })
     } else if (paymentMethod === 'credit') {
-      // Customer owes — goes to AR
-      lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: totalAmount })
+      lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
 
-    // Credit side — sales revenue
-    salesLines.forEach(s => lines.push({ ...s, debit: 0 }))
+    // ── CREDIT SIDE — split sales by product type ───────────────
+    const qty19l = Number(delivery.qty_19l || 0)
+    const qtyHalf = Number(delivery.qty_half_litre || 0)
+    const qty15l = Number(delivery.qty_1_5l || 0)
+    const totalQty = qty19l + qtyHalf + qty15l
+
+    if (totalQty === 0 || (qty19l > 0 && qtyHalf === 0 && qty15l === 0)) {
+      // Only 19L or no specific qty — all to 4001
+      lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: subTotal })
+    } else if (qtyHalf > 0 && qty19l === 0 && qty15l === 0) {
+      lines.push({ account_code: '4002', account_name: 'Water Sales - Half Litre', credit: subTotal })
+    } else if (qty15l > 0 && qty19l === 0 && qtyHalf === 0) {
+      lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L', credit: subTotal })
+    } else {
+      // Mixed — split proportionally by quantity
+      const rate19l = qty19l > 0 ? Number(delivery.rate_applied || 0) : 0
+      const amt19l = qty19l * rate19l
+      const remaining = subTotal - amt19l
+      if (amt19l > 0) lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: amt19l })
+      if (remaining > 0) lines.push({ account_code: '4002', account_name: 'Water Sales - Half/1.5L', credit: remaining })
+    }
+
+    // Tax portion → Tax Payable (only if tax > 0)
+    if (taxAmount > 0) {
+      lines.push({ account_code: '2300', account_name: 'Tax Payable', credit: taxAmount })
+    }
 
     const entryId = await postJournalEntry({
       tenantId,
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
-      narration: `Water delivery — ${delivery.qty_19l || 0}×19L ${delivery.qty_half_litre || 0}×Half ${delivery.qty_1_5l || 0}×1.5L — ${paymentMethod} — ${isRiderEntry ? 'rider' : 'admin'}`,
+      narration: `Delivery — ${qty19l}×19L ${qtyHalf}×Half ${qty15l}×1.5L — ${paymentMethod} — ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` — tax Rs.${taxAmount}` : ''}`,
       lines
     })
 
@@ -351,26 +374,61 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
 }
 
 // ─── 6. POST SALARY PAYMENT JOURNAL ENTRY ─────────────────────────
-// Settles salary payable — DR 2100 Salary Payable  CR cash account
+// Two compound entries:
+// Entry 1 — Salary accrual:
+//   DR 6001 Rider Salaries (full salary — hits P&L)
+//     CR 1104 Salary Advances to Riders (recover advances from asset)
+//     CR 2100 Salary Payable (remaining balance payable)
+// Entry 2 — Cash payment:
+//   DR 2100 Salary Payable
+//     CR cash account
 export async function postSalaryPaymentJournal(payment, tenantId) {
   try {
-    const amount = Number(payment.amount_paid || 0)
+    const amountPaid = Number(payment.amount_paid || 0)
+    const totalAdvances = Number(payment.total_advances || 0)
+    const monthlySalary = Number(payment.monthly_salary || 0)
     const cashAcc = getCashAccount(payment.payment_method || 'cash')
+    const date = payment.payment_date || new Date().toISOString().split('T')[0]
 
-    const lines = [
-      // Settle the salary payable liability
-      { account_code: '2100', account_name: 'Salary Payable', debit: amount },
-      // Pay from cash/jazz/bank
-      { account_code: cashAcc.code, account_name: cashAcc.name, credit: amount }
+    // Entry 1 — Salary accrual (only if full salary is known)
+    if (monthlySalary > 0) {
+      const accrualLines = [
+        // Full salary expense hits P&L
+        { account_code: '6001', account_name: 'Rider Salaries', debit: monthlySalary },
+      ]
+      // Recover advances from asset account
+      if (totalAdvances > 0) {
+        accrualLines.push({ account_code: '1104', account_name: 'Salary Advances to Riders', credit: totalAdvances })
+      }
+      // Remaining balance goes to salary payable
+      const balancePayable = monthlySalary - totalAdvances
+      if (balancePayable > 0) {
+        accrualLines.push({ account_code: '2100', account_name: 'Salary Payable', credit: balancePayable })
+      }
+
+      await postJournalEntry({
+        tenantId,
+        date,
+        referenceType: 'salary_accrual',
+        referenceId: payment.id,
+        narration: `Salary accrual — ${payment.month_year || ''} — total Rs. ${monthlySalary} less advances Rs. ${totalAdvances}`,
+        lines: accrualLines
+      })
+    }
+
+    // Entry 2 — Cash payment settles salary payable
+    const paymentLines = [
+      { account_code: '2100', account_name: 'Salary Payable', debit: amountPaid },
+      { account_code: cashAcc.code, account_name: cashAcc.name, credit: amountPaid }
     ]
 
     const entryId = await postJournalEntry({
       tenantId,
-      date: payment.payment_date || new Date().toISOString().split('T')[0],
+      date,
       referenceType: 'salary_payment',
       referenceId: payment.id,
-      narration: `Salary paid — ${payment.month_year || ''} — ${payment.payment_method || 'cash'}`,
-      lines
+      narration: `Salary paid — ${payment.month_year || ''} — Rs. ${amountPaid} via ${payment.payment_method || 'cash'}`,
+      lines: paymentLines
     })
 
     if (entryId && payment.id) {
@@ -388,14 +446,15 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
 }
 
 // ─── 7. POST SALARY ADVANCE JOURNAL ENTRY ─────────────────────────
-// Advance paid from cash/jazz — DR 6002 Advances  CR cash account
+// Advance paid from cash — DR 1104 Salary Advances to Riders (Asset)  CR cash account
+// Does NOT hit P&L — sits as asset until recovered at salary payment time
 export async function postSalaryAdvanceJournal(advance, tenantId) {
   try {
     const amount = Number(advance.amount || 0)
     const cashAcc = getCashAccount(advance.payment_method || 'cash')
 
     const lines = [
-      { account_code: '6002', account_name: 'Salary Advances', debit: amount },
+      { account_code: '1104', account_name: 'Salary Advances to Riders', debit: amount },
       { account_code: cashAcc.code, account_name: cashAcc.name, credit: amount }
     ]
 
@@ -404,7 +463,7 @@ export async function postSalaryAdvanceJournal(advance, tenantId) {
       date: new Date().toISOString().split('T')[0],
       referenceType: 'salary_advance',
       referenceId: advance.id,
-      narration: `Salary advance — approved — paid from ${advance.payment_method || 'cash'}`,
+      narration: `Salary advance — ${advance.rider_id || ''} — paid from ${advance.payment_method || 'cash'}`,
       lines
     })
 

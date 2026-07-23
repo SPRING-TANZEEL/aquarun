@@ -124,6 +124,7 @@ export default function SuperAdminDashboard({ onLogout }) {
       { tenant_id: tenantId, account_code: '6017', account_name: 'Rider Fuel & Vehicle', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6018', account_name: 'Rider Refreshments', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
       { tenant_id: tenantId, account_code: '6019', account_name: 'Rider Repairs', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+      { tenant_id: tenantId, account_code: '1104', account_name: 'Salary Advances to Riders', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
     ]
     await supabase.from('chart_of_accounts').insert(accounts)
   }

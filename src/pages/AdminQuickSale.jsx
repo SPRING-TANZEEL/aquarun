@@ -407,11 +407,8 @@ export default function AdminQuickSale({ tenantId }) {
     }
 
     try {
-      const { postDeliveryJournal, postSalesTaxJournal } = await import('../accountingEngine')
+      const { postDeliveryJournal } = await import('../accountingEngine')
       await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
-      if (selectedCustomer?.is_tax_applicable && taxAmount > 0) {
-        await postSalesTaxJournal(savedDelivery, taxAmount, tenantId)
-      }
     } catch (err) { console.error('Journal post error:', err) }
 
     // Generate invoice number

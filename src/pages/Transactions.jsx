@@ -65,7 +65,7 @@ export default function Transactions({ tenantId }) {
         party: d.customers?.full_name || 'Walk-in',
         party_code: d.customers?.customer_code || '—',
         rider: d.riders?.full_name || '—',
-        amount: Number(d.total_amount),
+        amount: Number(d.total_with_tax || d.total_amount),
         payment_method: d.payment_method,
         is_voided: d.is_voided,
         void_reason: d.void_reason,

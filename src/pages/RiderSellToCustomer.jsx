@@ -329,15 +329,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
       // Post delivery journal — isRiderEntry=true → DR 1101 Receivable from Riders
       try {
-        const { postDeliveryJournal, postSalesTaxJournal } = await import('../accountingEngine')
+        const { postDeliveryJournal } = await import('../accountingEngine')
         await postDeliveryJournal(savedDelivery, selectedCustomer.id, tenantId, true)
-        if (selectedCustomer?.is_tax_applicable) {
-          const taxRate = 0 // riders don't apply tax — tax handled at admin level
-          // Only post if delivery was saved with tax_amount > 0
-          if (Number(savedDelivery.tax_amount || 0) > 0) {
-            await postSalesTaxJournal(savedDelivery, Number(savedDelivery.tax_amount), tenantId)
-          }
-        }
       } catch (err) { console.error('Journal post error:', err) }
 
       // Generate invoice number
