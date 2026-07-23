@@ -233,14 +233,14 @@ function TrialBalance({ tenantId }) {
     const { data: accounts } = await supabase.from('chart_of_accounts')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('account_code')
 
-    const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, je:journal_entry_id!inner(entry_date)')
+    const { data: allLines } = await supabase.from('journal_entry_lines')
+      .select('*, je:journal_entry_id(entry_date)')
       .eq('tenant_id', tenantId)
-      .gte('je.entry_date', dateFrom)
-      .lte('je.entry_date', dateTo)
+
+    const filteredLines = allLines?.filter(l => l.je?.entry_date >= dateFrom && l.je?.entry_date <= dateTo) || []
 
     const balances = {}
-    lines?.forEach(l => {
+    filteredLines.forEach(l => {
       if (!balances[l.account_code]) balances[l.account_code] = { debit: 0, credit: 0 }
       balances[l.account_code].debit += Number(l.debit || 0)
       balances[l.account_code].credit += Number(l.credit || 0)
@@ -336,7 +336,7 @@ function BalanceSheet({ tenantId }) {
   const [asOf, setAsOf] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [drillDown, setDrillDown] = useState(null) // { code, name, entries }
+  const [drillDown, setDrillDown] = useState(null)
   const [drillLoading, setDrillLoading] = useState(false)
 
   useEffect(() => { if (tenantId) fetchData() }, [asOf, tenantId])
@@ -349,11 +349,13 @@ function BalanceSheet({ tenantId }) {
     coaData?.forEach(a => { coaMap[a.account_code] = a })
 
     const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, je:journal_entry_id!inner(entry_date, narration, reference_type)')
-      .eq('tenant_id', tenantId).lte('je.entry_date', asOf)
+      .select('*, je:journal_entry_id(entry_date, narration, reference_type)')
+      .eq('tenant_id', tenantId)
+
+    const filteredLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
 
     const balances = {}
-    lines?.forEach(l => {
+    filteredLines.forEach(l => {
       const code = l.account_code
       const type = coaMap[l.account_code]?.account_type
       const name = coaMap[l.account_code]?.account_name || l.account_name
@@ -365,7 +367,7 @@ function BalanceSheet({ tenantId }) {
     const assets = {}; const liabilities = {}; const equity = {}
     let retainedEarnings = 0
 
-    lines?.forEach(l => {
+    filteredLines.forEach(l => {
       const type = coaMap[l.account_code]?.account_type
       if (type === 'revenue') retainedEarnings += Number(l.credit || 0) - Number(l.debit || 0)
       if (type === 'expense') retainedEarnings -= Number(l.debit || 0) - Number(l.credit || 0)
@@ -390,11 +392,15 @@ function BalanceSheet({ tenantId }) {
   async function openDrillDown(code, name) {
     setDrillLoading(true)
     setDrillDown({ code, name, entries: [] })
-    const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, je:journal_entry_id!inner(entry_date, narration, reference_type)')
-      .eq('tenant_id', tenantId).eq('account_code', code).lte('je.entry_date', asOf)
-      .order('je.entry_date', { ascending: false })
-    setDrillDown({ code, name, entries: lines || [] })
+
+    const { data: lines, error: drillError } = await supabase.from('journal_entry_lines')
+      .select('*, je:journal_entry_id(entry_date, narration, reference_type)')
+      .eq('tenant_id', tenantId).eq('account_code', code)
+      .order('id', { ascending: false })
+    if (drillError) console.error('drill down error:', drillError)
+
+    const drillLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
+    setDrillDown({ code, name, entries: drillLines })
     setDrillLoading(false)
   }
 
@@ -409,7 +415,7 @@ function BalanceSheet({ tenantId }) {
           {name}
           <span style={{ fontSize: '10px', color: '#0f4c81', marginLeft: '6px' }}>🔍</span>
         </span>
-        <span style={{ fontSize: '13px', fontWeight: '600', color }}>Rs. {amount.toLocaleString()}</span>
+        <span style={{ fontSize: '13px', fontWeight: '600', color }}> Rs. {amount.toLocaleString()}</span>
       </div>
     )
   }
