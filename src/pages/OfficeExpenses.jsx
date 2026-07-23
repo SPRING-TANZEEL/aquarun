@@ -2,19 +2,18 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
 const CATEGORIES = [
-  { key: 'rent', label: 'Rent', icon: '🏠' },
-  { key: 'electricity', label: 'Electricity', icon: '⚡' },
-  { key: 'supplies', label: 'Supplies', icon: '📦' },
-  { key: 'fuel', label: 'Fuel / Vehicle', icon: '⛽' },
-  { key: 'salary', label: 'Salary Payment', icon: '💼' },
-  { key: 'maintenance', label: 'Maintenance', icon: '🔧' },
-  { key: 'other', label: 'Other', icon: '📝' },
+  { key: 'rent',        label: 'Rent',          icon: '🏠', defaultCode: '6004', defaultName: 'Rent' },
+  { key: 'electricity', label: 'Electricity',   icon: '⚡', defaultCode: '6005', defaultName: 'Electricity' },
+  { key: 'supplies',    label: 'Supplies',       icon: '📦', defaultCode: '6008', defaultName: 'Supplies' },
+  { key: 'fuel',        label: 'Fuel / Vehicle', icon: '⛽', defaultCode: '6006', defaultName: 'Fuel - Office' },
+  { key: 'maintenance', label: 'Maintenance',    icon: '🔧', defaultCode: '6007', defaultName: 'Maintenance' },
+  { key: 'other',       label: 'Other',          icon: '📝', defaultCode: null,   defaultName: null },
 ]
 
 const PAYMENT_METHODS = [
-  { key: 'cash', label: 'Cash', icon: '💵' },
+  { key: 'cash',     label: 'Cash',     icon: '💵' },
   { key: 'jazzcash', label: 'JazzCash', icon: '📱' },
-  { key: 'bank', label: 'Bank', icon: '🏦' },
+  { key: 'bank',     label: 'Bank',     icon: '🏦' },
 ]
 
 export default function OfficeExpenses({ rider, isCEO, tenantId }) {
@@ -30,13 +29,15 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [summary, setSummary] = useState({})
+
+  // COA search
   const [coaAccounts, setCoaAccounts] = useState([])
-  const [selectedCoaAccount, setSelectedCoaAccount] = useState(null)
-  const [riders, setRiders] = useState([])
-  const [selectedRider, setSelectedRider] = useState(null)
+  const [coaSearch, setCoaSearch] = useState('')
+  const [selectedCoa, setSelectedCoa] = useState(null) // { account_code, account_name }
+  const [showCoaDropdown, setShowCoaDropdown] = useState(false)
 
   useEffect(() => { if (tenantId) fetchExpenses() }, [dateFrom, dateTo, tenantId])
-  useEffect(() => { if (tenantId) { fetchCoaAccounts(); fetchRiders() } }, [tenantId])
+  useEffect(() => { if (tenantId) fetchCoaAccounts() }, [tenantId])
 
   async function fetchCoaAccounts() {
     const { data } = await supabase.from('chart_of_accounts')
@@ -46,15 +47,6 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
       .eq('is_active', true)
       .order('account_code')
     setCoaAccounts(data || [])
-  }
-
-  async function fetchRiders() {
-    const { data } = await supabase.from('riders')
-      .select('id, full_name')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .order('full_name')
-    setRiders(data || [])
   }
 
   async function fetchExpenses() {
@@ -69,13 +61,34 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
       .order('created_at', { ascending: false })
     setExpenses(data || [])
     const s = {}
-    data?.forEach(e => { s[e.category] = (s[e.category] || 0) + Number(e.amount) })
+    data?.forEach(e => {
+      const key = e.coa_account_name || e.category
+      s[key] = (s[key] || 0) + Number(e.amount)
+    })
     setSummary(s)
     setLoading(false)
   }
 
+  function selectCategory(cat) {
+    setCategory(cat.key)
+    setCoaSearch('')
+    setShowCoaDropdown(false)
+    if (cat.defaultCode) {
+      setSelectedCoa({ account_code: cat.defaultCode, account_name: cat.defaultName })
+    } else {
+      setSelectedCoa(null)
+    }
+  }
+
+  const filteredCoa = coaAccounts.filter(a =>
+    !coaSearch ||
+    a.account_name.toLowerCase().includes(coaSearch.toLowerCase()) ||
+    a.account_code.includes(coaSearch)
+  )
+
   async function saveExpense() {
     if (!category) return alert('Please select a category')
+    if (!selectedCoa) return alert('Please select a chart of account')
     if (!amount || Number(amount) <= 0) return alert('Please enter amount')
     setSaving(true)
     const paidBy = isCEO ? 'ceo' : 'main_rider'
@@ -86,47 +99,28 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
       paid_by_rider_id: rider?.id || null,
       category,
       amount: Number(amount),
-      description: description || (selectedRider ? `Salary — ${selectedRider.full_name}` : description),
+      description,
       payment_method: paymentMethod,
       expense_date: expenseDate,
-      coa_account_code: category === 'other' && selectedCoaAccount ? selectedCoaAccount.account_code : null,
-      coa_account_name: category === 'other' && selectedCoaAccount ? selectedCoaAccount.account_name : null,
+      coa_account_code: selectedCoa.account_code,
+      coa_account_name: selectedCoa.account_name,
     }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-    // If salary payment, also record in salary_payments table
-    if (category === 'salary' && selectedRider) {
-      await supabase.from('salary_payments').insert([{
-        tenant_id: tenantId,
-        rider_id: selectedRider.id,
-        amount_paid: Number(amount),
-        payment_method: paymentMethod,
-        payment_date: expenseDate,
-        notes: description || `Salary payment — ${selectedRider.full_name}`,
-        month_year: expenseDate.slice(0, 7)
-      }])
-    }
-
-
-    // Auto-post journal entry
     try {
       const { postOfficeExpenseJournal } = await import('../accountingEngine')
-      // If custom COA account selected, override category mapping
-      const expenseToPost = saved.coa_account_code
-        ? { ...saved, category: saved.coa_account_code, _customAccount: { code: saved.coa_account_code, name: saved.coa_account_name } }
-        : saved
-      await postOfficeExpenseJournal(expenseToPost, tenantId)
+      await postOfficeExpenseJournal(saved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
-    setExpenseDate(new Date().toISOString().split('T')[0])
-    setSuccess(true)
     setCategory(null)
-    setSelectedCoaAccount(null)
-    setSelectedRider(null)
+    setSelectedCoa(null)
+    setCoaSearch('')
     setAmount('')
     setDescription('')
     setPaymentMethod('cash')
+    setExpenseDate(new Date().toISOString().split('T')[0])
+    setSuccess(true)
     fetchExpenses()
     setSaving(false)
     setTimeout(() => setSuccess(false), 3000)
@@ -143,7 +137,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
         🏢 {isCEO ? 'Office' : 'Field'} Expenses
       </h2>
       <p style={{ fontSize: '12px', color: '#888', marginBottom: '16px' }}>
-        {isCEO ? 'Log office expenses — rent, electricity, supplies, salary payments' : 'Log field expenses paid directly by you'}
+        {isCEO ? 'Log office expenses — rent, electricity, supplies, fuel, maintenance' : 'Log field expenses paid directly by you'}
       </p>
 
       {success && (
@@ -160,7 +154,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
         <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Category</p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '14px' }}>
           {CATEGORIES.map(c => (
-            <button key={c.key} onClick={() => setCategory(c.key)}
+            <button key={c.key} onClick={() => selectCategory(c)}
               style={{
                 padding: '12px', border: '2px solid',
                 borderColor: category === c.key ? '#e65100' : '#eee',
@@ -176,43 +170,54 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
           ))}
         </div>
 
-        {/* Rider selector — shows when salary selected */}
-        {category === 'salary' && riders.length > 0 && (
+        {/* COA Account — auto-selected with option to change */}
+        {category && (
           <div style={{ marginBottom: '14px' }}>
-            <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Select Rider</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {riders.map(r => (
-                <button key={r.id} onClick={() => setSelectedRider(r)}
-                  style={{ padding: '8px 14px', border: '2px solid', borderColor: selectedRider?.id === r.id ? '#0f4c81' : '#eee', borderRadius: '8px', cursor: 'pointer', background: selectedRider?.id === r.id ? '#0f4c81' : '#f8f9fa', color: selectedRider?.id === r.id ? 'white' : '#555', fontWeight: '600', fontSize: '13px' }}>
-                  🚴 {r.full_name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+            <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>
+              Chart of Account
+            </p>
 
-        {/* COA account selector — shows when Other selected */}
-        {category === 'other' && coaAccounts.length > 0 && (
-          <div style={{ marginBottom: '14px' }}>
-            <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '8px', textTransform: 'uppercase' }}>Select Account</p>
-            <select
-              value={selectedCoaAccount?.account_code || ''}
-              onChange={e => {
-                const acc = coaAccounts.find(a => a.account_code === e.target.value)
-                setSelectedCoaAccount(acc || null)
-              }}
-              style={{ width: '100%', padding: '10px 12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', background: 'white', cursor: 'pointer' }}>
-              <option value=''>— Select Account —</option>
-              {coaAccounts.map(a => (
-                <option key={a.account_code} value={a.account_code}>
-                  {a.account_code} — {a.account_name}
-                </option>
-              ))}
-            </select>
-            {selectedCoaAccount && (
-              <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
-                ✓ Will post to: {selectedCoaAccount.account_code} {selectedCoaAccount.account_name}
-              </p>
+            {/* Selected Account Display */}
+            {selectedCoa && (
+              <div style={{ background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '8px', padding: '10px 14px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Selected Account</p>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>
+                    {selectedCoa.account_code} — {selectedCoa.account_name}
+                  </p>
+                </div>
+                <button onClick={() => { setShowCoaDropdown(true); setCoaSearch('') }}
+                  style={{ padding: '4px 10px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>
+                  Change
+                </button>
+              </div>
+            )}
+
+            {/* Search Box */}
+            {(!selectedCoa || showCoaDropdown) && (
+              <div style={{ position: 'relative' }}>
+                <input
+                  value={coaSearch}
+                  onChange={e => { setCoaSearch(e.target.value); setShowCoaDropdown(true) }}
+                  onFocus={() => setShowCoaDropdown(true)}
+                  placeholder="Search account by name or code..."
+                  style={{ width: '100%', padding: '10px 12px', border: '2px solid #0f4c81', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                />
+                {showCoaDropdown && filteredCoa.length > 0 && (
+                  <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, background: 'white', border: '1px solid #ddd', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100, maxHeight: '200px', overflowY: 'auto' }}>
+                    {filteredCoa.map(a => (
+                      <div key={a.account_code}
+                        onClick={() => { setSelectedCoa({ account_code: a.account_code, account_name: a.account_name }); setShowCoaDropdown(false); setCoaSearch('') }}
+                        style={{ padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                        onMouseEnter={e => e.currentTarget.style.background = '#f0f7ff'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                        <span style={{ fontSize: '13px', color: '#333', fontWeight: '500' }}>{a.account_name}</span>
+                        <span style={{ fontSize: '11px', color: '#888', background: '#f0f0f0', padding: '2px 8px', borderRadius: '10px' }}>{a.account_code}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
@@ -237,8 +242,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
           ))}
         </div>
 
-        {/* Amount */}
-        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Amount (Rs.)</p>
+        {/* Date */}
         <div style={{ marginBottom: '12px' }}>
           <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Expense Date</label>
           <input type="date" value={expenseDate} onChange={e => setExpenseDate(e.target.value)}
@@ -248,22 +252,26 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
             <p style={{ fontSize: '11px', color: '#e65100', fontWeight: '600', margin: '4px 0 0' }}>⚠️ Back-dated entry</p>
           )}
         </div>
+
+        {/* Amount */}
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Amount (Rs.)</p>
         <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
           placeholder="0"
           style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px' }} />
 
         {/* Description */}
-        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Description</p>
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Description (optional)</p>
         <input value={description} onChange={e => setDescription(e.target.value)}
           placeholder="e.g. Monthly rent for shop..."
           style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '16px' }} />
 
-        {/* Info box */}
-        <div style={{ background: paymentMethod === 'cash' ? '#f0f7ff' : paymentMethod === 'jazzcash' ? '#fdf4ff' : '#f0f9f4', border: '1px solid', borderColor: paymentMethod === 'cash' ? '#c8d8ff' : paymentMethod === 'jazzcash' ? '#e9d5ff' : '#bbf7d0', borderRadius: '8px', padding: '8px 12px', marginBottom: '14px' }}>
-          <p style={{ fontSize: '11px', color: paymentMethod === 'cash' ? '#0f4c81' : paymentMethod === 'jazzcash' ? '#6b21a8' : '#166534', margin: 0 }}>
-            {paymentMethod === 'cash' && '💵 This expense will be deducted from CEO Cash in Hand balance'}
-            {paymentMethod === 'jazzcash' && '📱 This expense will be deducted from CEO JazzCash balance'}
-            {paymentMethod === 'bank' && '🏦 This expense will be deducted from CEO Bank balance'}
+        {/* Info */}
+        <div style={{ background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '8px 12px', marginBottom: '14px' }}>
+          <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>
+            {paymentMethod === 'cash' && '💵 Deducted from CEO Cash in Hand'}
+            {paymentMethod === 'jazzcash' && '📱 Deducted from CEO JazzCash balance'}
+            {paymentMethod === 'bank' && '🏦 Deducted from CEO Bank balance'}
+            {selectedCoa && ` → Posted to ${selectedCoa.account_code} ${selectedCoa.account_name}`}
           </p>
         </div>
 
@@ -305,14 +313,14 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
         </div>
       )}
 
-      {/* Category Summary */}
+      {/* Category Summary — now by COA account name */}
       {Object.keys(summary).length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-          <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Expense Summary by Category</p>
-          {CATEGORIES.filter(c => summary[c.key]).map(c => (
-            <div key={c.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-              <span style={{ fontSize: '13px', color: '#555' }}>{c.icon} {c.label}</span>
-              <span style={{ fontSize: '13px', fontWeight: '700', color: '#e65100' }}>Rs. {summary[c.key].toLocaleString()}</span>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '12px' }}>Summary by Account</p>
+          {Object.entries(summary).map(([key, val]) => (
+            <div key={key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
+              <span style={{ fontSize: '13px', color: '#555' }}>{key}</span>
+              <span style={{ fontSize: '13px', fontWeight: '700', color: '#e65100' }}>Rs. {val.toLocaleString()}</span>
             </div>
           ))}
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0' }}>
@@ -339,7 +347,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
               <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid #f0f0f0' }}>
                 <div>
                   <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>
-                    {cat?.icon} {cat?.label}
+                    {cat?.icon} {e.coa_account_name || cat?.label}
                   </p>
                   {e.description && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{e.description}</p>}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -349,6 +357,11 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
                     <span style={{ fontSize: '10px', background: '#f0f0f0', color: '#555', padding: '1px 6px', borderRadius: '6px' }}>
                       {pm?.icon} {pm?.label}
                     </span>
+                    {e.coa_account_code && (
+                      <span style={{ fontSize: '10px', background: '#e3f0ff', color: '#0f4c81', padding: '1px 6px', borderRadius: '6px' }}>
+                        {e.coa_account_code}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>
