@@ -81,7 +81,7 @@ function getPeriodDates(period) {
   }
 }
 
-export default function AdminDashboard({ tenant, user, adminUser, onLogout }) {
+export default function AdminDashboard({ user, tenantId, onLogout }) {
   const [activePage, setActivePage] = useState('dashboard')
   const [period, setPeriod] = useState('today')
   const [stats, setStats] = useState(null)
@@ -102,7 +102,7 @@ export default function AdminDashboard({ tenant, user, adminUser, onLogout }) {
   const [chartView, setChartView] = useState('daily') // 'daily' | 'monthly'
   const [monthlyChartData, setMonthlyChartData] = useState([])
 
-  const effectiveUser = adminUser || user || { full_name: tenant?.business_name || 'Admin', role: 'admin' }
+  const adminUser = user
 
   useEffect(() => {
     if (tenantId) fetchBusiness()
