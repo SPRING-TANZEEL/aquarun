@@ -266,6 +266,24 @@ export default function App() {
     setLoading(false)
   }
 
+  async function handleForgotPassword() {
+    if (!loginEmail.trim()) {
+      setError('Please enter your email address first')
+      return
+    }
+    setLoading(true)
+    const { error } = await supabase.auth.resetPasswordForEmail(loginEmail.trim().toLowerCase(), {
+      redirectTo: 'https://aquarun.vercel.app/reset-password'
+    })
+    setLoading(false)
+    if (error) {
+      setError('Error sending reset email: ' + error.message)
+    } else {
+      setError('')
+      alert(`✅ Password reset email sent to ${loginEmail}\n\nCheck your inbox and follow the link to set a new password.`)
+    }
+  }
+
   function handleLogout() {
     clearTenantSession()
     setUserRole(null)
@@ -438,8 +456,14 @@ export default function App() {
             </button>
           </form>
 
-          {/* Super Admin Link */}
+          {/* Forgot Password + Super Admin Link */}
           <div style={{ textAlign: 'center', marginTop: '20px' }}>
+            {loginMode === 'admin' && (
+              <button onClick={handleForgotPassword}
+                style={{ background: 'none', border: 'none', color: '#0f4c81', fontSize: '13px', cursor: 'pointer', display: 'block', width: '100%', marginBottom: '10px', fontWeight: '600' }}>
+                🔑 Forgot Password?
+              </button>
+            )}
             {loginMode !== 'superadmin' ? (
               <button onClick={() => { setLoginMode('superadmin'); setError('') }}
                 style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '11px', cursor: 'pointer' }}>

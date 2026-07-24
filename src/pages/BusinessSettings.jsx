@@ -46,6 +46,7 @@ const MENU_ITEMS = [
   { key: 'backup', icon: '💾', label: 'Backup & Restore' },
   { key: 'export', icon: '📤', label: 'Data Export' },
   { key: 'import', icon: '📥', label: 'Import Customers' },
+  { key: 'password', icon: '🔑', label: 'Change Password' },
   { key: 'about', icon: 'ℹ️', label: 'About' },
 ]
 
@@ -242,6 +243,7 @@ export default function BusinessSettings({ tenantId }) {
 
           {/* BACKUP & RESTORE */}
           {activeMenu === 'backup' && <BackupRestore settings={settings} tenantId={tenantId} />}
+          {activeMenu === 'password' && <ChangePassword />}
 
           {/* DATA EXPORT */}
           {activeMenu === 'export' && <DataExport tenantId={tenantId} />}
@@ -765,6 +767,56 @@ function ImportCustomers({ tenantId }) {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+function ChangePassword() {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+
+  async function handleChangePassword() {
+    setMessage(''); setError('')
+    if (!newPassword || newPassword.length < 6) { setError('New password must be at least 6 characters'); return }
+    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return }
+    setSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setError('Not logged in via email. Password change only works with email login.'); setSaving(false); return }
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email, password: currentPassword
+    })
+    if (signInError) { setError('Current password is incorrect'); setSaving(false); return }
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
+    if (updateError) { setError('Error: ' + updateError.message); setSaving(false); return }
+    setMessage('✅ Password changed successfully!')
+    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+    setSaving(false)
+  }
+
+  const inp = { width: '100%', padding: '10px 12px', border: '1.5px solid #e8eaed', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px' }
+
+  return (
+    <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', maxWidth: '400px' }}>
+      <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 6px' }}>🔑 Change Password</h3>
+      <p style={{ fontSize: '12px', color: '#888', margin: '0 0 20px' }}>Update your login password.</p>
+      {message && <div style={{ background: '#e8f5e9', border: '1px solid #4caf50', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px' }}><p style={{ color: '#1a7a4a', fontSize: '13px', fontWeight: '600', margin: 0 }}>{message}</p></div>}
+      {error && <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px' }}><p style={{ color: '#c62828', fontSize: '13px', fontWeight: '600', margin: 0 }}>{error}</p></div>}
+      <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Current Password</label>
+      <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} placeholder="Enter current password" style={inp} />
+      <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>New Password</label>
+      <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 6 characters" style={inp} />
+      <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Confirm New Password</label>
+      <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat new password" style={inp} />
+      <button onClick={handleChangePassword} disabled={saving}
+        style={{ width: '100%', padding: '12px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginTop: '4px' }}>
+        {saving ? 'Updating...' : '🔑 Update Password'}
+      </button>
+      <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 12px', marginTop: '16px' }}>
+        <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>💡 After changing password, other devices will need to login again with the new password.</p>
+      </div>
     </div>
   )
 }
