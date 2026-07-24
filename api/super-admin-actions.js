@@ -76,6 +76,14 @@ export default async function handler(req, res) {
     // ── CREATE AUTH USER ────────────────────────────────────────────
     if (action === 'createAuthUser') {
       const { email, password } = req.body
+      // Check if user already exists
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+      const existing = existingUsers?.users?.find(u => u.email === email)
+      if (existing) {
+        // Update password for existing user
+        await supabaseAdmin.auth.admin.updateUserById(existing.id, { password, email_confirm: true })
+        return res.json({ ok: true, auth_user_id: existing.id })
+      }
       const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email, password, email_confirm: true
       })
