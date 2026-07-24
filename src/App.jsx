@@ -323,7 +323,13 @@ export default function App() {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '56px', marginBottom: '8px' }}>💧</div>
+          <div style={{ fontSize: '56px', marginBottom: '8px', cursor: 'pointer' }}
+            onClick={() => {
+              const now = Date.now()
+              if (!window._tapStart || now - window._tapStart > 3000) { window._tapStart = now; window._tapCount = 1 }
+              else { window._tapCount = (window._tapCount || 0) + 1 }
+              if (window._tapCount >= 5) { setLoginMode('superadmin'); window._tapCount = 0 }
+            }}>💧</div>
           <h1 style={{ fontSize: '32px', fontWeight: '800', color: 'white', margin: '0 0 6px' }}>AquaRun</h1>
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>Water Delivery Management System</p>
         </div>
@@ -457,12 +463,7 @@ export default function App() {
                 🔑 Forgot Password?
               </button>
             )}
-            {loginMode !== 'superadmin' ? (
-              <button onClick={() => { setLoginMode('superadmin'); setError('') }}
-                style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '11px', cursor: 'pointer' }}>
-                System Admin Access
-              </button>
-            ) : (
+            {loginMode === 'superadmin' && (
               <button onClick={() => { setLoginMode('admin'); setError('') }}
                 style={{ background: 'none', border: 'none', color: '#aaa', fontSize: '11px', cursor: 'pointer' }}>
                 ← Back to Login
