@@ -523,7 +523,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
             <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px' }}>👨‍💼</div>
             <div>
-              <p style={{ fontSize: '12px', fontWeight: '600', margin: 0 }}>{user.full_name}</p>
+              <p style={{ fontSize: '12px', fontWeight: '600', margin: 0 }}>{user?.full_name || tenant?.business_name || 'Admin'}</p>
               <p style={{ fontSize: '10px', opacity: 0.6, margin: 0 }}>Administrator</p>
             </div>
           </div>
