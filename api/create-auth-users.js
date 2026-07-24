@@ -6,8 +6,13 @@ const supabaseAdmin = createClient(
 )
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  if (req.headers['x-setup-key'] !== process.env.SUPER_ADMIN_PASSWORD) {
+  if (req.method === 'GET') {
+    const key = req.query.key
+    if (key !== process.env.SUPER_ADMIN_PASSWORD) return res.status(401).json({ error: 'Unauthorized' })
+    // Continue with GET — same logic below
+  } else if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  } else if (req.headers['x-setup-key'] !== process.env.SUPER_ADMIN_PASSWORD) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
 
