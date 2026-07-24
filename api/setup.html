@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head><title>AquaRun Setup</title></head>
+<body>
+<h2>AquaRun Auth Setup</h2>
+<input id="pwd" type="password" placeholder="Super Admin Password" style="padding:8px;width:300px;margin-bottom:10px;display:block"/>
+<button onclick="run()" style="padding:10px 20px;background:#0f4c81;color:white;border:none;cursor:pointer;font-size:16px">Create Auth Users</button>
+<pre id="result" style="margin-top:20px;background:#f0f0f0;padding:10px;white-space:pre-wrap"></pre>
+<script>
+async function run() {
+  const pwd = document.getElementById('pwd').value
+  document.getElementById('result').textContent = 'Running...'
+  try {
+    const r = await fetch('/api/create-auth-users', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-setup-key': pwd
+      }
+    })
+    const d = await r.json()
+    document.getElementById('result').textContent = JSON.stringify(d, null, 2)
+  } catch(e) {
+    document.getElementById('result').textContent = 'Error: ' + e.message
+  }
+}
+</script>
+</body>
+</html>
