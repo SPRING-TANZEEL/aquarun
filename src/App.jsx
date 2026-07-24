@@ -313,7 +313,7 @@ export default function App() {
 
   if (userRole === 'superadmin') return <SuperAdminDashboard onLogout={handleLogout} />
   if (userRole === 'admin' && currentTenant) return <AdminDashboard tenantId={currentTenant.id} user={{ full_name: currentTenant.business_name, role: 'admin' }} onLogout={handleLogout} />
-  if (userRole === 'rider' && currentRider) return <RiderDashboard rider={currentRider} tenantId={currentTenant?.id} onLogout={handleLogout} />
+  if (userRole === 'rider' && currentRider) return <RiderDashboard user={{ ...currentRider, tenant_id: currentTenant?.id }} onLogout={handleLogout} />
   if (userRole === 'customer' && currentCustomer) return <CustomerDashboard customer={currentCustomer} tenantId={currentTenant?.id} onLogout={handleLogout} />
 
   // Login Screen
