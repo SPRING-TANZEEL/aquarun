@@ -11,21 +11,27 @@ export default function ResetPassword() {
   const [checking, setChecking] = useState(true)
 
   useEffect(() => {
-    // Supabase puts the token in the URL hash — listen for auth state
+    // Check URL hash for tokens from Supabase email link
+    const hash = window.location.hash
+    if (hash && hash.includes('access_token')) {
+      // Let Supabase process the hash automatically
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setValidSession(true)
+        }
+        setChecking(false)
+      })
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN') {
         setValidSession(true)
         setChecking(false)
       }
     })
 
-    // Also check if there's already a session from the reset link
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setValidSession(true)
-      }
-      setChecking(false)
-    })
+    // Fallback timeout
+    setTimeout(() => setChecking(false), 3000)
 
     return () => subscription.unsubscribe()
   }, [])
