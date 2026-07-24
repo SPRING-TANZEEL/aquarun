@@ -6,6 +6,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import RiderDashboard from './pages/RiderDashboard'
 import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
+import ResetPassword from './pages/ResetPassword'
 
 const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_SUPER_ADMIN_PASSWORD || 'mian6566381aA!'
 
@@ -298,6 +299,11 @@ export default function App() {
     setTenantCode('')
     setPassword('')
     setError('')
+  }
+
+  // Handle password reset page
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPassword />
   }
 
   if (checkingSession) {
