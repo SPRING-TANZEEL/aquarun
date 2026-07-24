@@ -55,15 +55,23 @@ export default function App() {
       if (role === 'rider') {
         const riderId = localStorage.getItem('aquarun_rider_id')
         if (riderId && tenantId) {
-          const { data: rider } = await supabase.from('riders').select('*').eq('id', riderId).single()
-          if (rider) {
-            setCurrentRider(rider)
-            setCurrentTenant({ id: tenantId, business_name: businessName })
-            setUserRole('rider')
-            setCheckingSession(false)
-            return
+          try {
+            const { data: rider } = await supabase.from('riders').select('*').eq('id', riderId).single()
+            if (rider) {
+              setCurrentRider(rider)
+              setCurrentTenant({ id: tenantId, business_name: businessName })
+              setUserRole('rider')
+              setCheckingSession(false)
+              return
+            }
+          } catch (err) {
+            console.error('Rider session restore error:', err)
           }
         }
+        // Rider session invalid — clear and show login
+        clearTenantSession()
+        setCheckingSession(false)
+        return
       }
 
       if (role === 'customer') {
