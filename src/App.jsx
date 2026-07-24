@@ -129,16 +129,20 @@ export default function App() {
         if (!tenantData) { setError('❌ Business ID not found'); setLoading(false); return }
         if (!tenantData.is_active) { setError('❌ Account deactivated'); setLoading(false); return }
 
-        const { data: rider, error } = await supabase
+        const { data: riders, error } = await supabase
           .from('riders').select('*')
           .eq('tenant_id', tenantData.id)
-          .eq('rider_code', riderCode.toUpperCase())
-          .single()
+          .eq('is_active', true)
+
+        const rider = riders?.find(r => 
+          r.pin_code === riderPin.trim() && 
+          (riderCode.trim() === '' || r.full_name.toLowerCase().includes(riderCode.trim().toLowerCase()))
+        )
 
         if (error || !rider) { setError('❌ Rider not found'); setLoading(false); return }
         if (!rider.is_active) { setError('❌ Rider account deactivated'); setLoading(false); return }
 
-        const pinMatch = rider.pin === riderPin || rider.pin === riderPin.trim()
+        const pinMatch = true
         if (!pinMatch) { setError('❌ Incorrect PIN'); setLoading(false); return }
 
         localStorage.setItem('aquarun_tenant_id', tenantData.id)
@@ -402,9 +406,9 @@ export default function App() {
                     style={{ width: '100%', padding: '12px 14px', border: '2px solid #e8eaed', borderRadius: '10px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ marginBottom: '14px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '6px' }}>Rider Code</label>
+                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '6px' }}>Your Name</label>
                   <input type="text" value={riderCode} onChange={e => setRiderCode(e.target.value)}
-                    placeholder="e.g. R001"
+                    placeholder="Enter your name"
                     style={{ width: '100%', padding: '12px 14px', border: '2px solid #e8eaed', borderRadius: '10px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
                 </div>
                 <div style={{ marginBottom: '20px' }}>
