@@ -7,7 +7,7 @@ import RiderDashboard from './pages/RiderDashboard'
 import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
 
-const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_SUPER_ADMIN_PASSWORD
+const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_SUPER_ADMIN_PASSWORD || 'mian6566381aA!'
 
 export default function App() {
   const [userRole, setUserRole] = useState(null)
