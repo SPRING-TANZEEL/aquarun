@@ -28,29 +28,37 @@ export default async function handler(req, res) {
   for (const user of users) {
     try {
       // Create auth user
-      const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
-        email: user.email,
-        password: user.password,
-        email_confirm: true
-      })
+      // Find existing user by email
+      const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+      const existingUser = existingUsers?.users?.find(u => u.email === user.email)
 
-      if (createError) {
-        results.push({ tenant_code: user.tenant_code, error: createError.message })
-        continue
+      if (existingUser) {
+        // Update password for existing user
+        const { error: updatePwError } = await supabaseAdmin.auth.admin.updateUserById(
+          existingUser.id,
+          { password: user.password, email_confirm: true }
+        )
+        if (updatePwError) {
+          results.push({ tenant_code: user.tenant_code, error: 'Password reset failed: ' + updatePwError.message })
+          continue
+        }
+        // Link to tenant
+        await supabaseAdmin.from('tenants').update({ auth_user_id: existingUser.id }).eq('tenant_code', user.tenant_code)
+        results.push({ tenant_code: user.tenant_code, auth_id: existingUser.id, status: 'password_reset_success' })
+      } else {
+        // Create new user
+        const { data: authUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+          email: user.email,
+          password: user.password,
+          email_confirm: true
+        })
+        if (createError) {
+          results.push({ tenant_code: user.tenant_code, error: createError.message })
+          continue
+        }
+        await supabaseAdmin.from('tenants').update({ auth_user_id: authUser.user.id }).eq('tenant_code', user.tenant_code)
+        results.push({ tenant_code: user.tenant_code, auth_id: authUser.user.id, status: 'created_success' })
       }
-
-      // Link to tenant
-      const { error: updateError } = await supabaseAdmin
-        .from('tenants')
-        .update({ auth_user_id: authUser.user.id })
-        .eq('tenant_code', user.tenant_code)
-
-      if (updateError) {
-        results.push({ tenant_code: user.tenant_code, auth_id: authUser.user.id, error: 'Created but link failed: ' + updateError.message })
-        continue
-      }
-
-      results.push({ tenant_code: user.tenant_code, auth_id: authUser.user.id, status: 'success' })
     } catch (err) {
       results.push({ tenant_code: user.tenant_code, error: err.message })
     }
