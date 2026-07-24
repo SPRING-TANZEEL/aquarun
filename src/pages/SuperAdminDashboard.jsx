@@ -61,23 +61,27 @@ export default function SuperAdminDashboard({ onLogout }) {
     const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
     const hashedPassword = hashData || form.admin_password
 
-    const { data: newTenant, error } = await supabase.from('tenants').insert([{
-      tenant_code: form.tenant_code.toUpperCase(),
-      business_name: form.business_name,
-      admin_password: hashedPassword,
-      email: form.email.trim().toLowerCase(),
-      auth_user_id: authRes.auth_user_id,
-      plan: form.plan,
-      setup_fee: Number(form.setup_fee) || 0,
-      monthly_fee: Number(form.monthly_fee) || 0,
-      notes: form.notes,
-      setup_fee_paid: false,
-      is_active: true,
-      setup_date: new Date().toISOString().split('T')[0],
-      next_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    }]).select().single()
+    const createRes = await superAdminAction({
+      action: 'createTenant',
+      tenantData: {
+        tenant_code: form.tenant_code.toUpperCase(),
+        business_name: form.business_name,
+        admin_password: hashedPassword,
+        email: form.email.trim().toLowerCase(),
+        auth_user_id: authRes.auth_user_id,
+        plan: form.plan,
+        setup_fee: Number(form.setup_fee) || 0,
+        monthly_fee: Number(form.monthly_fee) || 0,
+        notes: form.notes,
+        setup_fee_paid: false,
+        is_active: true,
+        setup_date: new Date().toISOString().split('T')[0],
+        next_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      }
+    })
 
-    if (error) { alert('Error: ' + error.message); setSaving(false); return }
+    if (!createRes.ok) { alert('Error: ' + createRes.error); setSaving(false); return }
+    const newTenant = createRes.tenant
 
     const tenantUUID = newTenant.id
     await createDefaultCOA(tenantUUID)

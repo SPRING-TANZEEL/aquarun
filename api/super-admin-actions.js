@@ -75,12 +75,21 @@ export default async function handler(req, res) {
 
     // ── CREATE AUTH USER ────────────────────────────────────────────
     if (action === 'createAuthUser') {
-      const { email, password, tenantCode } = req.body
+      const { email, password } = req.body
       const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email, password, email_confirm: true
       })
       if (authError) return res.status(500).json({ error: authError.message })
       return res.json({ ok: true, auth_user_id: authUser.user.id })
+    }
+
+    // ── CREATE TENANT ────────────────────────────────────────────────
+    if (action === 'createTenant') {
+      const { tenantData } = req.body
+      const { data: newTenant, error } = await supabaseAdmin
+        .from('tenants').insert([tenantData]).select().single()
+      if (error) return res.status(500).json({ error: error.message })
+      return res.json({ ok: true, tenant: newTenant })
     }
 
     // ── DELETE TENANT ───────────────────────────────────────────────
