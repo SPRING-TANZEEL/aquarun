@@ -368,18 +368,7 @@ export default function App() {
                     style={{ width: '100%', padding: '12px 14px', border: '2px solid #e8eaed', borderRadius: '10px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }}
                   />
                 </div>
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ fontSize: '13px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '6px' }}>
-                    Business ID <span style={{ fontSize: '11px', color: '#aaa', fontWeight: '400' }}>(optional — for old login)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={tenantCode}
-                    onChange={e => setTenantCode(e.target.value)}
-                    placeholder="e.g. SW001"
-                    style={{ width: '100%', padding: '12px 14px', border: '2px solid #e8eaed', borderRadius: '10px', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }}
-                  />
-                </div>
+                
                 <div style={{ marginBottom: '20px' }}>
                   <label style={{ fontSize: '13px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '6px' }}>Password</label>
                   <input
