@@ -73,6 +73,16 @@ export default async function handler(req, res) {
       return res.json({ ok: true })
     }
 
+    // ── CREATE AUTH USER ────────────────────────────────────────────
+    if (action === 'createAuthUser') {
+      const { email, password, tenantCode } = req.body
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email, password, email_confirm: true
+      })
+      if (authError) return res.status(500).json({ error: authError.message })
+      return res.json({ ok: true, auth_user_id: authUser.user.id })
+    }
+
     // ── DELETE TENANT ───────────────────────────────────────────────
     if (action === 'deleteTenant') {
       if (tenantCode === 'SW001') return res.status(400).json({ error: 'Cannot delete own business' })

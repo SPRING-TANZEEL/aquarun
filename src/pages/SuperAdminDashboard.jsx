@@ -23,8 +23,7 @@ export default function SuperAdminDashboard({ onLogout }) {
   const [saving, setSaving] = useState(false)
   const [editTenant, setEditTenant] = useState(null)
   const [form, setForm] = useState({
-    tenant_code: '', business_name: '', admin_password: '',
-    plan: 'basic', setup_fee: '', monthly_fee: '', notes: ''
+    tenant_code: '', business_name: '', admin_password: '', email: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: ''
   })
 
   useEffect(() => { fetchTenants() }, [])
@@ -40,15 +39,34 @@ export default function SuperAdminDashboard({ onLogout }) {
     if (!form.tenant_code || !form.business_name || !form.admin_password) {
       return alert('Business ID, Name and Password are required')
     }
+    if (!form.email) {
+      return alert('Email is required for client login')
+    }
     setSaving(true)
+
+    // Create Supabase Auth account via super-admin-actions API
+    const authRes = await superAdminAction({
+      action: 'createAuthUser',
+      email: form.email.trim().toLowerCase(),
+      password: form.admin_password,
+      tenantCode: form.tenant_code.toUpperCase()
+    })
+
+    if (!authRes.ok && !authRes.auth_user_id) {
+      alert('Error creating auth account: ' + (authRes.error || 'Unknown error'))
+      setSaving(false)
+      return
+    }
 
     const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
     const hashedPassword = hashData || form.admin_password
 
     const { data: newTenant, error } = await supabase.from('tenants').insert([{
-      tenant_code: form.tenant_code,
+      tenant_code: form.tenant_code.toUpperCase(),
       business_name: form.business_name,
       admin_password: hashedPassword,
+      email: form.email.trim().toLowerCase(),
+      auth_user_id: authRes.auth_user_id,
       plan: form.plan,
       setup_fee: Number(form.setup_fee) || 0,
       monthly_fee: Number(form.monthly_fee) || 0,
@@ -65,11 +83,11 @@ export default function SuperAdminDashboard({ onLogout }) {
     await createDefaultCOA(tenantUUID)
     await createDefaultSettings(tenantUUID, form.business_name)
 
-    setForm({ tenant_code: '', business_name: '', admin_password: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: '' })
+    setForm({ tenant_code: '', business_name: '', admin_password: '', email: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: '' })
     setShowAddForm(false)
     fetchTenants()
     setSaving(false)
-    alert('✅ Client created! Business ID: ' + form.tenant_code.toUpperCase())
+    alert(`✅ Client created!\n\nBusiness ID: ${form.tenant_code.toUpperCase()}\nEmail: ${form.email}\nPassword: ${form.admin_password}\n\nShare these details with the client.`)
   }
 
   async function createDefaultCOA(tenantId) {
@@ -282,6 +300,11 @@ export default function SuperAdminDashboard({ onLogout }) {
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Admin Password *</label>
                   <input value={form.admin_password} onChange={e => setForm({ ...form, admin_password: e.target.value })}
                     placeholder="Strong password" style={inp} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Client Email *</label>
+                  <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
+                    placeholder="client@email.com" style={inp} />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Plan</label>
