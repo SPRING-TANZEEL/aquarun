@@ -339,7 +339,7 @@ export default function App() {
               else { window._tapCount = (window._tapCount || 0) + 1 }
               if (window._tapCount >= 5) { setLoginMode('superadmin'); window._tapCount = 0 }
             }}
-            style={{ width: '100px', height: '100px', marginBottom: '8px', cursor: 'pointer', borderRadius: '20px' }}
+            style={{ width: '120px', height: '120px', marginBottom: '8px', cursor: 'pointer', borderRadius: '22px' }}
           />
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>Water Delivery Management System</p>
         </div>
