@@ -7,6 +7,7 @@ import RiderDashboard from './pages/RiderDashboard'
 import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
 import ResetPassword from './pages/ResetPassword'
+import aquarunLogo from './assets/aquarun-logo.png'
 
 const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_SUPER_ADMIN_PASSWORD || 'mian6566381aA!'
 
@@ -330,7 +331,7 @@ export default function App() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <img
-            src="/android-chrome-192x192.png"
+            src={aquarunLogo}
             alt="AquaRun"
             onClick={() => {
               const now = Date.now()
@@ -338,10 +339,9 @@ export default function App() {
               else { window._tapCount = (window._tapCount || 0) + 1 }
               if (window._tapCount >= 5) { setLoginMode('superadmin'); window._tapCount = 0 }
             }}
-            style={{ width: '120px', height: '120px', marginBottom: '8px', cursor: 'pointer', borderRadius: '24px' }}
+            style={{ width: '160px', height: '160px', marginBottom: '8px', cursor: 'pointer', borderRadius: '24px' }}
           />
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>Water Delivery Management System</p>
-        </div>
 
         {/* Login Card */}
         <div style={{ background: 'white', borderRadius: '20px', padding: '28px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
