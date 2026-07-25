@@ -342,6 +342,7 @@ export default function App() {
             style={{ width: '160px', height: '160px', marginBottom: '8px', cursor: 'pointer', borderRadius: '24px' }}
           />
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>Water Delivery Management System</p>
+        </div>
 
         {/* Login Card */}
         <div style={{ background: 'white', borderRadius: '20px', padding: '28px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
