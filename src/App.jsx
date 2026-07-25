@@ -20,6 +20,23 @@ export default function App() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [checkingSession, setCheckingSession] = useState(true)
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [showInstallBanner, setShowInstallBanner] = useState(false)
+
+  useEffect(() => {
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault()
+      setInstallPrompt(e)
+      setShowInstallBanner(true)
+    })
+  }, [])
+
+  async function handleInstall() {
+    if (!installPrompt) return
+    installPrompt.prompt()
+    const { outcome } = await installPrompt.userChoice
+    if (outcome === 'accepted') setShowInstallBanner(false)
+  }
 
   // Admin login fields
   const [loginEmail, setLoginEmail] = useState('')
@@ -326,6 +343,21 @@ export default function App() {
   // Login Screen
   return (
     <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f4c81 0%, #1a7a4a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      {showInstallBanner && (
+        <div style={{ position: 'fixed', bottom: '20px', left: '16px', right: '16px', background: 'white', borderRadius: '16px', padding: '14px 16px', boxShadow: '0 8px 32px rgba(0,0,0,0.2)', display: 'flex', alignItems: 'center', gap: '12px', zIndex: 9999 }}>
+          <img src={aquarunLogo} alt="AquaRun" style={{ width: '48px', height: '48px', borderRadius: '10px' }} />
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: '0 0 2px' }}>Install AquaRun</p>
+            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Add to home screen for quick access</p>
+          </div>
+          <button onClick={handleInstall}
+            style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700' }}>
+            Install
+          </button>
+          <button onClick={() => setShowInstallBanner(false)}
+            style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#aaa', padding: '4px' }}>✕</button>
+        </div>
+      )}
       <div style={{ width: '100%', maxWidth: '420px' }}>
 
         {/* Logo */}
