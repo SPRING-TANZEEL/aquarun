@@ -329,14 +329,17 @@ export default function App() {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ fontSize: '56px', marginBottom: '8px', cursor: 'pointer' }}
+          <img
+            src="/android-chrome-192x192.png"
+            alt="AquaRun"
             onClick={() => {
               const now = Date.now()
               if (!window._tapStart || now - window._tapStart > 3000) { window._tapStart = now; window._tapCount = 1 }
               else { window._tapCount = (window._tapCount || 0) + 1 }
               if (window._tapCount >= 5) { setLoginMode('superadmin'); window._tapCount = 0 }
-            }}>💧</div>
-          <h1 style={{ fontSize: '32px', fontWeight: '800', color: 'white', margin: '0 0 6px' }}>AquaRun</h1>
+            }}
+            style={{ width: '120px', height: '120px', marginBottom: '8px', cursor: 'pointer', borderRadius: '24px' }}
+          />
           <p style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>Water Delivery Management System</p>
         </div>
 
