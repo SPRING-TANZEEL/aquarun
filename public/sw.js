@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aquarun-v2'
+const CACHE_NAME = 'aquarun-v3'
 
 // Install
 self.addEventListener('install', event => {
