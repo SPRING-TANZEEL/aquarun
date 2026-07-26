@@ -260,7 +260,7 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
 // When admin confirms jazz/easypaisa — moves from clearing to actual account
 export async function postJazzCashConfirmationJournal(record, recordType, tenantId) {
   try {
-    const amount = Number(record.total_amount || record.amount || 0)
+    const amount = Number(record.total_with_tax || record.total_amount || record.amount || 0)
     const paymentMethod = record.payment_method || 'jazzcash'
 
     // Determine which accounts to use
