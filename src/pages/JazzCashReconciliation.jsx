@@ -191,7 +191,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     setLoading(true)
 
     let dQuery = supabase.from('deliveries')
-      .select('*, customers(full_name, mobile, customer_code), riders(full_name)')
+      .select('*, customers(full_name, mobile, customer_code), riders(full_name), total_with_tax')
       .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
       .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
       .order('delivered_at', { ascending: false })
@@ -254,7 +254,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         tenant_id: tenantId,
         customer_id: confirmed.customer_id,
         rider_id: confirmed.rider_id,
-        amount: Number(confirmed.total_with_tax || confirmed.total_amount),
+        amount: Number(confirmed.total_with_tax) || Number(confirmed.total_amount),
         payment_method: confirmed.payment_method,
         payment_date: new Date().toISOString().split('T')[0],
         notes: `JazzCash confirmed — delivery ${confirmed.invoice_number || confirmed.id}`,
