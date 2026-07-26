@@ -68,6 +68,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       .eq('payment_method', 'jazzcash')
       .eq('jazzcash_confirmed', true)
       .eq('is_voided', false)
+      .not('notes', 'ilike', '%JazzCash confirmed — delivery%')
       .gte('created_at', stmtFrom + 'T00:00:00')
       .lte('created_at', stmtTo + 'T23:59:59')
 
@@ -131,7 +132,6 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     const { data: riderExp } = await supabase.from('expenses')
       .select('*, riders(full_name)')
       .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash')
       .eq('is_voided', false)
       .gte('expense_date', stmtFrom)
       .lte('expense_date', stmtTo)
@@ -225,8 +225,9 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     let jazzIn = 0, jazzPending = 0
     allDeliveries?.forEach(d => {
       if (d.is_voided) return
-      if (d.jazzcash_confirmed) jazzIn += Number(d.total_amount)
-      else jazzPending += Number(d.total_amount)
+      const amt = Number(d.total_with_tax || d.total_amount)
+      if (d.jazzcash_confirmed) jazzIn += amt
+      else jazzPending += amt
     })
     allPayments?.forEach(p => {
       if (p.is_voided) return
@@ -262,18 +263,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         }
       }
 
-      const { error: payInsertError } = await supabase.from('payments').insert([{
-        tenant_id: tenantId,
-        customer_id: confirmed.customer_id,
-        rider_id: confirmed.rider_id,
-        amount: Number(confirmed.total_with_tax) || Number(confirmed.total_amount),
-        payment_method: confirmed.payment_method,
-        payment_date: new Date().toISOString().split('T')[0],
-        notes: `JazzCash confirmed — delivery ${confirmed.invoice_number || confirmed.id}`,
-        jazzcash_confirmed: true,
-        journal_entry_id: entryId
-      }])
-      if (payInsertError) console.error('Payment insert error:', payInsertError)
+      // No payment record inserted — delivery confirmation is tracked via journal entry only
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
   }
@@ -283,8 +273,19 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     const { error } = await supabase.from('deliveries').update({
       jazzcash_confirmed: false, jazzcash_confirmed_at: null, jazzcash_confirmed_by: null, amount_received: 0
     }).eq('id', entry.id).eq('tenant_id', tenantId)
-    if (error) { alert('Error: ' + error.message) }
-    else { fetchEntries(); if (onUpdate) onUpdate() }
+    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
+    // Reverse customer balance
+    if (entry.customer_id) {
+      const { data: customer } = await supabase.from('customers')
+        .select('balance').eq('id', entry.customer_id).eq('tenant_id', tenantId).single()
+      if (customer) {
+        const amount = Number(entry.total_with_tax || entry.total_amount)
+        await supabase.from('customers')
+          .update({ balance: Number(customer.balance) + amount })
+          .eq('id', entry.customer_id).eq('tenant_id', tenantId)
+      }
+    }
+    fetchEntries(); if (onUpdate) onUpdate()
     setConfirming(null)
   }
 
@@ -345,7 +346,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
   const totalDeliveryPending = deliveries.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.total_amount), 0)
   const totalPaymentPending = payments.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.amount), 0)
   const totalConfirmed = [
-    ...deliveries.filter(e => e.jazzcash_confirmed).map(e => Number(e.total_amount)),
+    ...deliveries.filter(e => e.jazzcash_confirmed).map(e => Number(e.total_with_tax || e.total_amount)),
     ...payments.filter(e => e.jazzcash_confirmed).map(e => Number(e.amount))
   ].reduce((s, v) => s + v, 0)
 
