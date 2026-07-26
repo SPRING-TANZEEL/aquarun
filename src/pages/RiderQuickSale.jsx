@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
@@ -37,7 +38,7 @@ export default function RiderQuickSale({ rider, tenantId }) {
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
     try {
-      const { postDeliveryJournal } = await import('../accountingEngine')
+      const { postDeliveryJournal } = AccountingEngine
       await postDeliveryJournal(savedDelivery, null, tenantId, true)
     } catch (err) { console.error('Journal error:', err) }
 

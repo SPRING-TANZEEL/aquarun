@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 
 const ACCOUNTS = [
   { key: 'cash', label: 'Cash in Hand', icon: '💵', color: '#0f4c81' },
@@ -265,7 +266,7 @@ export default function CEOCashPosition({ tenantId }) {
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingTransfer(false); return }
     try {
-      const { postAccountTransferJournal } = await import('../accountingEngine')
+      const { postAccountTransferJournal } = AccountingEngine
       await postAccountTransferJournal(savedTransfer, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     setTransferAmount(''); setTransferNotes('')
@@ -284,7 +285,7 @@ export default function CEOCashPosition({ tenantId }) {
     }]).select().single()
     if (error) { alert('Error: ' + error.message); setSavingOwner(false); return }
     try {
-      const { postOwnerTransactionJournal } = await import('../accountingEngine')
+      const { postOwnerTransactionJournal } = AccountingEngine
       await postOwnerTransactionJournal(savedTx, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     setOwnerAmount(''); setOwnerNotes('')
@@ -723,3 +724,4 @@ export default function CEOCashPosition({ tenantId }) {
     </div>
   )
 }
+

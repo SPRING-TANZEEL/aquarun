@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 import { savePendingExpense } from '../offlineDB'
 
 const EXPENSE_TYPES = [
@@ -55,7 +56,7 @@ export default function RiderExpense({ rider, tenantId, isOnline }) {
       const { data: saved, error } = await supabase.from('expenses').insert([expenseData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       try {
-        const { postRiderExpenseJournal } = await import('../accountingEngine')
+        const { postRiderExpenseJournal } = AccountingEngine
         await postRiderExpenseJournal(saved, tenantId)
       } catch (err) { console.error('Journal error:', err) }
       fetchTodayExpenses()

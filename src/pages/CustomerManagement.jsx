@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 import * as XLSX from 'xlsx'
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
@@ -202,7 +203,7 @@ export default function CustomerManagement({ tenantId }) {
 
       if (Number(form.opening_balance) !== 0) {
         try {
-          const { postCustomerOpeningBalanceJournal } = await import('../accountingEngine')
+          const { postCustomerOpeningBalanceJournal } = AccountingEngine
           await postCustomerOpeningBalanceJournal(savedCustomer, tenantId)
         } catch (err) { console.error('Opening balance journal error:', err) }
       }
@@ -344,7 +345,7 @@ export default function CustomerManagement({ tenantId }) {
         // Post opening balance journal
         if (row.opening_balance !== 0) {
           try {
-            const { postCustomerOpeningBalanceJournal } = await import('../accountingEngine')
+            const { postCustomerOpeningBalanceJournal } = AccountingEngine
             await postCustomerOpeningBalanceJournal(saved, tenantId)
           } catch (err) { console.error('Journal error for', row.full_name) }
         }
@@ -859,3 +860,4 @@ export default function CustomerManagement({ tenantId }) {
     </div>
   )
 }
+

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 
 export default function CashTransferManagement({ tenantId, onUpdate }) {
   const [pendingTransfers, setPendingTransfers] = useState([])
@@ -116,7 +117,7 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
       .eq('id', transfer.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
     try {
-      const { postCashTransferJournal } = await import('../accountingEngine')
+      const { postCashTransferJournal } = AccountingEngine
       await postCashTransferJournal(confirmed, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     fetchData()

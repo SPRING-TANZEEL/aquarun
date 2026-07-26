@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 import {
   getOrdersOffline, updateOrderStatusOffline,
   savePendingDelivery, updateCustomerBalanceOffline
@@ -233,7 +234,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
         .eq('tenant_id', tenantId)
 
       try {
-        const { postDeliveryJournal } = await import('../accountingEngine')
+        const { postDeliveryJournal } = AccountingEngine
         await postDeliveryJournal(savedDelivery, selectedOrder.customer_id, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
 
@@ -591,3 +592,4 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     </div>
   )
 }
+

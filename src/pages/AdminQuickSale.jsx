@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
+import * as AccountingEngine from '../accountingEngine'
 import InvoiceModal from '../components/InvoiceModal'
 
 const RATES_19L = [90, 100, 110, 120, 150, 160, 170, 180]
@@ -95,7 +97,7 @@ export default function AdminQuickSale({ tenantId }) {
       try {
         const { data: saved } = await supabase.from('deliveries').insert([deliveryData]).select().single()
         if (saved) {
-          const { postDeliveryJournal } = await import('../accountingEngine')
+          const { postDeliveryJournal } = AccountingEngine
           await postDeliveryJournal(saved, saved.customer_id, tenantId, false)
           syncedSales++
         }
@@ -112,7 +114,7 @@ export default function AdminQuickSale({ tenantId }) {
       try {
         const { data: saved } = await supabase.from('payments').insert([paymentData]).select().single()
         if (saved) {
-          const { postPaymentJournal } = await import('../accountingEngine')
+          const { postPaymentJournal } = AccountingEngine
           await postPaymentJournal(saved, tenantId, false)
           syncedPayments++
         }
@@ -253,7 +255,7 @@ export default function AdminQuickSale({ tenantId }) {
     }
 
     try {
-      const { postPaymentJournal } = await import('../accountingEngine')
+      const { postPaymentJournal } = AccountingEngine
       await postPaymentJournal(savedPayment, tenantId, false)
     } catch (err) { console.error('Journal error:', err) }
 
@@ -407,7 +409,7 @@ export default function AdminQuickSale({ tenantId }) {
     }
 
     try {
-      const { postDeliveryJournal } = await import('../accountingEngine')
+      const { postDeliveryJournal } = AccountingEngine
       await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
     } catch (err) { console.error('Journal post error:', err) }
 
@@ -837,3 +839,4 @@ export default function AdminQuickSale({ tenantId }) {
     </div>
   )
 }
+

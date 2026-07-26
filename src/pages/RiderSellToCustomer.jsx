@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 import { savePendingDelivery, updateCustomerBalanceOffline } from '../offlineDB'
 import RiderQuickSale from './RiderQuickSale'
 
@@ -205,7 +206,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
     // Post journal — isRiderEntry=true → DR 1101 Receivable from Riders (cash) or DR 1102 Clearing (jazz)
     try {
-      const { postPaymentJournal } = await import('../accountingEngine')
+      const { postPaymentJournal } = AccountingEngine
       await postPaymentJournal(savedPayment, tenantId, true)
     } catch (err) { console.error('Journal error:', err) }
 
@@ -350,7 +351,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
       // Post delivery journal — isRiderEntry=true → DR 1101 Receivable from Riders
       try {
-        const { postDeliveryJournal } = await import('../accountingEngine')
+        const { postDeliveryJournal } = AccountingEngine
         await postDeliveryJournal(savedDelivery, selectedCustomer.id, tenantId, true)
       } catch (err) { console.error('Journal post error:', err) }
 
@@ -802,3 +803,4 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     </div>
   )
 }
+

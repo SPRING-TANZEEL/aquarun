@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 
 export default function JazzCashReconciliation({ tenantId, onUpdate }) {
   const [activeTab, setActiveTab] = useState('statement')
@@ -245,7 +246,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
     try {
-      const { postJazzCashConfirmationJournal } = await import('../accountingEngine')
+      const { postJazzCashConfirmationJournal } = AccountingEngine
       await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
@@ -282,7 +283,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).eq('tenant_id', tenantId).single()
     if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) - Number(entry.amount) }).eq('id', entry.customer_id).eq('tenant_id', tenantId)
     try {
-      const { postJazzCashConfirmationJournal } = await import('../accountingEngine')
+      const { postJazzCashConfirmationJournal } = AccountingEngine
       await postJazzCashConfirmationJournal(confirmed, 'payment')
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
@@ -708,3 +709,4 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     </div>
   )
 }
+

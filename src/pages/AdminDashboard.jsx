@@ -1,6 +1,7 @@
 import SetupWizard from '../components/SetupWizard'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 import CustomerManagement from './CustomerManagement'
 import AdminQuickSale from './AdminQuickSale'
 import Orders from './Orders'
@@ -842,7 +843,7 @@ function ReconciliationCard({ tenantId }) {
     // Fix unposted deliveries
     for (const d of results.unpostedDeliveries) {
       try {
-        const { postDeliveryJournal } = await import('../accountingEngine')
+        const { postDeliveryJournal } = AccountingEngine
         await postDeliveryJournal(d, d.customer_id, tenantId, false)
         fixedDeliveries++
       } catch (err) { console.error('Fix delivery error:', err) }
@@ -851,7 +852,7 @@ function ReconciliationCard({ tenantId }) {
     // Fix unposted payments
     for (const p of results.unpostedPayments) {
       try {
-        const { postPaymentJournal } = await import('../accountingEngine')
+        const { postPaymentJournal } = AccountingEngine
         await postPaymentJournal(p, tenantId)
         fixedPayments++
       } catch (err) { console.error('Fix payment error:', err) }

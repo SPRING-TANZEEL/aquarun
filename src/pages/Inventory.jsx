@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 
 export default function Inventory({ tenantId }) {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -349,7 +350,7 @@ function PurchaseEntry({ products, onRefresh, tenantId }) {
 
     // Auto-post journal entry
     try {
-      const { postStockPurchaseJournal } = await import('../accountingEngine')
+      const { postStockPurchaseJournal } = AccountingEngine
       await postStockPurchaseJournal(savedPurchase, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 

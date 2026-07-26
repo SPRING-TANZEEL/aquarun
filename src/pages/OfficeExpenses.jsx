@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 
 const CATEGORIES = [
   { key: 'rent',        label: 'Rent',          icon: '🏠', defaultCode: '6004', defaultName: 'Rent' },
@@ -109,7 +110,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
     try {
-      const { postOfficeExpenseJournal } = await import('../accountingEngine')
+      const { postOfficeExpenseJournal } = AccountingEngine
       await postOfficeExpenseJournal(saved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
@@ -375,3 +376,4 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     </div>
   )
 }
+

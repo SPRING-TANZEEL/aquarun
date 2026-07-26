@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import * as AccountingEngine from '../accountingEngine'
 import OfficeExpenses from './OfficeExpenses'
 
 const PAYMENT_METHODS = [
@@ -128,7 +129,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       .eq('id', request.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setProcessing(null); return }
     try {
-      const { postSalaryAdvanceJournal } = await import('../accountingEngine')
+      const { postSalaryAdvanceJournal } = AccountingEngine
       await postSalaryAdvanceJournal(approved, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     fetchData()
@@ -165,7 +166,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       }]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       try {
-        const { postSalaryAdvanceJournal } = await import('../accountingEngine')
+        const { postSalaryAdvanceJournal } = AccountingEngine
         await postSalaryAdvanceJournal(advance, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
       alert(`✅ Advance paid to ${payingRider.full_name}\nAmount: Rs. ${Number(payAmount).toLocaleString()}\nVia: ${payMethod}`)
@@ -186,7 +187,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       }]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       try {
-        const { postSalaryPaymentJournal } = await import('../accountingEngine')
+        const { postSalaryPaymentJournal } = AccountingEngine
         await postSalaryPaymentJournal(savedPayment, tenantId)
       } catch (err) { console.error('Journal post error:', err) }
       alert(`✅ Salary paid to ${payingRider.full_name}\nAmount: Rs. ${Number(payAmount).toLocaleString()}\nVia: ${payMethod}`)
@@ -477,3 +478,4 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     </div>
   )
 }
+
