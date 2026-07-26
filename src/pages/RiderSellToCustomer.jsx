@@ -186,6 +186,31 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const isJazz = payMethod === 'jazzcash'
 
     if (!isOnline) {
+      // Save payment to localStorage for later sync
+      const offlinePayments = JSON.parse(localStorage.getItem('offline_payments_' + tenantId) || '[]')
+      offlinePayments.push({
+        tenant_id: tenantId,
+        customer_id: payCustomer.id,
+        rider_id: rider.id,
+        amount,
+        payment_method: payMethod,
+        payment_date: new Date().toISOString().split('T')[0],
+        jazzcash_confirmed: payMethod !== 'jazzcash',
+        notes: payNotes || `Payment received by rider ${rider.full_name}`,
+        is_voided: false,
+        _offlineId: 'offline-' + Date.now(),
+        _savedAt: new Date().toISOString()
+      })
+      localStorage.setItem('offline_payments_' + tenantId, JSON.stringify(offlinePayments))
+
+      // Update cached customer balance
+      if (payMethod !== 'jazzcash') {
+        const cached = JSON.parse(localStorage.getItem('cached_customers_' + tenantId) || '[]')
+        const updated = cached.map(c => c.id === payCustomer.id ? { ...c, balance: Number(c.balance || 0) - amount } : c)
+        localStorage.setItem('cached_customers_' + tenantId, JSON.stringify(updated))
+        setCustomers(updated)
+      }
+
       setPaySuccess({ name: payCustomer.full_name, amount, method: payMethod, newBalance: Number(payCustomer.balance || 0) - amount, jazzPending: payMethod === 'jazzcash', savedOffline: true })
       setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
       setPaySaving(false)
