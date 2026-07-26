@@ -3,7 +3,7 @@ import { supabase } from '../supabase'
 import * as AccountingEngine from '../accountingEngine'
 import {
   getOrdersOffline, updateOrderStatusOffline,
-  savePendingDelivery, updateCustomerBalanceOffline
+  savePendingDelivery
 } from '../offlineDB'
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
@@ -34,7 +34,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       if (isOnline) {
         let query = supabase
           .from('orders')
-          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, google_maps_link)')
+          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, google_maps_link, is_tax_applicable, tax_rate)')
           .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
@@ -73,10 +73,19 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     setSuccess(null)
   }
 
-  function totalAmount() {
+  function subTotal() {
     return (qty19l * (selectedRate || 0)) +
       (qtyHalf * (selectedOrder?.customers?.rate_half_litre || 0)) +
       (qty15l * (selectedOrder?.customers?.rate_1_5l || 0))
+  }
+
+  function taxAmount() {
+    const taxRate = selectedOrder?.customers?.is_tax_applicable ? Number(selectedOrder?.customers?.tax_rate || 16) : 0
+    return Math.round(subTotal() * taxRate / 100)
+  }
+
+  function totalAmount() {
+    return subTotal() + taxAmount()
   }
 
   // ── GENERATE TODAY'S SCHEDULED ORDERS ──
@@ -165,6 +174,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     const creditPortion = isCredit ? total : isCash ? (total - received) : 0
     const now = new Date().toISOString()
 
+    const sub = subTotal()
+    const tax = taxAmount()
     const deliveryData = {
       tenant_id: tenantId,
       order_id: selectedOrder.id,
@@ -174,7 +185,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       qty_half_litre: qtyHalf,
       qty_1_5l: qty15l,
       rate_applied: selectedRate || 0,
-      total_amount: total,
+      total_amount: sub,
+      tax_amount: tax,
+      total_with_tax: total,
       payment_method: paymentMethod,
       amount_received: isJazz ? 0 : received,
       credit_amount: creditPortion,
@@ -219,10 +232,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       })
       if (riderItems.length > 0) await supabase.from('delivery_items').insert(riderItems)
 
-      if (creditPortion > 0) {
-        const newBalance = Number(selectedOrder.customers.balance) + creditPortion
-        await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedOrder.customer_id)
-      }
+      // Balance calculated dynamically from customer_balances view — no manual update needed
 
       // ✅ Update our_bottles_placed
       // + qty delivered - bottles returned by customer
@@ -271,10 +281,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
     } else {
       await savePendingDelivery(deliveryData)
       await updateOrderStatusOffline(selectedOrder.id, 'completed')
-      if (creditPortion > 0) {
-        const newBalance = Number(selectedOrder.customers?.balance || 0) + creditPortion
-        await updateCustomerBalanceOffline(selectedOrder.customer_id, newBalance)
-      }
+      // Balance calculated dynamically from customer_balances view — no manual update needed
     }
 
     setSuccess({
