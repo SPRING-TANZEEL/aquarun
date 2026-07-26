@@ -179,7 +179,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
-      narration: `Delivery — ${qty19l}×19L ${qtyHalf}×Half ${qty15l}×1.5L — ${paymentMethod} — ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` — tax Rs.${taxAmount}` : ''}`,
+      narration: `Delivery — ${[qty19l > 0 ? `${qty19l}×19L` : '', qtyHalf > 0 ? `${qtyHalf}×Half` : '', qty15l > 0 ? `${qty15l}×1.5L` : ''].filter(Boolean).join(' ')} — ${paymentMethod} — ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` — tax Rs.${taxAmount}` : ''}`,
       lines
     })
 
