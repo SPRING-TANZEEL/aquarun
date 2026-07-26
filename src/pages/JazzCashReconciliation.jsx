@@ -245,11 +245,22 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       jazzcash_confirmed_by: 'Admin', amount_received: entry.total_with_tax || entry.total_amount
     }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    console.log('confirmed object:', confirmed)
     try {
       const { postJazzCashConfirmationJournal } = AccountingEngine
       const entryId = await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
       console.log('Confirmation journal entryId:', entryId)
+
+      // Update customer balance on JazzCash delivery confirmation
+      if (confirmed.customer_id) {
+        const { data: customer } = await supabase.from('customers')
+          .select('balance').eq('id', confirmed.customer_id).eq('tenant_id', tenantId).single()
+        if (customer) {
+          const amount = Number(confirmed.total_with_tax) || Number(confirmed.total_amount)
+          await supabase.from('customers')
+            .update({ balance: Number(customer.balance) - amount })
+            .eq('id', confirmed.customer_id).eq('tenant_id', tenantId)
+        }
+      }
 
       const { error: payInsertError } = await supabase.from('payments').insert([{
         tenant_id: tenantId,
