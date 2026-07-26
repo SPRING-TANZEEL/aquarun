@@ -147,6 +147,9 @@ function OpeningStock({ products, onRefresh, tenantId }) {
     setSaving(true)
     for (const product of products) {
       const openingQty = Number(stockValues[product.id] || 0)
+      const costPrice = Number(product.average_cost || product.purchase_price || 0)
+      const totalValue = openingQty * costPrice
+
       const updateData = {
         opening_stock: openingQty,
         current_stock: openingQty
@@ -158,6 +161,40 @@ function OpeningStock({ products, onRefresh, tenantId }) {
         .update(updateData)
         .eq('id', product.id)
         .eq('tenant_id', tenantId)
+
+      // Post journal entry if stock has value
+      if (openingQty > 0 && totalValue > 0) {
+        // Determine correct inventory account based on product type
+        let inventoryAccount = '1201'
+        let inventoryName = 'Inventory - Finished Goods'
+        if (product.product_type === 'raw_material') {
+          inventoryAccount = '1200'
+          inventoryName = 'Inventory - Raw Materials'
+        } else if (product.product_type === 'finished_good') {
+          inventoryAccount = '1201'
+          inventoryName = 'Inventory - Finished Goods'
+        } else if (product.product_type === 'trading') {
+          inventoryAccount = '1201'
+          inventoryName = 'Inventory - Finished Goods'
+        }
+
+        const { data: je } = await supabase.from('journal_entries').insert([{
+          tenant_id: tenantId,
+          entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'opening_balance',
+          reference_id: product.id,
+          narration: `Opening stock — ${product.name} — ${openingQty} units × Rs. ${costPrice}`,
+          total_amount: totalValue,
+          created_by: 'system'
+        }]).select().single()
+
+        if (je) {
+          await supabase.from('journal_entry_lines').insert([
+            { tenant_id: tenantId, journal_entry_id: je.id, account_code: inventoryAccount, account_name: inventoryName, debit: totalValue, credit: 0 },
+            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: totalValue }
+          ])
+        }
+      }
     }
     setSaved(true)
     onRefresh()
