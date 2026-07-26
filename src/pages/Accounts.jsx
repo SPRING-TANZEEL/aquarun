@@ -357,6 +357,8 @@ function BalanceSheet({ tenantId }) {
     console.log('Sample line:', JSON.stringify(lines?.[0]))
     const filteredLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
     console.log('Filtered lines:', filteredLines.length)
+    console.log('COA map size:', Object.keys(coaMap).length)
+    console.log('Sample COA:', JSON.stringify(Object.entries(coaMap)[0]))
 
     const balances = {}
     filteredLines.forEach(l => {
