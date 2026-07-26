@@ -245,6 +245,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       jazzcash_confirmed_by: 'Admin', amount_received: entry.total_with_tax || entry.total_amount
     }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
+    console.log('confirmed object:', confirmed)
     try {
       const { postJazzCashConfirmationJournal } = AccountingEngine
       const entryId = await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
