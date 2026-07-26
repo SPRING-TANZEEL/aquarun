@@ -75,24 +75,34 @@ export default function App() {
         const riderId = localStorage.getItem('aquarun_rider_id')
         const riderName = localStorage.getItem('aquarun_rider_name')
         if (riderId && tenantId) {
-          try {
-            const { data: rider } = await supabase.from('riders').select('*').eq('id', riderId).single()
-            if (rider) {
-              localStorage.setItem('aquarun_rider_name', rider.full_name)
-              setCurrentRider(rider)
-              setCurrentTenant({ id: tenantId, business_name: businessName })
-              setUserRole('rider')
-              setCheckingSession(false)
-              return
-            }
-          } catch (err) {
-            // Offline — use cached rider data
+          // If offline, use cached data immediately
+          if (!navigator.onLine) {
             if (riderName) {
               setCurrentRider({ id: riderId, full_name: riderName, tenant_id: tenantId })
               setCurrentTenant({ id: tenantId, business_name: businessName })
               setUserRole('rider')
               setCheckingSession(false)
               return
+            }
+          } else {
+            try {
+              const { data: rider } = await supabase.from('riders').select('*').eq('id', riderId).single()
+              if (rider) {
+                localStorage.setItem('aquarun_rider_name', rider.full_name)
+                setCurrentRider(rider)
+                setCurrentTenant({ id: tenantId, business_name: businessName })
+                setUserRole('rider')
+                setCheckingSession(false)
+                return
+              }
+            } catch (err) {
+              if (riderName) {
+                setCurrentRider({ id: riderId, full_name: riderName, tenant_id: tenantId })
+                setCurrentTenant({ id: tenantId, business_name: businessName })
+                setUserRole('rider')
+                setCheckingSession(false)
+                return
+              }
             }
           }
         }
