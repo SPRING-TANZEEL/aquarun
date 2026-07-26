@@ -113,7 +113,15 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   async function searchPayCustomer(val) {
     setPaySearch(val)
     if (val.length < 2) { setPayResults([]); return }
-    if (!isOnline) { setPayResults([]); return }
+    if (!isOnline) {
+      const filtered = (customers || []).filter(c =>
+        c.full_name?.toLowerCase().includes(val.toLowerCase()) ||
+        c.mobile?.includes(val) ||
+        c.customer_code?.toLowerCase().includes(val.toLowerCase())
+      ).slice(0, 5)
+      setPayResults(filtered)
+      return
+    }
     const { data } = await supabase.from('customer_balances')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
