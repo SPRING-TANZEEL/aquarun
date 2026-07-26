@@ -343,6 +343,7 @@ function BalanceSheet({ tenantId }) {
 
   async function fetchData() {
     setLoading(true)
+    console.log('Balance Sheet tenantId:', tenantId)
     const { data: coaData } = await supabase.from('chart_of_accounts')
       .select('account_code, account_name, account_type, account_subtype').eq('tenant_id', tenantId)
     const coaMap = {}
