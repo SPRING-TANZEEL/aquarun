@@ -12,7 +12,9 @@ import RiderAdvanceApproval from './RiderAdvanceApproval'
 import OfficeExpenses from './OfficeExpenses'
 
 export default function RiderDashboard({ user, onLogout }) {
-  const [activePage, setActivePage] = useState('deliveries')
+  const [activePage, setActivePage] = useState(() => {
+    return localStorage.getItem('aquarun_rider_active_page') || 'deliveries'
+  })
   const [preSelectedCustomer, setPreSelectedCustomer] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [pendingCount, setPendingCount] = useState(0)
@@ -131,6 +133,7 @@ export default function RiderDashboard({ user, onLogout }) {
   function navigateTo(key) {
     if (key !== 'sell') setPreSelectedCustomer(null)
     setActivePage(key)
+    localStorage.setItem('aquarun_rider_active_page', key)
   }
 
   const isMoreActive = ['expense', 'transfer', 'salary', 'advances', 'fieldexpenses'].includes(activePage)

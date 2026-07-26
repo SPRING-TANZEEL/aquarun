@@ -124,6 +124,7 @@ export default function RiderReceivables({ rider, tenantId, onSelectCustomer, is
                     )}
                   </div>
                   <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px' }}>{c.mobile} · {c.customer_code}</p>
+                  {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '0 0 2px' }}>📍 {c.address}</p>}
                   <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>Rate: Rs. {c.rate_19l}</p>
                 </div>
                 <div style={{ textAlign: 'right', marginLeft: '12px' }}>
