@@ -73,10 +73,12 @@ export default function App() {
 
       if (role === 'rider') {
         const riderId = localStorage.getItem('aquarun_rider_id')
+        const riderName = localStorage.getItem('aquarun_rider_name')
         if (riderId && tenantId) {
           try {
             const { data: rider } = await supabase.from('riders').select('*').eq('id', riderId).single()
             if (rider) {
+              localStorage.setItem('aquarun_rider_name', rider.full_name)
               setCurrentRider(rider)
               setCurrentTenant({ id: tenantId, business_name: businessName })
               setUserRole('rider')
@@ -84,10 +86,16 @@ export default function App() {
               return
             }
           } catch (err) {
-            console.error('Rider session restore error:', err)
+            // Offline — use cached rider data
+            if (riderName) {
+              setCurrentRider({ id: riderId, full_name: riderName, tenant_id: tenantId })
+              setCurrentTenant({ id: tenantId, business_name: businessName })
+              setUserRole('rider')
+              setCheckingSession(false)
+              return
+            }
           }
         }
-        // Rider session invalid — clear and show login
         clearTenantSession()
         setCheckingSession(false)
         return
