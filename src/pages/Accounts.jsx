@@ -354,7 +354,9 @@ function BalanceSheet({ tenantId }) {
       .eq('tenant_id', tenantId)
     console.log('Lines fetched:', lines?.length, 'Error:', linesError)
 
+    console.log('Sample line:', JSON.stringify(lines?.[0]))
     const filteredLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
+    console.log('Filtered lines:', filteredLines.length)
 
     const balances = {}
     filteredLines.forEach(l => {
