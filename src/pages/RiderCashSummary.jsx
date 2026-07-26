@@ -64,10 +64,10 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     deliveries?.forEach(d => {
       if (d.payment_method === 'cash') { cashFromSales += Number(d.amount_received); cashDeliveries.push(d) }
       else if (d.payment_method === 'jazzcash') {
-        if (d.jazzcash_confirmed) jazzFromSales += Number(d.total_amount)
-        else jazzFromSalesPending += Number(d.total_amount)
+        if (d.jazzcash_confirmed) jazzFromSales += Number(d.total_with_tax || d.total_amount)
+        else jazzFromSalesPending += Number(d.total_with_tax || d.total_amount)
         jazzDeliveries.push(d)
-      } else if (d.payment_method === 'credit') { creditSales += Number(d.total_amount); creditDeliveries.push(d) }
+      } else if (d.payment_method === 'credit') { creditSales += Number(d.total_with_tax || d.total_amount); creditDeliveries.push(d) }
     })
 
     const cashFromPayments = cashPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
@@ -135,7 +135,7 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
       <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid ' + (isCash ? '#1a7a4a' : d.payment_method === 'jazzcash' ? '#9c27b0' : '#f44336') }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
           <p style={{ fontSize: '13px', fontWeight: '600', margin: 0 }}>{d.customers?.full_name || t('Walk-in', 'واک اِن')}</p>
-          <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(d.total_amount).toLocaleString()}</p>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(d.total_with_tax || d.total_amount).toLocaleString()}</p>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
           {d.qty_19l > 0 && <span style={{ fontSize: '11px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 6px', borderRadius: '6px' }}>19L×{d.qty_19l} @ Rs.{d.rate_applied}</span>}

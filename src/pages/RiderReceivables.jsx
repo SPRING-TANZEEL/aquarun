@@ -22,9 +22,9 @@ export default function RiderReceivables({ rider, tenantId, onSelectCustomer, is
 
       if (isOnline) {
         const [customersRes, ordersRes] = await Promise.all([
-          supabase.from('customers').select('*')
+          supabase.from('customer_balances').select('*')
             .eq('tenant_id', tenantId)
-            .eq('is_active', true).neq('balance', 0).order('full_name'),
+            .eq('is_active', true).order('full_name'),
           supabase.from('orders').select('customer_id')
             .eq('tenant_id', tenantId)
             .eq('rider_id', rider.id).eq('status', 'assigned').lte('delivery_date', today)
