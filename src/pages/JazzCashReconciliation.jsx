@@ -242,7 +242,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     setConfirming('d-' + entry.id)
     const { data: confirmed, error } = await supabase.from('deliveries').update({
       jazzcash_confirmed: true, jazzcash_confirmed_at: new Date().toISOString(),
-      jazzcash_confirmed_by: 'Admin', amount_received: entry.total_amount
+      jazzcash_confirmed_by: 'Admin', amount_received: entry.total_with_tax || entry.total_amount
     }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
     try {
