@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
-import { getCustomersOffline } from '../offlineDB'
+// offlineDB import removed — using localStorage cache instead
 
 export default function RiderReceivables({ rider, tenantId, onSelectCustomer, isOnline, dbReady }) {
   const [customers, setCustomers] = useState([])
@@ -33,8 +33,8 @@ export default function RiderReceivables({ rider, tenantId, onSelectCustomer, is
         ordersCustomerIds = new Set(ordersRes.data?.map(o => o.customer_id) || [])
       } else {
         try {
-          const offline = await getCustomersOffline()
-          customersData = offline.filter(c => c.is_active && Number(c.balance) !== 0)
+          const cached = localStorage.getItem('cached_customers_' + tenantId)
+          customersData = cached ? JSON.parse(cached).filter(c => c.is_active && Number(c.balance) !== 0) : []
         } catch {
           customersData = []
         }
