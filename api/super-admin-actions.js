@@ -73,17 +73,21 @@ export default async function handler(req, res) {
       return res.json({ ok: true })
     }
 
-    // ── RESET PASSWORD BY EMAIL ─────────────────────────────────────
+    // ── RESET PASSWORD BY EMAIL OR ID ───────────────────────────────
     if (action === 'resetPasswordByEmail') {
-      const { email, password } = req.body
-      const { data: listData } = await supabaseAdmin.auth.admin.listUsers()
-      const user = listData?.users?.find(u => u.email === email)
-      if (!user) return res.status(404).json({ error: 'User not found: ' + email })
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
+      const { email, password, userId } = req.body
+      let targetId = userId
+      if (!targetId) {
+        const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 })
+        const user = listData?.users?.find(u => u.email === email)
+        if (!user) return res.status(404).json({ error: 'User not found: ' + email })
+        targetId = user.id
+      }
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(targetId, {
         password, email_confirm: true
       })
       if (error) return res.status(500).json({ error: error.message })
-      return res.json({ ok: true, user_id: user.id })
+      return res.json({ ok: true, user_id: targetId })
     }
 
     // ── CREATE AUTH USER ────────────────────────────────────────────
