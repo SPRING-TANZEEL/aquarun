@@ -35,7 +35,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       .select('setting_value')
       .eq('tenant_id', tenantId)
       .eq('setting_key', 'jazzcash_opening_balance')
-      .single()
+      .maybeSingle()
     const openingBalance = Number(settingsData?.setting_value || 0)
 
     // ── MONEY IN ──
@@ -55,7 +55,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         type: 'in',
         category: 'sale',
         label: d.customers?.full_name || 'Walk-in',
-        sublabel: `Sale — ${d.qty_19l > 0 ? `19L×${d.qty_19l}` : ''}${d.qty_half_litre > 0 ? ` Half×${d.qty_half_litre}` : ''}${d.qty_1_5l > 0 ? ` 1.5L×${d.qty_1_5l}` : ''}`,
+        sublabel: `Sale — ${[d.qty_19l > 0 ? `19L×${d.qty_19l}` : '', d.qty_half_litre > 0 ? `Half×${d.qty_half_litre}` : '', d.qty_1_5l > 0 ? `1.5L×${d.qty_1_5l}` : ''].filter(Boolean).join(' ')}${d.tax_amount > 0 ? ` (incl. GST Rs.${Number(d.tax_amount).toLocaleString()})` : ''}`,
         amount: Number(d.total_with_tax || d.total_amount),
         id: 'd-' + d.id
       })
@@ -343,7 +343,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     alert('❌ JazzCash payment rejected and voided.')
   }
 
-  const totalDeliveryPending = deliveries.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.total_amount), 0)
+  const totalDeliveryPending = deliveries.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.total_with_tax || e.total_amount), 0)
   const totalPaymentPending = payments.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.amount), 0)
   const totalConfirmed = [
     ...deliveries.filter(e => e.jazzcash_confirmed).map(e => Number(e.total_with_tax || e.total_amount)),
@@ -697,9 +697,15 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
                       <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
                         🚴 {e.riders?.full_name || '—'} · {new Date(e.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(e.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
                       </p>
+                      {e.jazzcash_confirmed && e.jazzcash_confirmed_at && (
+                        <p style={{ fontSize: '11px', color: '#7b1fa2', margin: '2px 0 0', fontWeight: '600' }}>
+                          ✅ Confirmed: {new Date(e.jazzcash_confirmed_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(e.jazzcash_confirmed_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      )}
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '18px', fontWeight: '700', color: '#9c27b0', margin: '0 0 4px' }}>Rs. {Number(e.total_amount).toLocaleString()}</p>
+                      <p style={{ fontSize: '18px', fontWeight: '700', color: '#9c27b0', margin: '0 0 4px' }}>Rs. {Number(e.total_with_tax || e.total_amount).toLocaleString()}</p>
+                      {e.tax_amount > 0 && <p style={{ fontSize: '10px', color: '#aaa', margin: '0 0 4px' }}>Rs. {Number(e.total_amount).toLocaleString()} + Rs. {Number(e.tax_amount).toLocaleString()} GST</p>}
                       {statusBadge(e)}
                     </div>
                   </div>
