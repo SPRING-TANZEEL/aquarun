@@ -233,11 +233,20 @@ function TrialBalance({ tenantId }) {
     const { data: accounts } = await supabase.from('chart_of_accounts')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('account_code')
 
-    const { data: allLines } = await supabase.from('journal_entry_lines')
-      .select('*, je:journal_entry_id(entry_date)')
-      .eq('tenant_id', tenantId)
-
-    const filteredLines = allLines?.filter(l => l.je?.entry_date >= dateFrom && l.je?.entry_date <= dateTo) || []
+    let allLines = []
+    let from = 0
+    const pageSize = 1000
+    while (true) {
+      const { data: batch } = await supabase.from('journal_entry_lines')
+        .select('*, je:journal_entry_id(entry_date)')
+        .eq('tenant_id', tenantId)
+        .range(from, from + pageSize - 1)
+      if (!batch || batch.length === 0) break
+      allLines = [...allLines, ...batch]
+      if (batch.length < pageSize) break
+      from += pageSize
+    }
+    const filteredLines = allLines.filter(l => l.je?.entry_date >= dateFrom && l.je?.entry_date <= dateTo)
 
     const balances = {}
     filteredLines.forEach(l => {
