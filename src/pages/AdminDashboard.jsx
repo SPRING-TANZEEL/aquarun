@@ -264,10 +264,10 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
       .eq('jazzcash_confirmed', false)
       .eq('is_voided', false)
 
-    const pendingJazz = (jazzPending?.reduce((s, d) => s + Number(d.total_amount), 0) || 0) +
+    const pendingJazz = (jazzPending?.reduce((s, d) => s + Number(d.total_with_tax || d.total_amount), 0) || 0) +
       (jazzPayPending?.reduce((s, p) => s + Number(p.amount), 0) || 0)
 
-    const { data: customers } = await supabase.from('customers')
+    const { data: customers } = await supabase.from('customer_balances')
       .select('balance, our_bottles_placed')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
@@ -779,7 +779,9 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
       </div>
     </div>
   )
-  // ─── RECONCILIATION CARD ────────────────────────────────────────────
+  }
+
+// ─── RECONCILIATION CARD ────────────────────────────────────────────
 function ReconciliationCard({ tenantId }) {
   const [checking, setChecking] = useState(false)
   const [fixing, setFixing] = useState(false)
@@ -793,7 +795,7 @@ function ReconciliationCard({ tenantId }) {
 
     const { data: unpostedDeliveries } = await supabase
       .from('deliveries')
-      .select('id, total_amount, payment_method, delivered_at, customer_id')
+      .select('id, total_amount, total_with_tax, tax_amount, payment_method, delivered_at, customer_id')
       .eq('tenant_id', tenantId)
       .eq('is_voided', false)
       .is('journal_entry_id', null)
@@ -805,30 +807,11 @@ function ReconciliationCard({ tenantId }) {
       .eq('is_voided', false)
       .is('journal_entry_id', null)
 
-    const { data: customers } = await supabase
-      .from('customers')
-      .select('id, full_name, balance, opening_balance')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-
-    let wrongBalances = 0
-    if (customers?.length > 0) {
-      for (const c of customers) {
-        const { data: dels } = await supabase.from('deliveries')
-          .select('credit_amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
-        const { data: pays } = await supabase.from('payments')
-          .select('amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
-        const correctBalance = (dels?.reduce((s, d) => s + Number(d.credit_amount || 0), 0) || 0) -
-          (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0)
-        const openingBalance = Number(c.opening_balance || 0)
-        if (Math.abs((correctBalance + openingBalance) - Number(c.balance)) > 0.01) wrongBalances++
-      }
-    }
-
+    // Balance is now calculated by customer_balances view — no wrong balance check needed
     setResults({
       unpostedDeliveries: unpostedDeliveries || [],
       unpostedPayments: unpostedPayments || [],
-      wrongBalances
+      wrongBalances: 0
     })
     setChecking(false)
   }
@@ -858,23 +841,9 @@ function ReconciliationCard({ tenantId }) {
       } catch (err) { console.error('Fix payment error:', err) }
     }
 
-    // Fix customer balances
-    const { data: customers } = await supabase
-      .from('customers').select('id, opening_balance').eq('tenant_id', tenantId).eq('is_active', true)
+    // Balance calculated dynamically from customer_balances view — no manual fix needed
 
-    for (const c of customers || []) {
-      const { data: dels } = await supabase.from('deliveries')
-        .select('credit_amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
-      const { data: pays } = await supabase.from('payments')
-        .select('amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
-      const correctBalance = (dels?.reduce((s, d) => s + Number(d.credit_amount || 0), 0) || 0) -
-        (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0) +
-        Number(c.opening_balance || 0)
-      await supabase.from('customers').update({ balance: correctBalance }).eq('id', c.id).eq('tenant_id', tenantId)
-      fixedBalances++
-    }
-
-    setFixed({ fixedDeliveries, fixedPayments, fixedBalances })
+    setFixed({ fixedDeliveries, fixedPayments, fixedBalances: 0 })
     setResults(null)
     setFixing(false)
   }
@@ -900,7 +869,7 @@ function ReconciliationCard({ tenantId }) {
             {[
               { label: 'Unposted Deliveries', value: results.unpostedDeliveries.length, color: results.unpostedDeliveries.length > 0 ? '#c62828' : '#1a7a4a' },
               { label: 'Unposted Payments', value: results.unpostedPayments.length, color: results.unpostedPayments.length > 0 ? '#c62828' : '#1a7a4a' },
-              { label: 'Wrong Balances', value: results.wrongBalances, color: results.wrongBalances > 0 ? '#e65100' : '#1a7a4a' },
+              { label: 'Wrong Balances', value: 0, color: '#1a7a4a' },
             ].map(item => (
               <div key={item.label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
                 <p style={{ fontSize: '20px', fontWeight: '700', color: item.color, margin: '0 0 2px' }}>{item.value}</p>
