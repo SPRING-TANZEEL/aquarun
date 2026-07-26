@@ -82,7 +82,9 @@ function getPeriodDates(period) {
 }
 
 export default function AdminDashboard({ user, tenantId, onLogout }) {
-  const [activePage, setActivePage] = useState('dashboard')
+  const [activePage, setActivePage] = useState(() => {
+    return localStorage.getItem('aquarun_active_page') || 'dashboard'
+  })
   const [period, setPeriod] = useState('today')
   const [stats, setStats] = useState(null)
   const [prevStats, setPrevStats] = useState(null)
@@ -318,6 +320,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
 
   function navigateTo(page) {
     setActivePage(page)
+    localStorage.setItem('aquarun_active_page', page)
     if (isMobile) setSidebarOpen(false)
   }
 
