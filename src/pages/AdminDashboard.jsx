@@ -806,7 +806,7 @@ function ReconciliationCard({ tenantId }) {
 
     const { data: customers } = await supabase
       .from('customers')
-      .select('id, full_name, balance')
+      .select('id, full_name, balance, opening_balance')
       .eq('tenant_id', tenantId)
       .eq('is_active', true)
 
@@ -819,7 +819,8 @@ function ReconciliationCard({ tenantId }) {
           .select('amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
         const correctBalance = (dels?.reduce((s, d) => s + Number(d.credit_amount || 0), 0) || 0) -
           (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0)
-        if (Math.abs(correctBalance - Number(c.balance)) > 0.01) wrongBalances++
+        const openingBalance = Number(c.opening_balance || 0)
+        if (Math.abs((correctBalance + openingBalance) - Number(c.balance)) > 0.01) wrongBalances++
       }
     }
 
@@ -858,7 +859,7 @@ function ReconciliationCard({ tenantId }) {
 
     // Fix customer balances
     const { data: customers } = await supabase
-      .from('customers').select('id').eq('tenant_id', tenantId).eq('is_active', true)
+      .from('customers').select('id, opening_balance').eq('tenant_id', tenantId).eq('is_active', true)
 
     for (const c of customers || []) {
       const { data: dels } = await supabase.from('deliveries')
@@ -866,7 +867,8 @@ function ReconciliationCard({ tenantId }) {
       const { data: pays } = await supabase.from('payments')
         .select('amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
       const correctBalance = (dels?.reduce((s, d) => s + Number(d.credit_amount || 0), 0) || 0) -
-        (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0)
+        (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0) +
+        Number(c.opening_balance || 0)
       await supabase.from('customers').update({ balance: correctBalance }).eq('id', c.id).eq('tenant_id', tenantId)
       fixedBalances++
     }
