@@ -462,6 +462,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>{payCustomer.mobile}</p>
                   {payCustomer.address && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>📍 {payCustomer.address}</p>}
                   <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(payCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}></p>
+                  <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(payCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}></p>
                   <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(payCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}>
                     {t('Outstanding', 'باقی')}: Rs. {Math.abs(Number(payCustomer.balance || 0)).toLocaleString()}
                     {Number(payCustomer.balance) <= 0 && ' ✅'}
