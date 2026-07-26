@@ -255,9 +255,24 @@ export default function Transactions({ tenantId }) {
       is_voided: true, voided_at: now, voided_by: 'Admin', void_reason: voidReason
     }).eq('id', tx.id).eq('tenant_id', tenantId)
 
-    // Reverse the journal entry
+    // Reverse the delivery journal entry
     if (tx.raw.journal_entry_id) {
       await reverseJournalEntry(tx.raw.journal_entry_id, tx.id, tx.type, tenantId)
+    }
+
+    // If JazzCash/EasyPaisa confirmed — also reverse the confirmation journal
+    if (['jazzcash', 'easypaisa'].includes(tx.raw.payment_method) && tx.raw.jazzcash_confirmed) {
+      const refType = tx.type + '_confirmed'  // 'delivery_confirmed' or 'payment_confirmed'
+      const { data: confirmJournal } = await supabase
+        .from('journal_entries')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('reference_type', refType)
+        .eq('reference_id', tx.id)
+        .single()
+      if (confirmJournal) {
+        await reverseJournalEntry(confirmJournal.id, tx.id, refType, tenantId)
+      }
     }
 
     if (tx.type === 'delivery' && tx.raw.customer_id) {
