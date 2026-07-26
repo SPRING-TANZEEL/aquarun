@@ -754,6 +754,10 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
                   )}
                 </div>
               )}
+
+              {/* ── RECONCILIATION CARD ── */}
+              <ReconciliationCard tenantId={tenantId} />
+
             </div>
           )}
 
@@ -774,4 +778,156 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
       </div>
     </div>
   )
+  // ─── RECONCILIATION CARD ────────────────────────────────────────────
+function ReconciliationCard({ tenantId }) {
+  const [checking, setChecking] = useState(false)
+  const [fixing, setFixing] = useState(false)
+  const [results, setResults] = useState(null)
+  const [fixed, setFixed] = useState(null)
+
+  async function checkReconciliation() {
+    setChecking(true)
+    setResults(null)
+    setFixed(null)
+
+    const { data: unpostedDeliveries } = await supabase
+      .from('deliveries')
+      .select('id, total_amount, payment_method, delivered_at, customer_id')
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false)
+      .is('journal_entry_id', null)
+
+    const { data: unpostedPayments } = await supabase
+      .from('payments')
+      .select('id, amount, payment_method, customer_id')
+      .eq('tenant_id', tenantId)
+      .eq('is_voided', false)
+      .is('journal_entry_id', null)
+
+    const { data: customers } = await supabase
+      .from('customers')
+      .select('id, full_name, balance')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+
+    let wrongBalances = 0
+    if (customers?.length > 0) {
+      for (const c of customers) {
+        const { data: dels } = await supabase.from('deliveries')
+          .select('credit_amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        const { data: pays } = await supabase.from('payments')
+          .select('amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        const correctBalance = (dels?.reduce((s, d) => s + Number(d.credit_amount || 0), 0) || 0) -
+          (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0)
+        if (Math.abs(correctBalance - Number(c.balance)) > 0.01) wrongBalances++
+      }
+    }
+
+    setResults({
+      unpostedDeliveries: unpostedDeliveries || [],
+      unpostedPayments: unpostedPayments || [],
+      wrongBalances
+    })
+    setChecking(false)
+  }
+
+  async function fixAll() {
+    if (!results) return
+    setFixing(true)
+    let fixedDeliveries = 0
+    let fixedPayments = 0
+    let fixedBalances = 0
+
+    // Fix unposted deliveries
+    for (const d of results.unpostedDeliveries) {
+      try {
+        const { postDeliveryJournal } = await import('../accountingEngine')
+        await postDeliveryJournal(d, d.customer_id, tenantId, false)
+        fixedDeliveries++
+      } catch (err) { console.error('Fix delivery error:', err) }
+    }
+
+    // Fix unposted payments
+    for (const p of results.unpostedPayments) {
+      try {
+        const { postPaymentJournal } = await import('../accountingEngine')
+        await postPaymentJournal(p, tenantId)
+        fixedPayments++
+      } catch (err) { console.error('Fix payment error:', err) }
+    }
+
+    // Fix customer balances
+    const { data: customers } = await supabase
+      .from('customers').select('id').eq('tenant_id', tenantId).eq('is_active', true)
+
+    for (const c of customers || []) {
+      const { data: dels } = await supabase.from('deliveries')
+        .select('credit_amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
+      const { data: pays } = await supabase.from('payments')
+        .select('amount').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false)
+      const correctBalance = (dels?.reduce((s, d) => s + Number(d.credit_amount || 0), 0) || 0) -
+        (pays?.reduce((s, p) => s + Number(p.amount || 0), 0) || 0)
+      await supabase.from('customers').update({ balance: correctBalance }).eq('id', c.id).eq('tenant_id', tenantId)
+      fixedBalances++
+    }
+
+    setFixed({ fixedDeliveries, fixedPayments, fixedBalances })
+    setResults(null)
+    setFixing(false)
+  }
+
+  const hasIssues = results && (results.unpostedDeliveries.length > 0 || results.unpostedPayments.length > 0 || results.wrongBalances > 0)
+
+  return (
+    <div style={{ background: 'white', borderRadius: '14px', padding: '16px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginTop: '12px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <div>
+          <h3 style={{ fontSize: '13px', fontWeight: '700', color: '#1a1a2e', margin: '0 0 2px' }}>🔧 Reconciliation</h3>
+          <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Check and fix unposted transactions & wrong balances</p>
+        </div>
+        <button onClick={checkReconciliation} disabled={checking || fixing}
+          style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+          {checking ? '⏳ Checking...' : '🔍 Check Now'}
+        </button>
+      </div>
+
+      {results && (
+        <div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+            {[
+              { label: 'Unposted Deliveries', value: results.unpostedDeliveries.length, color: results.unpostedDeliveries.length > 0 ? '#c62828' : '#1a7a4a' },
+              { label: 'Unposted Payments', value: results.unpostedPayments.length, color: results.unpostedPayments.length > 0 ? '#c62828' : '#1a7a4a' },
+              { label: 'Wrong Balances', value: results.wrongBalances, color: results.wrongBalances > 0 ? '#e65100' : '#1a7a4a' },
+            ].map(item => (
+              <div key={item.label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+                <p style={{ fontSize: '20px', fontWeight: '700', color: item.color, margin: '0 0 2px' }}>{item.value}</p>
+                <p style={{ fontSize: '10px', color: '#888', margin: 0 }}>{item.label}</p>
+              </div>
+            ))}
+          </div>
+
+          {hasIssues ? (
+            <button onClick={fixAll} disabled={fixing}
+              style={{ width: '100%', padding: '12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700' }}>
+              {fixing ? '⏳ Fixing...' : '✅ Fix All Issues'}
+            </button>
+          ) : (
+            <div style={{ background: '#e8f5e9', borderRadius: '8px', padding: '10px', textAlign: 'center' }}>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>✅ Everything looks good!</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {fixed && (
+        <div style={{ background: '#e8f5e9', borderRadius: '8px', padding: '12px' }}>
+          <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 6px' }}>✅ Reconciliation Complete!</p>
+          <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>📦 {fixed.fixedDeliveries} delivery journals posted</p>
+          <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>💵 {fixed.fixedPayments} payment journals posted</p>
+          <p style={{ fontSize: '12px', color: '#555', margin: 0 }}>👥 {fixed.fixedBalances} customer balances recalculated</p>
+        </div>
+      )}
+    </div>
+  )
+}
 }
