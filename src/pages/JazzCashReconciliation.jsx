@@ -211,7 +211,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     setPayments(pData || [])
 
     const { data: allDeliveries } = await supabase.from('deliveries')
-      .select('total_amount, jazzcash_confirmed, is_voided')
+      .select('total_amount, total_with_tax, jazzcash_confirmed, is_voided')
       .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
       .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
     const { data: allPayments } = await supabase.from('payments')
@@ -345,10 +345,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
 
   const totalDeliveryPending = deliveries.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.total_with_tax || e.total_amount), 0)
   const totalPaymentPending = payments.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.amount), 0)
-  const totalConfirmed = [
-    ...deliveries.filter(e => e.jazzcash_confirmed).map(e => Number(e.total_with_tax || e.total_amount)),
-    ...payments.filter(e => e.jazzcash_confirmed).map(e => Number(e.amount))
-  ].reduce((s, v) => s + v, 0)
+  const totalConfirmed = jazzSummary.in
 
   function sectionHead(title, count) {
     return (
