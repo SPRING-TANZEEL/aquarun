@@ -162,38 +162,56 @@ function OpeningStock({ products, onRefresh, tenantId }) {
         .eq('id', product.id)
         .eq('tenant_id', tenantId)
 
-      // Post journal entry if stock has value
+      // Determine correct inventory account based on product type
+      let inventoryAccount = '1201'
+      let inventoryName = 'Inventory - Finished Goods'
+      if (product.product_type === 'raw_material') {
+        inventoryAccount = '1200'
+        inventoryName = 'Inventory - Raw Materials'
+      }
+
+      // Post or update journal entry for opening stock
+      const { data: existingJE } = await supabase.from('journal_entries')
+        .select('id').eq('tenant_id', tenantId)
+        .eq('reference_type', 'opening_balance')
+        .eq('reference_id', product.id)
+        .maybeSingle()
+
       if (openingQty > 0 && totalValue > 0) {
-        // Determine correct inventory account based on product type
-        let inventoryAccount = '1201'
-        let inventoryName = 'Inventory - Finished Goods'
-        if (product.product_type === 'raw_material') {
-          inventoryAccount = '1200'
-          inventoryName = 'Inventory - Raw Materials'
-        } else if (product.product_type === 'finished_good') {
-          inventoryAccount = '1201'
-          inventoryName = 'Inventory - Finished Goods'
-        } else if (product.product_type === 'trading') {
-          inventoryAccount = '1201'
-          inventoryName = 'Inventory - Finished Goods'
-        }
+        if (existingJE) {
+          // Update existing journal entry
+          await supabase.from('journal_entries')
+            .update({ total_amount: totalValue, narration: `Opening stock — ${product.name} — ${openingQty} units × Rs. ${costPrice}` })
+            .eq('id', existingJE.id)
+          await supabase.from('journal_entry_lines')
+            .update({ debit: totalValue, credit: 0 })
+            .eq('journal_entry_id', existingJE.id).eq('account_code', inventoryAccount)
+          await supabase.from('journal_entry_lines')
+            .update({ debit: 0, credit: totalValue })
+            .eq('journal_entry_id', existingJE.id).eq('account_code', '3001')
+        } else {
+          // Create new journal entry
+          const { data: je } = await supabase.from('journal_entries').insert([{
+            tenant_id: tenantId,
+            entry_date: new Date().toISOString().split('T')[0],
+            reference_type: 'opening_balance',
+            reference_id: product.id,
+            narration: `Opening stock — ${product.name} — ${openingQty} units × Rs. ${costPrice}`,
+            total_amount: totalValue,
+            created_by: 'system'
+          }]).select().single()
 
-        const { data: je } = await supabase.from('journal_entries').insert([{
-          tenant_id: tenantId,
-          entry_date: new Date().toISOString().split('T')[0],
-          reference_type: 'opening_balance',
-          reference_id: product.id,
-          narration: `Opening stock — ${product.name} — ${openingQty} units × Rs. ${costPrice}`,
-          total_amount: totalValue,
-          created_by: 'system'
-        }]).select().single()
-
-        if (je) {
-          await supabase.from('journal_entry_lines').insert([
-            { tenant_id: tenantId, journal_entry_id: je.id, account_code: inventoryAccount, account_name: inventoryName, debit: totalValue, credit: 0 },
-            { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: totalValue }
-          ])
+          if (je) {
+            await supabase.from('journal_entry_lines').insert([
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: inventoryAccount, account_name: inventoryName, debit: totalValue, credit: 0 },
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: totalValue }
+            ])
+          }
         }
+      } else if (existingJE) {
+        // Stock set to 0 — delete the journal entry
+        await supabase.from('journal_entry_lines').delete().eq('journal_entry_id', existingJE.id)
+        await supabase.from('journal_entries').delete().eq('id', existingJE.id)
       }
     }
     setSaved(true)
