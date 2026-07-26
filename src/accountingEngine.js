@@ -120,8 +120,8 @@ function getExpenseAccount(category, isRider = false) {
 export async function postDeliveryJournal(delivery, customerId, tenantId, isRiderEntry = true) {
   try {
     const subTotal = Number(delivery.total_amount || 0)         // pre-tax
-    const taxAmount = Number(delivery.tax_amount || 0)          // tax portion
-    const grandTotal = Number(delivery.total_with_tax || subTotal) // full amount incl tax
+    const taxAmount = Math.round(Number(delivery.tax_amount || 0))
+const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     const cashReceived = Number(delivery.amount_received || 0)
     const creditPortion = Number(delivery.credit_amount || 0)
     const paymentMethod = delivery.payment_method

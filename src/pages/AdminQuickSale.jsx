@@ -192,7 +192,7 @@ export default function AdminQuickSale({ tenantId }) {
   const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * (rates[p.id] || 0), 0)
   const subTotal = (qty19l * (rate19l || 0)) + bottleTotal + extraTotal
   const taxRate = selectedCustomer?.is_tax_applicable ? Number(settings.sales_tax_rate || 0) : 0
-  const taxAmount = Math.round(subTotal * taxRate / 100 * 100) / 100
+  const taxAmount = Math.round(subTotal * taxRate / 100)
   const total = subTotal + taxAmount
 
   function getBottleQtys() {

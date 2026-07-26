@@ -147,6 +147,23 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   function totalAmount() {
     const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * getBottleRate(p), 0)
     const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+    const subTotal = (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
+    const taxRate = selectedCustomer?.is_tax_applicable ? Number(selectedCustomer?.tax_rate || 16) : 0
+    const taxAmount = Math.round(subTotal * taxRate / 100)
+    return subTotal + taxAmount
+  }
+
+  function taxAmount() {
+    const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * getBottleRate(p), 0)
+    const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+    const subTotal = (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
+    const taxRate = selectedCustomer?.is_tax_applicable ? Number(selectedCustomer?.tax_rate || 16) : 0
+    return Math.round(subTotal * taxRate / 100)
+  }
+
+  function subTotal() {
+    const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * getBottleRate(p), 0)
+    const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
     return (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
   }
 
@@ -233,6 +250,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       deliveryLng = position.coords.longitude
     } catch (err) { console.log('GPS not available:', err.message) }
 
+    const tax = taxAmount()
+    const sub = subTotal()
     const deliveryData = {
       tenant_id: tenantId,
       customer_id: selectedCustomer.id,
@@ -241,7 +260,9 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       qty_half_litre: qtyHalf,
       qty_1_5l: qty15l,
       rate_applied: selectedRate || 0,
-      total_amount: total,
+      total_amount: sub,
+      tax_amount: tax,
+      total_with_tax: total,
       payment_method: paymentMethod,
       amount_received: isJazz ? 0 : received,
       credit_amount: creditPortion,
