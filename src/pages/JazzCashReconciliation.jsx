@@ -56,7 +56,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         category: 'sale',
         label: d.customers?.full_name || 'Walk-in',
         sublabel: `Sale — ${d.qty_19l > 0 ? `19L×${d.qty_19l}` : ''}${d.qty_half_litre > 0 ? ` Half×${d.qty_half_litre}` : ''}${d.qty_1_5l > 0 ? ` 1.5L×${d.qty_1_5l}` : ''}`,
-        amount: Number(d.total_amount),
+        amount: Number(d.total_with_tax || d.total_amount),
         id: 'd-' + d.id
       })
     })
@@ -284,7 +284,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) - Number(entry.amount) }).eq('id', entry.customer_id).eq('tenant_id', tenantId)
     try {
       const { postJazzCashConfirmationJournal } = AccountingEngine
-      await postJazzCashConfirmationJournal(confirmed, 'payment')
+      await postJazzCashConfirmationJournal(confirmed, 'payment', tenantId)
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
   }
