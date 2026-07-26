@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import * as AccountingEngine from '../accountingEngine'
-import * as AccountingEngine from '../accountingEngine'
 import InvoiceModal from '../components/InvoiceModal'
 
 const RATES_19L = [90, 100, 110, 120, 150, 160, 170, 180]
