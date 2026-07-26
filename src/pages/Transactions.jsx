@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import { reverseJournalEntry } from '../accountingEngine'
 import InvoiceModal from '../components/InvoiceModal'
 
 const TRANSACTION_TYPES = [
@@ -254,6 +255,11 @@ export default function Transactions({ tenantId }) {
       is_voided: true, voided_at: now, voided_by: 'Admin', void_reason: voidReason
     }).eq('id', tx.id).eq('tenant_id', tenantId)
 
+    // Reverse the journal entry
+    if (tx.raw.journal_entry_id) {
+      await reverseJournalEntry(tx.raw.journal_entry_id, tx.id, tx.type, tenantId)
+    }
+
     if (tx.type === 'delivery' && tx.raw.customer_id) {
       const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).eq('tenant_id', tenantId).single()
       if (customer) {
@@ -282,6 +288,18 @@ export default function Transactions({ tenantId }) {
     if (!window.confirm(`Restore this transaction?\n\n${tx.description}\nRs. ${tx.amount.toLocaleString()}`)) return
     setProcessing(true)
     await supabase.from(tx.table).update({ is_voided: false, voided_at: null, voided_by: null, void_reason: null }).eq('id', tx.id).eq('tenant_id', tenantId)
+
+    // Void the reversal journal entry (find it by reference)
+    const { data: reversalEntry } = await supabase
+      .from('journal_entries')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('reference_id', tx.id)
+      .eq('reference_type', tx.type + '_reversal')
+      .single()
+    if (reversalEntry) {
+      await supabase.from('journal_entries').update({ is_voided: true }).eq('id', reversalEntry.id)
+    }
 
     if (tx.type === 'delivery' && tx.raw.customer_id) {
       const creditPortion = Number(tx.raw.credit_amount || 0)
