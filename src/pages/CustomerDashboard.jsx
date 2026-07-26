@@ -20,7 +20,7 @@ function PayBillModal({ balance, settings, customer, onClose, onPaymentDone }) {
       tenant_id: customer.tenant_id,
       customer_id: customer.id,
       amount: Number(amount),
-      payment_method: 'jazzcash',
+      payment_method: selectedMethod === 'easypaisa' ? 'easypaisa' : 'jazzcash',
       payment_date: new Date().toISOString().split('T')[0],
       jazzcash_confirmed: false,
       notes: `Customer self-reported ${selectedMethod === 'jazzcash' ? 'JazzCash' : 'EasyPaisa'} payment — awaiting screenshot confirmation`,
@@ -165,7 +165,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
 
   const fetchCustomer = useCallback(async () => {
     const { data } = await supabase
-      .from('customers')
+      .from('customer_balances')
       .select('*')
       .eq('id', initialCustomer.id)
       .single()
@@ -180,7 +180,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
   }, [tenantId])
 
   useEffect(() => {
-    fetchCustomer()
+    if (activeTab === 'account' || activeTab === 'home') fetchCustomer()
   }, [activeTab, fetchCustomer])
 
   async function fetchAll() {
@@ -273,7 +273,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
 
   const balance = Number(customer.balance || 0)
   const totalBottles19l = deliveries.reduce((s, d) => s + Number(d.qty_19l || 0), 0)
-  const totalSpent = deliveries.reduce((s, d) => s + Number(d.total_amount || 0), 0)
+  const totalSpent = deliveries.reduce((s, d) => s + Number(d.total_with_tax || d.total_amount || 0), 0)
   const estimatedTotal = (orderForm.qty_19l || 0) * Number(customer.rate_19l || 0) +
     products.reduce((s, p) => s + (orderForm.quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
   const hasOrderItems = (orderForm.qty_19l || 0) > 0 || products.some(p => (orderForm.quantities[p.id] || 0) > 0)
@@ -529,7 +529,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                         <tr key={d.id} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
                           <td style={{ padding: '14px 20px', fontSize: '13px', color: '#555' }}>{new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                           <td style={{ padding: '14px 20px', fontSize: '13px', color: '#333' }}>{d.qty_19l > 0 ? `19L×${d.qty_19l} ` : ''}{d.qty_half_litre > 0 ? `Half×${d.qty_half_litre} ` : ''}{d.qty_1_5l > 0 ? `1.5L×${d.qty_1_5l}` : ''}</td>
-                          <td style={{ padding: '14px 20px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>Rs. {Number(d.total_amount).toLocaleString()}</td>
+                          <td style={{ padding: '14px 20px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>Rs. {Number(d.total_with_tax || d.total_amount).toLocaleString()}</td>
                           <td style={{ padding: '14px 20px' }}>
                             <span style={{ padding: '4px 10px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: d.payment_method === 'cash' ? '#e8f5e9' : d.payment_method === 'jazzcash' ? '#f3e5f5' : '#fff3e0', color: d.payment_method === 'cash' ? '#2e7d32' : d.payment_method === 'jazzcash' ? '#7b1fa2' : '#e65100' }}>
                               {d.payment_method === 'cash' ? '💵 Cash' : d.payment_method === 'jazzcash' ? '📱 JazzCash' : '📋 Credit'}
@@ -777,7 +777,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
                     <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{new Date(d.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>Rs. {Number(d.total_amount).toLocaleString()}</p>
+                    <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>Rs. {Number(d.total_with_tax || d.total_amount).toLocaleString()}</p>
                     <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', fontWeight: '600', background: d.payment_method === 'cash' ? '#e8f5e9' : d.payment_method === 'jazzcash' ? '#f3e5f5' : '#fff3e0', color: d.payment_method === 'cash' ? '#2e7d32' : d.payment_method === 'jazzcash' ? '#7b1fa2' : '#e65100' }}>
                       {d.payment_method === 'cash' ? '💵 Cash' : d.payment_method === 'jazzcash' ? '📱 JazzCash' : '📋 Credit'}
                     </span>
