@@ -902,4 +902,3 @@ function ReconciliationCard({ tenantId }) {
     </div>
   )
 }
-}
