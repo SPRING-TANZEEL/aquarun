@@ -247,10 +247,22 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     if (error) { alert('Error: ' + error.message); setConfirming(null); return }
     try {
       const { postJazzCashConfirmationJournal } = AccountingEngine
-      await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
+      const entryId = await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
+
+      // Insert confirmation transaction so it appears in ledger and can be voided
+      await supabase.from('payments').insert([{
+        tenant_id: tenantId,
+        customer_id: confirmed.customer_id,
+        rider_id: confirmed.rider_id,
+        amount: Number(confirmed.total_with_tax || confirmed.total_amount),
+        payment_method: confirmed.payment_method,
+        payment_date: new Date().toISOString().split('T')[0],
+        notes: `JazzCash confirmed — delivery ${confirmed.invoice_number || confirmed.id}`,
+        jazzcash_confirmed: true,
+        journal_entry_id: entryId
+      }])
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
-  }
 
   async function unconfirmDelivery(entry) {
     setConfirming('d-' + entry.id)
@@ -284,7 +296,13 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) - Number(entry.amount) }).eq('id', entry.customer_id).eq('tenant_id', tenantId)
     try {
       const { postJazzCashConfirmationJournal } = AccountingEngine
-      await postJazzCashConfirmationJournal(confirmed, 'payment', tenantId)
+      const entryId = await postJazzCashConfirmationJournal(confirmed, 'payment', tenantId)
+      if (entryId) {
+        await supabase.from('payments')
+          .update({ journal_entry_id: entryId })
+          .eq('id', confirmed.id)
+          .eq('tenant_id', tenantId)
+      }
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
   }
