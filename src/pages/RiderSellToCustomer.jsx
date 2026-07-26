@@ -329,7 +329,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         await supabase.from('products')
           .update({ current_stock: Math.max(0, Number(p.current_stock || 0) - qtySold) })
           .eq('id', p.id).eq('tenant_id', tenantId)
-        if (p.product_type === 'finished_good') {
+        if (p.product_type === 'finished_good' || p.product_type === 'trading') {
           const avgCost = Number(p.average_cost || p.purchase_price || 0)
           const cogsCost = qtySold * avgCost
           if (cogsCost > 0) {
@@ -342,7 +342,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               if (je) {
                 await supabase.from('journal_entry_lines').insert([
                   { tenant_id: tenantId, journal_entry_id: je.id, account_code: '5003', account_name: 'Cost of Goods Sold', debit: cogsCost, credit: 0 },
-                  { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1201', account_name: 'Inventory - Finished Goods', debit: 0, credit: cogsCost }
+                  { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost }
                 ])
               }
             } catch (err) { console.error('COGS error:', err) }

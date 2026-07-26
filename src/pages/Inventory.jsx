@@ -351,7 +351,7 @@ function PurchaseEntry({ products, onRefresh, tenantId }) {
     // Auto-post journal entry
     try {
       const { postStockPurchaseJournal } = AccountingEngine
-      await postStockPurchaseJournal(savedPurchase, tenantId)
+      await postStockPurchaseJournal({ ...savedPurchase, product_type: product?.product_type }, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     const updateData = { current_stock: (product.current_stock || 0) + totalPieces }

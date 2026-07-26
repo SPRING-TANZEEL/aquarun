@@ -251,7 +251,7 @@ export default function AdminQuickSale({ tenantId }) {
         .update({ current_stock: Math.max(0, Number(p.current_stock || 0) - qtySold) })
         .eq('id', p.id).eq('tenant_id', tenantId)
 
-      if (p.product_type === 'finished_good' && cogsCost > 0) {
+      if ((p.product_type === 'finished_good' || p.product_type === 'trading') && cogsCost > 0) {
         try {
           const { data: je } = await supabase.from('journal_entries').insert([{
             tenant_id: tenantId,
@@ -265,7 +265,7 @@ export default function AdminQuickSale({ tenantId }) {
           if (je) {
             await supabase.from('journal_entry_lines').insert([
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: '5003', account_name: 'Cost of Goods Sold', debit: cogsCost, credit: 0 },
-              { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1201', account_name: 'Inventory - Finished Goods', debit: 0, credit: cogsCost }
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost }
             ])
           }
         } catch (err) { console.error('COGS journal error:', err) }
