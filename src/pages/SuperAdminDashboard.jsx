@@ -84,8 +84,7 @@ export default function SuperAdminDashboard({ onLogout }) {
     const newTenant = createRes.tenant
 
     const tenantUUID = newTenant.id
-    await createDefaultCOA(tenantUUID)
-    await createDefaultSettings(tenantUUID, form.business_name)
+    // COA and settings are now created inside the createTenant API action
 
     setForm({ tenant_code: '', business_name: '', admin_password: '', email: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: '' })
     setShowAddForm(false)
