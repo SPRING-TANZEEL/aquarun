@@ -69,7 +69,7 @@ export default function AdminQuickSale({ tenantId }) {
   async function searchCustomer(val) {
     setCustomerSearch(val)
     if (val.length < 2) { setCustomerResults([]); return }
-    const { data } = await supabase.from('customers')
+    const { data } = await supabase.from('customer_balances')
       .select('id, full_name, mobile, customer_code, address, balance, rate_19l, rate_half_litre, rate_1_5l, is_tax_applicable, our_bottles_placed')
       .eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
@@ -79,7 +79,7 @@ export default function AdminQuickSale({ tenantId }) {
   async function searchPaymentCustomer(val) {
     setPaymentSearch(val)
     if (val.length < 2) { setPaymentSearchResults([]); return }
-    const { data } = await supabase.from('customers')
+    const { data } = await supabase.from('customer_balances')
       .select('id, full_name, mobile, customer_code, address, balance, rate_19l, rate_half_litre, rate_1_5l, is_tax_applicable, our_bottles_placed')
       .eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)

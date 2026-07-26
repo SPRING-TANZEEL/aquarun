@@ -204,7 +204,7 @@ function CustomerLedger({ tenantId }) {
   async function searchCustomer(val) {
     setSearch(val)
     if (val.length < 2) { setCustomers([]); return }
-    const { data } = await supabase.from('customers').select('*').eq('tenant_id', tenantId)
+    const { data } = await supabase.from('customer_balances').select('*').eq('tenant_id', tenantId)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
     setCustomers(data || [])
   }
@@ -223,8 +223,8 @@ function CustomerLedger({ tenantId }) {
       entries.push({
         date: d.delivered_at, type: 'delivery',
         description: 'Delivery — 19L×' + (d.qty_19l || 0) + ' Half×' + (d.qty_half_litre || 0) + ' 1.5L×' + (d.qty_1_5l || 0),
-        debit: Number(d.total_amount),
-        credit: d.payment_method === 'cash' ? Number(d.amount_received || 0) : (d.payment_method === 'jazzcash' && d.jazzcash_confirmed ? Number(d.total_amount) : 0),
+        debit: Number(d.total_with_tax || d.total_amount),
+        credit: d.payment_method === 'cash' ? Number(d.amount_received || 0) : (d.payment_method === 'jazzcash' && d.jazzcash_confirmed ? Number(d.total_with_tax || d.total_amount) : 0),
         payment_method: d.payment_method,
         credit_amount: Number(d.credit_amount || 0),
         jazzcash_confirmed: d.jazzcash_confirmed
@@ -654,7 +654,7 @@ function BulkWhatsAppShare({ tenantId }) {
 
   async function fetchCustomers() {
     setLoading(true)
-    const { data } = await supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
+    const { data } = await supabase.from('customer_balances').select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
     setCustomers(data || [])
     setLoading(false)
   }
@@ -983,7 +983,7 @@ function ReceivablesAgeing({ tenantId }) {
 
   async function fetchAgeing() {
     setLoading(true)
-    const { data } = await supabase.from('customers').select('*').eq('tenant_id', tenantId).eq('is_active', true).gt('balance', 0).order('balance', { ascending: false })
+    const { data } = await supabase.from('customer_balances').select('*').eq('tenant_id', tenantId).eq('is_active', true).gt('balance', 0).order('balance', { ascending: false })
     const today = new Date()
     const customersWithAge = await Promise.all((data || []).map(async c => {
       const { data: lastDelivery } = await supabase.from('deliveries').select('delivered_at').eq('customer_id', c.id).eq('tenant_id', tenantId).eq('is_voided', false).order('delivered_at', { ascending: false }).limit(1).single()

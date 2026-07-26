@@ -70,7 +70,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
   async function fetchAndCacheCustomers() {
     if (!isOnline) return
-    const { data } = await supabase.from('customers')
+    const { data } = await supabase.from('customer_balances')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
     if (data) {
       localStorage.setItem('cached_customers_' + tenantId, JSON.stringify(data))
@@ -104,7 +104,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       return
     }
 
-    const { data } = await supabase.from('customers')
+    const { data } = await supabase.from('customer_balances')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
     setSearchResults(data || [])
@@ -114,7 +114,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setPaySearch(val)
     if (val.length < 2) { setPayResults([]); return }
     if (!isOnline) { setPayResults([]); return }
-    const { data } = await supabase.from('customers')
+    const { data } = await supabase.from('customer_balances')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
     setPayResults(data || [])
