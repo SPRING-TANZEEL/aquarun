@@ -348,10 +348,20 @@ function BalanceSheet({ tenantId }) {
     const coaMap = {}
     coaData?.forEach(a => { coaMap[a.account_code] = a })
 
-    const { data: lines } = await supabase.from('journal_entry_lines')
-      .select('*, je:journal_entry_id(entry_date, narration, reference_type)')
-      .eq('tenant_id', tenantId)
-    const filteredLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
+    let allLines = []
+    let from = 0
+    const pageSize = 1000
+    while (true) {
+      const { data: batch } = await supabase.from('journal_entry_lines')
+        .select('*, je:journal_entry_id(entry_date, narration, reference_type)')
+        .eq('tenant_id', tenantId)
+        .range(from, from + pageSize - 1)
+      if (!batch || batch.length === 0) break
+      allLines = [...allLines, ...batch]
+      if (batch.length < pageSize) break
+      from += pageSize
+    }
+    const filteredLines = allLines.filter(l => l.je?.entry_date && l.je.entry_date <= asOf)
 
 
     const balances = {}
