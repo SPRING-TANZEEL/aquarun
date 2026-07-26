@@ -304,7 +304,7 @@ export default function App() {
     }
     setLoading(true)
     const { error } = await supabase.auth.resetPasswordForEmail(loginEmail.trim().toLowerCase(), {
-      redirectTo: 'https://aquarun.vercel.app/reset-password'
+      redirectTo: 'https://aquarun.pk/reset-password'
     })
     setLoading(false)
     if (error) {
