@@ -263,6 +263,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       }])
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
+  }
 
   async function unconfirmDelivery(entry) {
     setConfirming('d-' + entry.id)
