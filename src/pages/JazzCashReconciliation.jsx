@@ -248,9 +248,9 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     try {
       const { postJazzCashConfirmationJournal } = AccountingEngine
       const entryId = await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
+      console.log('Confirmation journal entryId:', entryId)
 
-      // Insert confirmation transaction so it appears in ledger and can be voided
-      await supabase.from('payments').insert([{
+      const { error: payInsertError } = await supabase.from('payments').insert([{
         tenant_id: tenantId,
         customer_id: confirmed.customer_id,
         rider_id: confirmed.rider_id,
@@ -261,6 +261,7 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         jazzcash_confirmed: true,
         journal_entry_id: entryId
       }])
+      if (payInsertError) console.error('Payment insert error:', payInsertError)
     } catch (err) { console.error('Journal post error:', err) }
     fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
   }
