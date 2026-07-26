@@ -349,9 +349,10 @@ function BalanceSheet({ tenantId }) {
     const coaMap = {}
     coaData?.forEach(a => { coaMap[a.account_code] = a })
 
-    const { data: lines } = await supabase.from('journal_entry_lines')
+    const { data: lines, error: linesError } = await supabase.from('journal_entry_lines')
       .select('*, je:journal_entry_id(entry_date, narration, reference_type)')
       .eq('tenant_id', tenantId)
+    console.log('Lines fetched:', lines?.length, 'Error:', linesError)
 
     const filteredLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
 
