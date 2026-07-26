@@ -36,7 +36,11 @@ export default function RiderDashboard({ user, onLogout }) {
 
   useEffect(() => {
     setupOffline()
-    const handleOnline = () => { setIsOnline(true); downloadData() }
+    const handleOnline = async () => {
+      setIsOnline(true)
+      await syncOfflinePayments()
+      await downloadData()
+    }
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
@@ -59,6 +63,37 @@ export default function RiderDashboard({ user, onLogout }) {
       })
     }
   }, [user])
+
+  async function syncOfflinePayments() {
+    const { supabase } = await import('../supabase')
+    const { postPaymentJournal } = await import('../accountingEngine')
+    const offlinePayments = JSON.parse(localStorage.getItem('offline_payments_' + user.tenant_id) || '[]')
+    if (offlinePayments.length === 0) return
+    let synced = 0
+    for (const payment of offlinePayments) {
+      const { _offlineId, _savedAt, ...paymentData } = payment
+      try {
+        const { data: saved } = await supabase.from('payments').insert([paymentData]).select().single()
+        if (saved) {
+          // Update customer balance on server
+          if (payment.payment_method !== 'jazzcash') {
+            const { data: cust } = await supabase.from('customers')
+              .select('balance').eq('id', payment.customer_id).eq('tenant_id', user.tenant_id).single()
+            if (cust) {
+              await supabase.from('customers')
+                .update({ balance: Number(cust.balance) - Number(payment.amount) })
+                .eq('id', payment.customer_id).eq('tenant_id', user.tenant_id)
+            }
+          }
+          await postPaymentJournal(saved, user.tenant_id, true)
+          synced++
+        }
+      } catch (err) { console.error('Sync payment error:', err) }
+    }
+    if (synced > 0) {
+      localStorage.removeItem('offline_payments_' + user.tenant_id)
+    }
+  }
 
   async function setupOffline() {
     try {
@@ -95,6 +130,7 @@ export default function RiderDashboard({ user, onLogout }) {
 
   async function handleManualSync() {
     setSyncing(true)
+    await syncOfflinePayments()
     const result = await syncToServer()
     setSyncing(false)
     if (result.success) {
