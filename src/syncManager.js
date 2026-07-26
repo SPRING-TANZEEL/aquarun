@@ -7,6 +7,7 @@ import {
   saveOrdersOffline, saveCustomersOffline,
   saveRiderProfile, getPendingCount
 } from './offlineDB'
+import * as AccountingEngine from './accountingEngine'
 
 let syncInProgress = false
 let syncListeners = []
@@ -35,7 +36,7 @@ export async function downloadRiderData(rider) {
     if (orders) await saveOrdersOffline(orders)
 
     const { data: customers } = await supabase
-      .from('customers')
+      .from('customer_balances')
       .select('*')
       .eq('tenant_id', rider.tenant_id)
       .eq('is_active', true)
@@ -72,7 +73,7 @@ export async function syncToServer() {
         const { local_id, ...data } = record
         console.log('Posting delivery:', data)
 
-        const { error } = await supabase.from('deliveries').insert([data])
+        const { data: savedDelivery, error } = await supabase.from('deliveries').insert([data]).select().single()
         if (error) {
           console.error('Delivery insert error:', error)
           errors.push('Delivery error: ' + error.message)
@@ -87,27 +88,32 @@ export async function syncToServer() {
           }).eq('id', data.order_id)
         }
 
-        // Update customer balance correctly based on payment method
-        if (data.customer_id) {
-          const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
-          if (cust) {
-            let newBalance = Number(cust.balance)
+        // Balance is calculated dynamically from customer_balances view — no manual update needed
 
-            if (data.payment_method === 'credit') {
-              // Full amount added to balance — customer owes everything
-              newBalance += Number(data.total_amount)
-            } else if (data.payment_method === 'cash') {
-              // Only the credit portion (unpaid amount) adds to balance
-              const creditPortion = Number(data.credit_amount || 0)
-              newBalance += creditPortion
-            } else if (data.payment_method === 'jazzcash') {
-              // JazzCash — add to balance until admin confirms
-              // When admin confirms jazzcash — balance will be reduced then
-              newBalance += Number(data.total_amount)
-            }
+        // Post delivery journal entry
+        try {
+          await AccountingEngine.postDeliveryJournal(savedDelivery, data.customer_id, data.tenant_id, true)
+        } catch (err) {
+          console.error('Delivery journal error:', err)
+        }
 
-            await supabase.from('customers').update({ balance: newBalance }).eq('id', data.customer_id)
-          }
+        // Generate invoice number
+        try {
+          const year = new Date().getFullYear()
+          const counterKey = `invoice_counter_${year}`
+          const { data: counterRows } = await supabase.from('business_settings')
+            .select('setting_value').eq('tenant_id', data.tenant_id).eq('setting_key', counterKey)
+          const counter = Number(counterRows?.[0]?.setting_value || 0) + 1
+          const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', data.tenant_id).single()
+          const code = tenantData?.tenant_code || 'INV'
+          const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
+          await supabase.from('business_settings').upsert(
+            { tenant_id: data.tenant_id, setting_key: counterKey, setting_value: String(counter) },
+            { onConflict: 'tenant_id,setting_key' }
+          )
+          await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
+        } catch (err) {
+          console.error('Invoice number error:', err)
         }
 
         await removePendingDelivery(local_id)
@@ -126,8 +132,16 @@ export async function syncToServer() {
     for (const record of expenses) {
       try {
         const { local_id, ...data } = record
-        const { error } = await supabase.from('expenses').insert([data])
+        const { data: savedExpense, error } = await supabase.from('expenses').insert([data]).select().single()
         if (error) { errors.push('Expense: ' + error.message); continue }
+
+        // Post expense journal entry
+        try {
+          await AccountingEngine.postRiderExpenseJournal(savedExpense, data.tenant_id)
+        } catch (err) {
+          console.error('Expense journal error:', err)
+        }
+
         await removePendingExpense(local_id)
         totalSynced++
       } catch (err) {
@@ -142,25 +156,16 @@ export async function syncToServer() {
     for (const record of payments) {
       try {
         const { local_id, ...data } = record
-        const { error } = await supabase.from('payments').insert([data])
+        const { data: savedPayment, error } = await supabase.from('payments').insert([data]).select().single()
         if (error) { errors.push('Payment: ' + error.message); continue }
 
-        // Update customer balance based on payment method
-        if (data.customer_id) {
-          const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
-          if (cust) {
-            let newBalance = Number(cust.balance)
+        // Balance is calculated dynamically from customer_balances view — no manual update needed
 
-            if (data.payment_method === 'cash') {
-              // Cash payment — immediately reduces balance
-              newBalance -= Number(data.amount)
-            } else if (data.payment_method === 'jazzcash') {
-              // JazzCash payment — only reduces balance when admin confirms
-              // Do not reduce balance here — admin will confirm later
-            }
-
-            await supabase.from('customers').update({ balance: newBalance }).eq('id', data.customer_id)
-          }
+        // Post payment journal entry
+        try {
+          await AccountingEngine.postPaymentJournal(savedPayment, data.tenant_id, true)
+        } catch (err) {
+          console.error('Payment journal error:', err)
         }
 
         await removePendingPayment(local_id)
@@ -177,23 +182,16 @@ export async function syncToServer() {
     for (const record of quicksales) {
       try {
         const { local_id, ...data } = record
-        const { error } = await supabase.from('deliveries').insert([data])
+        const { data: savedDelivery, error } = await supabase.from('deliveries').insert([data]).select().single()
         if (error) { errors.push('QuickSale: ' + error.message); continue }
 
-        // Update customer balance for quick sales too
-        if (data.customer_id) {
-          const { data: cust } = await supabase.from('customers').select('balance').eq('id', data.customer_id).single()
-          if (cust) {
-            let newBalance = Number(cust.balance)
-            if (data.payment_method === 'credit') {
-              newBalance += Number(data.total_amount)
-            } else if (data.payment_method === 'cash') {
-              newBalance += Number(data.credit_amount || 0)
-            } else if (data.payment_method === 'jazzcash') {
-              newBalance += Number(data.total_amount)
-            }
-            await supabase.from('customers').update({ balance: newBalance }).eq('id', data.customer_id)
-          }
+        // Balance is calculated dynamically from customer_balances view — no manual update needed
+
+        // Post delivery journal entry for quick sale
+        try {
+          await AccountingEngine.postDeliveryJournal(savedDelivery, data.customer_id, data.tenant_id, false)
+        } catch (err) {
+          console.error('QuickSale journal error:', err)
         }
 
         await removePendingQuickSale(local_id)
