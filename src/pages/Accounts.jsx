@@ -343,7 +343,6 @@ function BalanceSheet({ tenantId }) {
 
   async function fetchData() {
     setLoading(true)
-    console.log('Balance Sheet tenantId:', tenantId)
     const { data: coaData } = await supabase.from('chart_of_accounts')
       .select('account_code, account_name, account_type, account_subtype').eq('tenant_id', tenantId)
     const coaMap = {}
@@ -354,11 +353,6 @@ function BalanceSheet({ tenantId }) {
       .eq('tenant_id', tenantId)
     console.log('Lines fetched:', lines?.length, 'Error:', linesError)
 
-    console.log('Sample line:', JSON.stringify(lines?.[0]))
-    const filteredLines = lines?.filter(l => l.je?.entry_date && l.je.entry_date <= asOf) || []
-    console.log('Filtered lines:', filteredLines.length)
-    console.log('COA map size:', Object.keys(coaMap).length)
-    console.log('Sample COA:', JSON.stringify(Object.entries(coaMap)[0]))
 
     const balances = {}
     filteredLines.forEach(l => {
