@@ -17,6 +17,7 @@ export default function RiderDashboard({ user, onLogout }) {
   })
   const [preSelectedCustomer, setPreSelectedCustomer] = useState(null)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [salesTaxRate, setSalesTaxRate] = useState(16)
   const [pendingCount, setPendingCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
   const [lastSync, setLastSync] = useState(null)
@@ -103,6 +104,11 @@ export default function RiderDashboard({ user, onLogout }) {
       const count = await getPendingCount()
       setPendingCount(count)
       if (navigator.onLine) await downloadData()
+    // Fetch tax rate from settings
+    supabase.from('business_settings').select('setting_value')
+      .eq('tenant_id', user.tenant_id).eq('setting_key', 'sales_tax_rate')
+      .maybeSingle()
+      .then(({ data }) => { if (data) setSalesTaxRate(Number(data.setting_value || 16)) })
     } catch (err) {
       console.error('Offline setup error:', err)
       setDbReady(true)
@@ -257,7 +263,7 @@ export default function RiderDashboard({ user, onLogout }) {
 
       {/* Content */}
       <div style={{ padding: '16px', paddingBottom: '90px' }}>
-        {activePage === 'deliveries' && <RiderDeliveries rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} lang={lang} />}
+        {activePage === 'deliveries' && <RiderDeliveries rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} salesTaxRate={salesTaxRate}
         {activePage === 'sell' && <RiderSellToCustomer rider={user} tenantId={user.tenant_id} preSelectedCustomer={preSelectedCustomer} onClearPreSelected={() => setPreSelectedCustomer(null)} isOnline={isOnline} dbReady={dbReady} lang={lang} />}
         {activePage === 'receivables' && <RiderReceivables rider={user} tenantId={user.tenant_id} onSelectCustomer={handleSelectCustomer} isOnline={isOnline} dbReady={dbReady} lang={lang} />}
         {activePage === 'cash' && <RiderCashSummary rider={user} tenantId={user.tenant_id} lang={lang} />}

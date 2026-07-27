@@ -38,6 +38,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
+          .order('is_priority', { ascending: false })
           .order('delivery_date', { ascending: true })
         if (filter === 'today') query = query.lte('delivery_date', today)
         const { data } = await query
@@ -49,6 +50,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           if (filter === 'today') {
             filtered = filtered.filter(o => !o.delivery_date || o.delivery_date <= today)
           }
+          filtered.sort((a, b) => (b.is_priority ? 1 : 0) - (a.is_priority ? 1 : 0))
           setOrders(filtered)
         } else {
           setOrders([])
