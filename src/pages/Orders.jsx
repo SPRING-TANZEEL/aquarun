@@ -525,6 +525,9 @@ export default function Orders({ tenantId }) {
   const [bulkSaving, setBulkSaving]           = useState(false)
   const [bulkResult, setBulkResult]           = useState(null)
   const [lastRiderMap, setLastRiderMap]       = useState({})
+  const [bulkSort, setBulkSort]               = useState('lastDelivery')
+  const [bulkSortDir, setBulkSortDir]         = useState('asc')
+  const [hideDeliveredToday, setHideDeliveredToday] = useState(true)
 
   // ── effects ──
   useEffect(() => { if (tenantId) { fetchOrders(); fetchRiders() } }, [filter, tenantId, dateFrom, dateTo])
@@ -680,6 +683,13 @@ export default function Orders({ tenantId }) {
 
     const alreadyOrderedSet = new Set((todayOrders || []).map(o => o.customer_id))
 
+    const { data: completedToday } = await supabase.from('deliveries')
+      .select('customer_id')
+      .eq('tenant_id', tenantId)
+      .gte('delivered_at', today + 'T00:00:00')
+      .lte('delivered_at', today + 'T23:59:59')
+    const deliveredTodaySet = new Set((completedToday || []).map(d => d.customer_id))
+
     const { data: customers } = await supabase
       .from('customers')
       .select('id, full_name, mobile, address, delivery_notes, default_qty_19l, default_qty_half, default_qty_1_5l, customer_code, balance')
@@ -723,6 +733,7 @@ export default function Orders({ tenantId }) {
           lastLat: lastDelivWithGps?.delivery_lat || null,
           lastLng: lastDelivWithGps?.delivery_lng || null,
           alreadyOrdered: alreadyOrderedSet.has(c.id),
+          deliveredToday: deliveredTodaySet.has(c.id),
         }
       })
 
@@ -737,6 +748,14 @@ export default function Orders({ tenantId }) {
   const filteredBulk = useMemo(() => {
     let list = bulkTab === 'all' ? allCustomers : allCustomers.filter(c => c.proj?.key === bulkTab)
     if (bulkRiderFilter !== 'all') list = list.filter(c => c.lastRiderId === bulkRiderFilter)
+    if (hideDeliveredToday) list = list.filter(c => !c.deliveredToday)
+    if (bulkSort === 'lastDelivery') {
+      list = [...list].sort((a, b) => {
+        const aDate = a.stats?.lastDeliveredAt ? new Date(a.stats.lastDeliveredAt) : new Date(0)
+        const bDate = b.stats?.lastDeliveredAt ? new Date(b.stats.lastDeliveredAt) : new Date(0)
+        return bulkSortDir === 'asc' ? aDate - bDate : bDate - aDate
+      })
+    }
     if (bulkSearch) {
       const q = bulkSearch.toLowerCase()
       list = list.filter(c =>
@@ -1070,6 +1089,15 @@ export default function Orders({ tenantId }) {
                     🗺️ Route optimized
                   </span>
                 )}
+                <button onClick={() => setHideDeliveredToday(h => !h)} style={{
+                  padding: '9px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  background: hideDeliveredToday ? '#0f4c81' : '#f0f4f8',
+                  color: hideDeliveredToday ? '#fff' : '#555',
+                  border: hideDeliveredToday ? 'none' : '1px solid #e0e0e0',
+                }}>
+                  {hideDeliveredToday ? '✅ Remaining Only' : '👁 Show All'}
+                </button>
                 <button onClick={autoSelectUrgent} style={{
                   padding: '9px 14px', background: '#fff3e0', border: '1px solid #fed7aa',
                   borderRadius: 8, color: '#c45309', fontSize: 13, fontWeight: 600,
@@ -1148,7 +1176,14 @@ export default function Orders({ tenantId }) {
                             style={{ width: 15, height: 15, cursor: 'pointer' }} />
                         </th>
                         {['Customer & Address', 'Last Delivery', 'Avg Gap', 'Deliveries', 'Usual Rider', 'Projection', 'Confidence', 'Days Left', 'Default Qty'].map(h => (
-                          <th key={h} style={{ padding: '11px 10px', textAlign: 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
+                          <th key={h} onClick={() => {
+                            if (h === 'Last Delivery') {
+                              if (bulkSort === 'lastDelivery') setBulkSortDir(d => d === 'asc' ? 'desc' : 'asc')
+                              else { setBulkSort('lastDelivery'); setBulkSortDir('asc') }
+                            }
+                          }} style={{ padding: '11px 10px', textAlign: 'left', fontSize: 11, fontWeight: 700, borderBottom: '1px solid #eee', whiteSpace: 'nowrap', cursor: h === 'Last Delivery' ? 'pointer' : 'default', userSelect: 'none', color: h === 'Last Delivery' ? '#0f4c81' : '#666' }}>
+                            {h}{h === 'Last Delivery' ? (bulkSort === 'lastDelivery' ? (bulkSortDir === 'asc' ? ' ↑' : ' ↓') : ' ↕') : ''}
+                          </th>
                         ))}
                       </tr>
                     </thead>
