@@ -527,6 +527,8 @@ export default function Orders({ tenantId }) {
   const [lastRiderMap, setLastRiderMap]       = useState({})
   const [bulkSort, setBulkSort]               = useState('lastDelivery')
   const [bulkSortDir, setBulkSortDir]         = useState('asc')
+  const [bulkSort, setBulkSort]               = useState('lastDelivery')
+  const [bulkSortDir, setBulkSortDir]         = useState('asc')
 
   // ── effects ──
   useEffect(() => { if (tenantId) { fetchOrders(); fetchRiders() } }, [filter, tenantId, dateFrom, dateTo])
@@ -780,8 +782,21 @@ export default function Orders({ tenantId }) {
         list = [...sorted, ...withoutGps]
       }
     }
+    if (bulkSort === 'lastDelivery') {
+      list = [...list].sort((a, b) => {
+        const aDate = a.stats?.lastDeliveredAt ? new Date(a.stats.lastDeliveredAt) : new Date(0)
+        const bDate = b.stats?.lastDeliveredAt ? new Date(b.stats.lastDeliveredAt) : new Date(0)
+        return bulkSortDir === 'asc' ? aDate - bDate : bDate - aDate
+      })
+    } else if (bulkSort === 'rider') {
+      list = [...list].sort((a, b) => {
+        const aName = a.lastRiderName || 'zzz'
+        const bName = b.lastRiderName || 'zzz'
+        return bulkSortDir === 'asc' ? aName.localeCompare(bName) : bName.localeCompare(aName)
+      })
+    }
     return list
-  }, [allCustomers, bulkTab, bulkRiderFilter, bulkSearch])
+  }, [allCustomers, bulkTab, bulkRiderFilter, bulkSearch, bulkSort, bulkSortDir])
 
   const allBulkChecked = filteredBulk.length > 0 && filteredBulk.every(c => bulkSelected.has(c.id))
   const someBulkChecked = filteredBulk.some(c => bulkSelected.has(c.id)) && !allBulkChecked
