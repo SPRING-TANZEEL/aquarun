@@ -263,7 +263,7 @@ export default function RiderDashboard({ user, onLogout }) {
 
       {/* Content */}
       <div style={{ padding: '16px', paddingBottom: '90px' }}>
-        {activePage === 'deliveries' && <RiderDeliveries rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} salesTaxRate={salesTaxRate}
+        {activePage === 'deliveries' && <RiderDeliveries rider={user} tenantId={user.tenant_id} isOnline={isOnline} dbReady={dbReady} salesTaxRate={salesTaxRate} />}
         {activePage === 'sell' && <RiderSellToCustomer rider={user} tenantId={user.tenant_id} preSelectedCustomer={preSelectedCustomer} onClearPreSelected={() => setPreSelectedCustomer(null)} isOnline={isOnline} dbReady={dbReady} lang={lang} />}
         {activePage === 'receivables' && <RiderReceivables rider={user} tenantId={user.tenant_id} onSelectCustomer={handleSelectCustomer} isOnline={isOnline} dbReady={dbReady} lang={lang} />}
         {activePage === 'cash' && <RiderCashSummary rider={user} tenantId={user.tenant_id} lang={lang} />}
