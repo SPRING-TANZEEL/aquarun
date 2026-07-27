@@ -491,6 +491,9 @@ export default function Orders({ tenantId }) {
   const [riders, setRiders]                   = useState([])
   const [loading, setLoading]                 = useState(true)
   const [filter, setFilter]                   = useState('pending')
+  const today = new Date().toISOString().split('T')[0]
+  const [dateFrom, setDateFrom]               = useState(today)
+  const [dateTo, setDateTo]                   = useState(today)
   const [selectedOrders, setSelectedOrders]   = useState([])
   const [assignRiderId, setAssignRiderId]     = useState('')
   const [assigning, setAssigning]             = useState(false)
@@ -524,7 +527,7 @@ export default function Orders({ tenantId }) {
   const [lastRiderMap, setLastRiderMap]       = useState({})
 
   // ── effects ──
-  useEffect(() => { if (tenantId) { fetchOrders(); fetchRiders() } }, [filter, tenantId])
+  useEffect(() => { if (tenantId) { fetchOrders(); fetchRiders() } }, [filter, tenantId, dateFrom, dateTo])
   useEffect(() => { if (tenantId && filter === 'bulk') fetchBulkData() }, [tenantId, filter])
 
   // ── data fetching ──
@@ -534,6 +537,8 @@ export default function Orders({ tenantId }) {
       .from('orders')
       .select('*, customers(full_name, mobile, customer_code, address, delivery_notes, rate_19l, balance), riders(full_name, id)')
       .eq('tenant_id', tenantId)
+      .gte('delivery_date', dateFrom)
+      .lte('delivery_date', dateTo)
       .order('is_priority', { ascending: false })
       .order('created_at', { ascending: false })
     if (filter !== 'all' && filter !== 'bulk') q = q.eq('status', filter)
@@ -969,6 +974,34 @@ export default function Orders({ tenantId }) {
             borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700,
             width: isMobile ? '100%' : 'auto', display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center',
           }}>{saving ? '⏳ Saving...' : `✓ Create Order`}</button>
+        </div>
+      )}
+
+      {/* Date filter */}
+      {filter !== 'bulk' && (
+        <div style={{
+          background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 12,
+          boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center',
+        }}>
+          <span style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>📅 Date Range:</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          <span style={{ fontSize: 12, color: '#888' }}>to</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          {[
+            { label: 'Today',      from: today,                                          to: today },
+            { label: 'Yesterday',  from: new Date(Date.now()-86400000).toISOString().split('T')[0], to: new Date(Date.now()-86400000).toISOString().split('T')[0] },
+            { label: 'Last 7d',    from: new Date(Date.now()-6*86400000).toISOString().split('T')[0], to: today },
+            { label: 'This Month', from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], to: today },
+          ].map(d => (
+            <button key={d.label} onClick={() => { setDateFrom(d.from); setDateTo(d.to) }}
+              style={{
+                padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: dateFrom === d.from && dateTo === d.to ? '#0f4c81' : '#f0f4f8',
+                color: dateFrom === d.from && dateTo === d.to ? '#fff' : '#555',
+              }}>{d.label}</button>
+          ))}
         </div>
       )}
 
