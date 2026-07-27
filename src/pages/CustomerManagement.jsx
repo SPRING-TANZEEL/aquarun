@@ -693,6 +693,15 @@ export default function CustomerManagement({ tenantId }) {
                 </div>
               </div>
 
+              <div style={{ background: '#e3f0ff', border: '1.5px solid #bfdbfe', borderRadius: '10px', padding: '14px 16px', marginBottom: '14px' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🍶 Default 19L Quantity</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>Used for bulk order generation and auto-scheduling</p>
+                <input type="number" min="0" value={form.default_qty_19l}
+                  onChange={e => setForm(ff => ({ ...ff, default_qty_19l: Number(e.target.value) || 0 }))}
+                  style={{ width: '120px', padding: '8px 10px', border: '1.5px solid #bfdbfe', borderRadius: '8px', fontSize: '18px', fontWeight: '700', textAlign: 'center', outline: 'none', boxSizing: 'border-box' }} />
+                <p style={{ fontSize: '11px', color: '#0f4c81', margin: '6px 0 0', fontWeight: '600' }}>bottles per delivery</p>
+              </div>
+
               <div style={{ background: '#f0fff4', border: '1.5px solid #86efac', borderRadius: '10px', padding: '16px', marginBottom: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <div>
@@ -720,21 +729,7 @@ export default function CustomerManagement({ tenantId }) {
                         </button>
                       ))}
                     </div>
-                    <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Default Quantities per Delivery</p>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px' }}>
-                      {[
-                        { key: 'default_qty_19l', label: '19L Bottles' },
-                        { key: 'default_qty_half', label: 'Half Litre' },
-                        { key: 'default_qty_1_5l', label: '1.5 Litre' },
-                      ].map(f => (
-                        <div key={f.key}>
-                          <label style={{ fontSize: '11px', color: '#555', display: 'block', marginBottom: '4px' }}>{f.label}</label>
-                          <input type="number" value={form[f.key]}
-                            onChange={e => setForm(ff => ({ ...ff, [f.key]: Number(e.target.value) || 0 }))}
-                            style={{ ...inp, textAlign: 'center' }} />
-                        </div>
-                      ))}
-                    </div>
+                    <p style={{ fontSize: '11px', color: '#888', margin: '0 0 8px' }}>Default 19L quantity is set in the section above.</p>
                   </>
                 )}
               </div>
