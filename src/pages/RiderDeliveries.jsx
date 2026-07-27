@@ -565,12 +565,13 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 const ourBottles = Number(o.customers?.our_bottles_placed || 0)
                 return (
                   <div key={o.id} onClick={() => selectOrder(o)}
-                    style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', cursor: 'pointer', border: '1px solid #eee' }}>
+                    style={{ background: o.is_priority ? '#fff8f8' : 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', cursor: 'pointer', border: o.is_priority ? '2px solid #fca5a5' : '1px solid #eee', borderLeft: o.is_priority ? '4px solid #c62828' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: '#0f4c81', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>{idx + 1}</span>
+                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: o.is_priority ? '#c62828' : '#0f4c81', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>{o.is_priority ? '🔴' : idx + 1}</span>
                           <p style={{ fontWeight: '700', fontSize: '15px', margin: 0, color: '#333' }}>{o.customers?.full_name}</p>
+                          {o.is_priority && <span style={{ fontSize: 10, background: '#c62828', color: '#fff', padding: '2px 7px', borderRadius: 20, fontWeight: 700, whiteSpace: 'nowrap' }}>URGENT</span>}
                         </div>
                         {o.customers?.address && (
                           <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px 30px' }}>📍 {o.customers.address}</p>
