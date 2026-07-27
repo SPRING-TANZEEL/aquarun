@@ -8,7 +8,7 @@ import {
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
-export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) {
+export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, salesTaxRate = 16 }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -34,7 +34,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
       if (isOnline) {
         let query = supabase
           .from('orders')
-          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, google_maps_link, is_tax_applicable, tax_rate)')
+          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, google_maps_link, is_tax_applicable)')
           .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
@@ -80,8 +80,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady }) 
   }
 
   function taxAmount() {
-    const taxRate = selectedOrder?.customers?.is_tax_applicable ? Number(selectedOrder?.customers?.tax_rate || 16) : 0
-    return Math.round(subTotal() * taxRate / 100)
+    const rate = selectedOrder?.customers?.is_tax_applicable ? salesTaxRate : 0
+    return Math.round(subTotal() * rate / 100)
   }
 
   function totalAmount() {
