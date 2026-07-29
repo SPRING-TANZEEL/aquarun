@@ -60,6 +60,7 @@ const T = {
       { name: "Imran Shahzad", biz: "Crystal Water Supply", city: "Gujranwala", rating: 5, text: "My riders love the app. Even when internet is off, they can still record deliveries. When they come back online everything syncs automatically. Never missed a delivery record since we started." },
       { name: "Usman Ali", biz: "Hayat Mineral Water", city: "Rawalpindi", rating: 5, text: "JazzCash reconciliation alone saved us hours every week. Every payment is tracked, every customer balance is accurate. I can see who owes me money with one tap." },
       { name: "Abdul Rehman", biz: "Zam Zam Water Plant", city: "Multan", rating: 5, text: "Setup was done in less than 24 hours. The team helped us migrate all our customer data. Within a week my whole team was using it. Customer portal is especially loved by our corporate clients." },
+      { name: "Bilal Hussain", biz: "Al-Shifa Water", city: "Sialkot", rating: 5, text: "We were using paper registers before AquaRun. Now everything is digital — customer accounts, rider cash, daily reports. I check my business from my phone even when I am not at the plant." },
     ],
     ft_copy: "© 2026 AquaRun · Built for Pakistan's Water Industry",
     ft_login: "Admin Login", ft_wa: "WhatsApp", ft_email: "Email",
@@ -120,6 +121,7 @@ const T = {
       { name: "عمران شہزاد", biz: "کرسٹل واٹر سپلائی", city: "گوجرانوالہ", rating: 5, text: "رائیڈرز کو ایپ بہت پسند ہے۔ انٹرنیٹ بند ہو تب بھی ڈیلیوری ریکارڈ ہوتی ہے۔ واپس آتے ہی خود بخود سنک ہو جاتا ہے۔ ایک ریکارڈ بھی نہیں چھوٹا۔" },
       { name: "عثمان علی", biz: "حیات منرل واٹر", city: "راولپنڈی", rating: 5, text: "جازکیش ریکنسائلیشن نے ہفتے میں گھنٹوں کی بچت کی۔ ہر ادائیگی ٹریک ہے، ہر کسٹمر بیلنس درست ہے۔ ایک ٹچ میں دیکھ سکتا ہوں کون پیسے دینا ہے۔" },
       { name: "عبدالرحمٰن", biz: "زم زم واٹر پلانٹ", city: "ملتان", rating: 5, text: "۲۴ گھنٹے سے کم میں سیٹ اپ ہو گیا۔ ٹیم نے سارا ڈیٹا منتقل کرنے میں مدد کی۔ ایک ہفتے میں پوری ٹیم استعمال کر رہی تھی۔ کارپوریٹ کلائنٹس کو کسٹمر پورٹل بہت پسند ہے۔" },
+      { name: "بلال حسین", biz: "الشفاء واٹر", city: "سیالکوٹ", rating: 5, text: "AquaRun سے پہلے کاغذی رجسٹر تھے۔ اب سب ڈیجیٹل ہے — کسٹمر اکاؤنٹ، رائیڈر کیش، روزانہ رپورٹس۔ پلانٹ سے باہر بھی فون پر کاروبار چیک کر لیتا ہوں۔" },
     ],
     ft_copy: "© 2026 AquaRun · پاکستان کی واٹر انڈسٹری کے لیے",
     ft_login: "ایڈمن لاگ ان", ft_wa: "WhatsApp", ft_email: "ای میل",
@@ -739,7 +741,7 @@ export default function Landing({ onLogin }) {
       </section>
 
       {/* TESTIMONIALS */}
-      <section style={{ padding: '80px 20px', background: '#f0f7ff' }}>
+      <section style={{ padding: '60px 20px 80px', background: '#f0f7ff' }}>
         <div style={{ maxWidth: 1100, margin: '0 auto' }}>
           <p style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#0077B6', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
             {lang === 'ur' ? 'کسٹمر تجربات' : 'Customer Stories'}
@@ -747,10 +749,10 @@ export default function Landing({ onLogin }) {
           <h2 style={{ textAlign: 'center', fontSize: 'clamp(22px,4vw,36px)', fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>
             {lang === 'ur' ? 'ہمارے کلائنٹس کیا کہتے ہیں' : 'What Our Clients Say'}
           </h2>
-          <p style={{ textAlign: 'center', color: '#64748b', fontSize: 15, maxWidth: 500, margin: '0 auto 48px' }}>
+          <p style={{ textAlign: 'center', color: '#64748b', fontSize: 15, maxWidth: 500, margin: '0 auto 24px' }}>
             {lang === 'ur' ? 'پاکستان بھر میں ۲۰۰+ واٹر پلانٹس کا بھروسہ' : 'Trusted by 200+ water plants across Pakistan'}
           </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, alignItems: 'stretch' }}>
             {t.testimonials.map((tm, i) => (
               <div key={i} style={{ background: 'white', borderRadius: 16, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,119,182,0.08)', border: '1px solid #e0f0ff', display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div style={{ display: 'flex', gap: 4 }}>
