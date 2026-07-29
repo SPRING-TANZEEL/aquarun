@@ -172,10 +172,23 @@ export default async function handler(req, res) {
         { tenant_id: tid, account_code: '6018', account_name: 'Rider Refreshments', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
         { tenant_id: tid, account_code: '6019', account_name: 'Rider Repairs', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
       ]
-      await supabaseAdmin.from('chart_of_accounts').insert(accounts)
+      const { error: coaError } = await supabaseAdmin.from('chart_of_accounts').insert(accounts)
+      if (coaError) console.error('COA seed error:', coaError.message)
 
       // Seed default business settings
-      await supabaseAdmin.from('business_settings').
+      const { error: settingsError } = await supabaseAdmin.from('business_settings').insert([
+        { tenant_id: tid, setting_key: 'business_name', setting_value: tenantData.business_name },
+        { tenant_id: tid, setting_key: 'setup_completed', setting_value: 'false' },
+        { tenant_id: tid, setting_key: 'opening_cash_balance', setting_value: '0' },
+        { tenant_id: tid, setting_key: 'opening_jazzcash_balance', setting_value: '0' },
+        { tenant_id: tid, setting_key: 'opening_bank_balance', setting_value: '0' },
+        { tenant_id: tid, setting_key: 'sales_tax_rate', setting_value: '16' },
+        { tenant_id: tid, setting_key: 'jazzcash_opening_balance', setting_value: '0' },
+      ])
+      if (settingsError) console.error('Settings seed error:', settingsError.message)
+
+      return res.json({ ok: true, tenant: newTenant })
+    }
 
     // ── DELETE TENANT ───────────────────────────────────────────────
     if (action === 'deleteTenant') {
