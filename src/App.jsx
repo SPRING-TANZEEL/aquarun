@@ -23,7 +23,9 @@ export default function App() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
-  const [showLanding, setShowLanding] = useState(true)
+  const [showLanding, setShowLanding] = useState(() => {
+    return sessionStorage.getItem('aquarun_show_login') !== 'true'
+  })
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -62,6 +64,7 @@ export default function App() {
 
   async function checkExistingSession() {
     setCheckingSession(true)
+    sessionStorage.removeItem('aquarun_show_login')
     try {
       const role = localStorage.getItem('aquarun_role')
       const tenantId = localStorage.getItem('aquarun_tenant_id')
@@ -346,7 +349,10 @@ export default function App() {
 
   // Show landing page if not logged in and no session being checked
   if (!checkingSession && !userRole && showLanding) {
-    return <Landing onLogin={() => setShowLanding(false)} />
+    return <Landing onLogin={() => {
+      sessionStorage.setItem('aquarun_show_login', 'true')
+      setShowLanding(false)
+    }} />
   }
 
   if (checkingSession) {
