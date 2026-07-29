@@ -12,7 +12,7 @@ const T = {
       "AquaRun handles deliveries, billing, customers, riders, and accounting — so you can focus on what matters: growing your business.",
     cta_start: "Get Started Free",
     cta_how: "See How It Works",
-    hero_trust: "Trusted by 150+ water businesses across Pakistan",
+    hero_trust: "Trusted by 200+ water businesses across Pakistan",
     s1: "Active Businesses", s2: "Deliveries Tracked", s3: "Cloud-Based", s4: "Access Anywhere",
     feat_eye: "Features",
     feat_title: "Everything Your Water Business Needs",
