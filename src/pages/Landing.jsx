@@ -371,54 +371,6 @@ const CSS = `
 .ar-ledger-val{font-size:.72rem;font-weight:800;color:var(--accent);transition:color .3s,transform .3s;}
 .ar-ledger-val.flash{color:var(--green);transform:scale(1.2);}
 
-{/* ── TESTIMONIALS ── */}
-      <section style={{ padding: '80px 20px', background: '#f0f7ff' }}>
-        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-          <p style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#0077B6', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
-            {lang === 'ur' ? 'کسٹمر تجربات' : 'Customer Stories'}
-          </p>
-          <h2 style={{ textAlign: 'center', fontSize: 'clamp(22px,4vw,36px)', fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>
-            {lang === 'ur' ? 'ہمارے کلائنٹس کیا کہتے ہیں' : 'What Our Clients Say'}
-          </h2>
-          <p style={{ textAlign: 'center', color: '#64748b', fontSize: 15, marginBottom: 48, maxWidth: 500, margin: '0 auto 48px' }}>
-            {lang === 'ur' ? 'پاکستان بھر میں ۲۰۰+ واٹر پلانٹس کا بھروسہ' : 'Trusted by 200+ water plants across Pakistan'}
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
-            {t.testimonials.map((tm, i) => (
-              <div key={i} style={{
-                background: 'white', borderRadius: 16, padding: '24px 28px',
-                boxShadow: '0 4px 20px rgba(0,119,182,0.08)',
-                border: '1px solid #e0f0ff',
-                display: 'flex', flexDirection: 'column', gap: 16,
-              }}>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {'★★★★★'.split('').map((s, j) => (
-                    <span key={j} style={{ color: '#f59e0b', fontSize: 16 }}>{s}</span>
-                  ))}
-                </div>
-                <p style={{
-                  fontSize: 14, color: '#334155', lineHeight: 1.7, flex: 1,
-                  direction: lang === 'ur' ? 'rtl' : 'ltr',
-                  fontStyle: 'italic',
-                }}>"{tm.text}"</p>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
-                  <div style={{
-                    width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
-                    background: 'linear-gradient(135deg, #0077B6, #00B4D8)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    color: 'white', fontWeight: 800, fontSize: 16,
-                  }}>{tm.name[0]}</div>
-                  <div>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>{tm.name}</p>
-                    <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{tm.biz} · {tm.city}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── PRICING ── */}
 .ar-pricing{background:linear-gradient(145deg,var(--deep),#0D3B6E);}
 .ar-pricing .ar-eye{color:var(--accent);}
@@ -782,6 +734,38 @@ export default function Landing({ onLogin }) {
               </div>
 
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* TESTIMONIALS */}
+      <section style={{ padding: '80px 20px', background: '#f0f7ff' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <p style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#0077B6', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+            {lang === 'ur' ? 'کسٹمر تجربات' : 'Customer Stories'}
+          </p>
+          <h2 style={{ textAlign: 'center', fontSize: 'clamp(22px,4vw,36px)', fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>
+            {lang === 'ur' ? 'ہمارے کلائنٹس کیا کہتے ہیں' : 'What Our Clients Say'}
+          </h2>
+          <p style={{ textAlign: 'center', color: '#64748b', fontSize: 15, maxWidth: 500, margin: '0 auto 48px' }}>
+            {lang === 'ur' ? 'پاکستان بھر میں ۲۰۰+ واٹر پلانٹس کا بھروسہ' : 'Trusted by 200+ water plants across Pakistan'}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+            {t.testimonials.map((tm, i) => (
+              <div key={i} style={{ background: 'white', borderRadius: 16, padding: '24px 28px', boxShadow: '0 4px 20px rgba(0,119,182,0.08)', border: '1px solid #e0f0ff', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {'★★★★★'.split('').map((s, j) => <span key={j} style={{ color: '#f59e0b', fontSize: 16 }}>{s}</span>)}
+                </div>
+                <p style={{ fontSize: 14, color: '#334155', lineHeight: 1.7, flex: 1, direction: lang === 'ur' ? 'rtl' : 'ltr', fontStyle: 'italic' }}>"{tm.text}"</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+                  <div style={{ width: 42, height: 42, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, #0077B6, #00B4D8)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: 16 }}>{tm.name[0]}</div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>{tm.name}</p>
+                    <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{tm.biz} · {tm.city}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
