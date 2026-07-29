@@ -597,7 +597,7 @@ export default function Landing({ onLogin }) {
 
       {/* STATS */}
       <div className="ar-stats">
-        {[["7+",t.s1],["100,000+",t.s2],["100%",t.s3],["24/7",t.s4]].map(([n,l],i)=>(
+        {[["200+",t.s1],["100,000+",t.s2],["100%",t.s3],["24/7",t.s4]].map(([n,l],i)=>(
           <div key={i} className="ar-stat ar-reveal">
             <div className="ar-stat-num">{n}</div>
             <div className="ar-stat-label">{l}</div>
