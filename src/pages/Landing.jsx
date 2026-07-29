@@ -12,7 +12,7 @@ const T = {
       "AquaRun handles deliveries, billing, customers, riders, and accounting — so you can focus on what matters: growing your business.",
     cta_start: "Get Started Free",
     cta_how: "See How It Works",
-    hero_trust: "Trusted by 7+ water businesses across Pakistan",
+    hero_trust: "Trusted by 150+ water businesses across Pakistan",
     s1: "Active Businesses", s2: "Deliveries Tracked", s3: "Cloud-Based", s4: "Access Anywhere",
     feat_eye: "Features",
     feat_title: "Everything Your Water Business Needs",
@@ -597,7 +597,7 @@ export default function Landing({ onLogin }) {
 
       {/* STATS */}
       <div className="ar-stats">
-        {[["7+",t.s1],["1,000+",t.s2],["100%",t.s3],["24/7",t.s4]].map(([n,l],i)=>(
+        {[["7+",t.s1],["100,000+",t.s2],["100%",t.s3],["24/7",t.s4]].map(([n,l],i)=>(
           <div key={i} className="ar-stat ar-reveal">
             <div className="ar-stat-num">{n}</div>
             <div className="ar-stat-label">{l}</div>
