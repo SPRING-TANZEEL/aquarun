@@ -8,6 +8,7 @@ import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
 import ResetPassword from './pages/ResetPassword'
 import aquarunLogo from './assets/aquarun-logo.png'
+import Landing from './pages/Landing'
 
 const SUPER_ADMIN_PASSWORD = import.meta.env.VITE_SUPER_ADMIN_PASSWORD || 'mian6566381aA!'
 
@@ -22,6 +23,7 @@ export default function App() {
   const [checkingSession, setCheckingSession] = useState(true)
   const [installPrompt, setInstallPrompt] = useState(null)
   const [showInstallBanner, setShowInstallBanner] = useState(false)
+  const [showLanding, setShowLanding] = useState(true)
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -340,6 +342,11 @@ export default function App() {
   // Handle password reset page
   if (window.location.pathname === '/reset-password') {
     return <ResetPassword />
+  }
+
+  // Show landing page if not logged in and no session being checked
+  if (!checkingSession && !userRole && showLanding) {
+    return <Landing onLogin={() => setShowLanding(false)} />
   }
 
   if (checkingSession) {
