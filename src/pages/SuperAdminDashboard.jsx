@@ -61,9 +61,11 @@ export default function SuperAdminDashboard({ onLogout }) {
     const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
     const hashedPassword = hashData || form.admin_password
 
-    const createRes = await superAdminAction({
-      action: 'createTenant',
-      tenantData: {
+    let createRes
+    try {
+      createRes = await superAdminAction({
+        action: 'createTenant',
+        tenantData: {
         tenant_code: form.tenant_code.toUpperCase(),
         business_name: form.business_name,
         admin_password: hashedPassword,
@@ -78,9 +80,14 @@ export default function SuperAdminDashboard({ onLogout }) {
         setup_date: new Date().toISOString().split('T')[0],
         next_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       }
-    })
+      })
+    } catch (err) {
+      alert('Network error: ' + err.message)
+      setSaving(false)
+      return
+    }
 
-    if (!createRes.ok) { alert('Error: ' + createRes.error); setSaving(false); return }
+    if (!createRes?.ok) { alert('Error: ' + (createRes?.error || 'Unknown error')); setSaving(false); return }
     const newTenant = createRes.tenant
 
     const tenantUUID = newTenant.id
