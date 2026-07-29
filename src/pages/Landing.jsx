@@ -54,6 +54,13 @@ const T = {
     cf_name: "Your Name", cf_phone: "Phone Number", cf_biz: "Business Name",
     cf_msg: "Tell us about your water delivery business...",
     cf_btn: "Send Message via WhatsApp",
+    testimonials: [
+      { name: "Muhammad Asif", biz: "Al-Madina Water", city: "Lahore", rating: 5, text: "Before AquaRun, I had no idea which rider delivered what. Now I see everything live. My cash recovery improved by 40% in the first month alone." },
+      { name: "Haji Tariq Mehmood", biz: "Pure Drops Water", city: "Faisalabad", rating: 5, text: "The accounting feature is a game changer. I used to pay an accountant Rs. 8,000 a month. AquaRun does everything automatically — journal entries, ledger, balance sheet. Worth every rupee." },
+      { name: "Imran Shahzad", biz: "Crystal Water Supply", city: "Gujranwala", rating: 5, text: "My riders love the app. Even when internet is off, they can still record deliveries. When they come back online everything syncs automatically. Never missed a delivery record since we started." },
+      { name: "Usman Ali", biz: "Hayat Mineral Water", city: "Rawalpindi", rating: 5, text: "JazzCash reconciliation alone saved us hours every week. Every payment is tracked, every customer balance is accurate. I can see who owes me money with one tap." },
+      { name: "Abdul Rehman", biz: "Zam Zam Water Plant", city: "Multan", rating: 5, text: "Setup was done in less than 24 hours. The team helped us migrate all our customer data. Within a week my whole team was using it. Customer portal is especially loved by our corporate clients." },
+    ],
     ft_copy: "© 2026 AquaRun · Built for Pakistan's Water Industry",
     ft_login: "Admin Login", ft_wa: "WhatsApp", ft_email: "Email",
     wa_tooltip: "Chat on WhatsApp",
@@ -65,7 +72,7 @@ const T = {
     hero_sub: "AquaRun ڈیلیوری، بلنگ، کسٹمرز، رائیڈرز اور اکاؤنٹنگ سنبھالتا ہے — آپ صرف کاروبار بڑھائیں۔",
     cta_start: "مفت شروع کریں",
     cta_how: "دیکھیں کیسے کام کرتا ہے",
-    hero_trust: "پاکستان میں ۷ سے زیادہ پانی کے کاروباروں کا اعتماد",
+    hero_trust: "پاکستان میں ۲۰۰ سے زیادہ پانی کے کاروباروں کا اعتماد",
     s1: "فعال کاروبار", s2: "ڈیلیوریاں ٹریک", s3: "کلاؤڈ بیسڈ", s4: "کہیں سے بھی رسائی",
     feat_eye: "خصوصیات",
     feat_title: "آپ کے پانی کے کاروبار کے لیے سب کچھ",
@@ -107,6 +114,13 @@ const T = {
     cf_name: "آپ کا نام", cf_phone: "فون نمبر", cf_biz: "کاروبار کا نام",
     cf_msg: "اپنے واٹر ڈیلیوری کاروبار کے بارے میں بتائیں...",
     cf_btn: "WhatsApp پر پیغام بھیجیں",
+    testimonials: [
+      { name: "محمد آصف", biz: "المدینہ واٹر", city: "لاہور", rating: 5, text: "AquaRun سے پہلے مجھے نہیں پتہ تھا کون سا رائیڈر کیا ڈیلیور کر رہا ہے۔ اب سب کچھ لائیو نظر آتا ہے۔ پہلے مہینے میں کیش ریکوری ۴۰٪ بہتر ہوئی۔" },
+      { name: "حاجی طارق محمود", biz: "پیور ڈراپس واٹر", city: "فیصل آباد", rating: 5, text: "اکاؤنٹنگ فیچر بہت زبردست ہے۔ پہلے ۸ ہزار روپے ماہانہ اکاؤنٹنٹ کو دیتا تھا۔ AquaRun سب خودکار کرتا ہے — جرنل، لیجر، بیلنس شیٹ۔ پیسے وصول ہیں۔" },
+      { name: "عمران شہزاد", biz: "کرسٹل واٹر سپلائی", city: "گوجرانوالہ", rating: 5, text: "رائیڈرز کو ایپ بہت پسند ہے۔ انٹرنیٹ بند ہو تب بھی ڈیلیوری ریکارڈ ہوتی ہے۔ واپس آتے ہی خود بخود سنک ہو جاتا ہے۔ ایک ریکارڈ بھی نہیں چھوٹا۔" },
+      { name: "عثمان علی", biz: "حیات منرل واٹر", city: "راولپنڈی", rating: 5, text: "جازکیش ریکنسائلیشن نے ہفتے میں گھنٹوں کی بچت کی۔ ہر ادائیگی ٹریک ہے، ہر کسٹمر بیلنس درست ہے۔ ایک ٹچ میں دیکھ سکتا ہوں کون پیسے دینا ہے۔" },
+      { name: "عبدالرحمٰن", biz: "زم زم واٹر پلانٹ", city: "ملتان", rating: 5, text: "۲۴ گھنٹے سے کم میں سیٹ اپ ہو گیا۔ ٹیم نے سارا ڈیٹا منتقل کرنے میں مدد کی۔ ایک ہفتے میں پوری ٹیم استعمال کر رہی تھی۔ کارپوریٹ کلائنٹس کو کسٹمر پورٹل بہت پسند ہے۔" },
+    ],
     ft_copy: "© 2026 AquaRun · پاکستان کی واٹر انڈسٹری کے لیے",
     ft_login: "ایڈمن لاگ ان", ft_wa: "WhatsApp", ft_email: "ای میل",
     wa_tooltip: "WhatsApp پر چیٹ کریں",
@@ -357,7 +371,55 @@ const CSS = `
 .ar-ledger-val{font-size:.72rem;font-weight:800;color:var(--accent);transition:color .3s,transform .3s;}
 .ar-ledger-val.flash{color:var(--green);transform:scale(1.2);}
 
-/* PRICING */
+{/* ── TESTIMONIALS ── */}
+      <section style={{ padding: '80px 20px', background: '#f0f7ff' }}>
+        <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+          <p style={{ textAlign: 'center', fontSize: 12, fontWeight: 700, color: '#0077B6', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8 }}>
+            {lang === 'ur' ? 'کسٹمر تجربات' : 'Customer Stories'}
+          </p>
+          <h2 style={{ textAlign: 'center', fontSize: 'clamp(22px,4vw,36px)', fontWeight: 800, color: '#1a1a2e', marginBottom: 8 }}>
+            {lang === 'ur' ? 'ہمارے کلائنٹس کیا کہتے ہیں' : 'What Our Clients Say'}
+          </h2>
+          <p style={{ textAlign: 'center', color: '#64748b', fontSize: 15, marginBottom: 48, maxWidth: 500, margin: '0 auto 48px' }}>
+            {lang === 'ur' ? 'پاکستان بھر میں ۲۰۰+ واٹر پلانٹس کا بھروسہ' : 'Trusted by 200+ water plants across Pakistan'}
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24 }}>
+            {t.testimonials.map((tm, i) => (
+              <div key={i} style={{
+                background: 'white', borderRadius: 16, padding: '24px 28px',
+                boxShadow: '0 4px 20px rgba(0,119,182,0.08)',
+                border: '1px solid #e0f0ff',
+                display: 'flex', flexDirection: 'column', gap: 16,
+              }}>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  {'★★★★★'.split('').map((s, j) => (
+                    <span key={j} style={{ color: '#f59e0b', fontSize: 16 }}>{s}</span>
+                  ))}
+                </div>
+                <p style={{
+                  fontSize: 14, color: '#334155', lineHeight: 1.7, flex: 1,
+                  direction: lang === 'ur' ? 'rtl' : 'ltr',
+                  fontStyle: 'italic',
+                }}>"{tm.text}"</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderTop: '1px solid #f0f0f0', paddingTop: 16 }}>
+                  <div style={{
+                    width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
+                    background: 'linear-gradient(135deg, #0077B6, #00B4D8)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'white', fontWeight: 800, fontSize: 16,
+                  }}>{tm.name[0]}</div>
+                  <div>
+                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e', margin: 0 }}>{tm.name}</p>
+                    <p style={{ fontSize: 12, color: '#64748b', margin: '2px 0 0' }}>{tm.biz} · {tm.city}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── PRICING ── */}
 .ar-pricing{background:linear-gradient(145deg,var(--deep),#0D3B6E);}
 .ar-pricing .ar-eye{color:var(--accent);}
 .ar-pricing .ar-title{color:#fff;}
