@@ -244,7 +244,8 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
       qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
       notes: [orderForm.notes, customItems].filter(Boolean).join(' | '),
       delivery_date: orderForm.delivery_date,
-      status: 'pending'
+      status: 'pending',
+      source: 'portal'
     }])
     if (error) { alert('Error: ' + error.message); setPlacingOrder(false); return }
     setOrderSuccess(true)
