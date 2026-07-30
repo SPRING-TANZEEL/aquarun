@@ -313,7 +313,24 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
   return (
     <div>
-      <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '4px' }}>📦 My Deliveries</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>📦 My Deliveries</h2>
+        {orders.length > 0 && (() => {
+          const stops = orders
+            .filter(o => o.customers?.latitude || o.customers?.address)
+            .map(o => o.customers?.latitude && o.customers?.longitude
+              ? `${o.customers.latitude},${o.customers.longitude}`
+              : encodeURIComponent(o.customers?.address || ''))
+          if (stops.length === 0) return null
+          return (
+            <a href={`https://www.google.com/maps/dir/${stops.join('/')}`}
+              target="_blank" rel="noreferrer"
+              style={{ padding: '8px 14px', background: '#1a7a4a', color: 'white', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+              🗺️ {t('My Route', 'میرا روٹ')}
+            </a>
+          )
+        })()}
+      </div>
       {!isOnline && (
         <p style={{ fontSize: '12px', color: '#ea580c', marginBottom: '12px', background: '#fff7ed', padding: '6px 10px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
           📵 Offline — deliveries will sync when internet is available
@@ -583,7 +600,18 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                         <p style={{ fontSize: '13px', color: balance > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: '0 0 4px' }}>
                           {balance > 0 ? `Rs. ${balance.toLocaleString()}` : balance < 0 ? `Adv ${Math.abs(balance).toLocaleString()}` : 'Clear'}
                         </p>
-                        <span style={{ fontSize: '20px', color: '#ccc' }}>›</span>
+                        {(o.customers?.latitude || o.customers?.address) && (
+                          <a href={
+                            o.customers?.latitude && o.customers?.longitude
+                              ? `https://www.google.com/maps/dir/Current+Location/${o.customers.latitude},${o.customers.longitude}`
+                              : `https://www.google.com/maps/dir/Current+Location/${encodeURIComponent(o.customers.address)}`
+                          } target="_blank" rel="noreferrer"
+                            onClick={e => e.stopPropagation()}
+                            style={{ display: 'inline-block', padding: '4px 8px', background: '#e3f0ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginBottom: 4 }}>
+                            📍 Nav
+                          </a>
+                        )}
+                        <span style={{ fontSize: '20px', color: '#ccc', display: 'block' }}>›</span>
                       </div>
                     </div>
                   </div>
