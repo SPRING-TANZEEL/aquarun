@@ -537,7 +537,7 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     setLoading(true)
     let q = supabase
       .from('orders')
-      .select('*, customers(full_name, mobile, customer_code, address, delivery_notes, rate_19l, balance), riders(full_name, id)')
+      .select('*, customers(full_name, mobile, customer_code, address, delivery_notes, rate_19l, balance, latitude, longitude), riders(full_name, id)')
       .eq('tenant_id', tenantId)
       .gte('delivery_date', dateFrom)
       .lte('delivery_date', dateTo)
@@ -661,8 +661,10 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
   function generateRouteLink(riderId) {
     const riderOrders = orders.filter(o => o.riders?.id === riderId && o.status === 'assigned')
     const stops = riderOrders
-      .filter(o => o.customers?.address)
-      .map(o => encodeURIComponent(o.customers.address))
+      .filter(o => o.customers?.latitude || o.customers?.address)
+      .map(o => o.customers?.latitude && o.customers?.longitude
+        ? `${o.customers.latitude},${o.customers.longitude}`
+        : encodeURIComponent(o.customers.address))
     if (stops.length === 0) return null
     return `https://www.google.com/maps/dir/${stops.join('/')}`
   }
@@ -1415,11 +1417,14 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                             💬 WhatsApp
                           </a>
                         )}
-                        {hasMapFeature && o.customers?.address && (
-                          <a href={`https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`}
-                            target="_blank" rel="noreferrer"
+                        {hasMapFeature && (o.customers?.address || o.customers?.latitude) && (
+                          <a href={
+                            o.customers?.latitude && o.customers?.longitude
+                              ? `https://www.google.com/maps?q=${o.customers.latitude},${o.customers.longitude}`
+                              : `https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`
+                          } target="_blank" rel="noreferrer"
                             style={{ padding: '5px 10px', background: '#f0f7ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
-                            📍 Map
+                            📍 {o.customers?.latitude ? 'GPS' : 'Map'}
                           </a>
                         )}
                       </div>
@@ -1500,11 +1505,14 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                                 💬 WA
                               </a>
                             )}
-                            {hasMapFeature && o.customers?.address && (
-                              <a href={`https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`}
-                                target="_blank" rel="noreferrer"
+                            {hasMapFeature && (o.customers?.address || o.customers?.latitude) && (
+                              <a href={
+                                o.customers?.latitude && o.customers?.longitude
+                                  ? `https://www.google.com/maps?q=${o.customers.latitude},${o.customers.longitude}`
+                                  : `https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`
+                              } target="_blank" rel="noreferrer"
                                 style={{ padding: '4px 10px', background: '#f0f7ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                📍 Map
+                                📍 {o.customers?.latitude ? 'GPS' : 'Map'}
                               </a>
                             )}
                           </div>
