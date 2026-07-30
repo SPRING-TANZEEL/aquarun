@@ -658,6 +658,11 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
   }
 
   // ── WhatsApp notification ──
+  function googleMapsNavLink(lat, lng, address) {
+    if (lat && lng) return `https://maps.google.com/maps?daddr=${lat},${lng}&directionsmode=driving`
+    return `https://maps.google.com/maps?daddr=${encodeURIComponent(address)}&directionsmode=driving`
+  }
+
   function generateRouteLink(riderId) {
     const riderOrders = orders.filter(o => o.riders?.id === riderId && o.status === 'assigned')
     const validStops = riderOrders
@@ -666,14 +671,9 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
         ? `${o.customers.latitude},${o.customers.longitude}`
         : o.customers.address)
     if (validStops.length === 0) return null
-    if (validStops.length === 1) {
-      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(validStops[0])}&travelmode=driving`
-    }
-    const origin = encodeURIComponent(validStops[0])
-    const destination = encodeURIComponent(validStops[validStops.length - 1])
-    const waypoints = validStops.slice(1, -1).slice(0, 8).map(s => encodeURIComponent(s)).join('|')
-    const base = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
-    return waypoints ? `${base}&waypoints=${waypoints}` : base
+    // Max 9 stops for Google Maps navigation to work with Start button
+    const limited = validStops.slice(0, 9)
+    return `https://www.google.com/maps/dir/${limited.map(s => encodeURIComponent(s)).join('/')}`
   }
 
   function notifyRider(rider, mode = 'whatsapp') {
@@ -1445,11 +1445,8 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                           </a>
                         )}
                         {hasMapFeature && (o.customers?.address || o.customers?.latitude) && (
-                          <a href={
-                            o.customers?.latitude && o.customers?.longitude
-                              ? `https://www.google.com/maps?q=${o.customers.latitude},${o.customers.longitude}`
-                              : `https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`
-                          } target="_blank" rel="noreferrer"
+                          <a href={googleMapsNavLink(o.customers?.latitude, o.customers?.longitude, o.customers?.address)}
+                            target="_blank" rel="noreferrer"
                             style={{ padding: '5px 10px', background: '#f0f7ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
                             📍 {o.customers?.latitude ? 'GPS' : 'Map'}
                           </a>
@@ -1533,11 +1530,8 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                               </a>
                             )}
                             {hasMapFeature && (o.customers?.address || o.customers?.latitude) && (
-                              <a href={
-                                o.customers?.latitude && o.customers?.longitude
-                                  ? `https://www.google.com/maps?q=${o.customers.latitude},${o.customers.longitude}`
-                                  : `https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`
-                              } target="_blank" rel="noreferrer"
+                              <a href={googleMapsNavLink(o.customers?.latitude, o.customers?.longitude, o.customers?.address)}
+                                target="_blank" rel="noreferrer"
                                 style={{ padding: '4px 10px', background: '#f0f7ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                                 📍 {o.customers?.latitude ? 'GPS' : 'Map'}
                               </a>
