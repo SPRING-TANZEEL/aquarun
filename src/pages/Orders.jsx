@@ -660,13 +660,20 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
   // ── WhatsApp notification ──
   function generateRouteLink(riderId) {
     const riderOrders = orders.filter(o => o.riders?.id === riderId && o.status === 'assigned')
-    const stops = riderOrders
+    const validStops = riderOrders
       .filter(o => o.customers?.latitude || o.customers?.address)
       .map(o => o.customers?.latitude && o.customers?.longitude
         ? `${o.customers.latitude},${o.customers.longitude}`
-        : encodeURIComponent(o.customers.address))
-    if (stops.length === 0) return null
-    return `https://www.google.com/maps/dir/${stops.join('/')}`
+        : o.customers.address)
+    if (validStops.length === 0) return null
+    if (validStops.length === 1) {
+      return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(validStops[0])}&travelmode=driving`
+    }
+    const origin = encodeURIComponent(validStops[0])
+    const destination = encodeURIComponent(validStops[validStops.length - 1])
+    const waypoints = validStops.slice(1, -1).slice(0, 8).map(s => encodeURIComponent(s)).join('|')
+    const base = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`
+    return waypoints ? `${base}&waypoints=${waypoints}` : base
   }
 
   function notifyRider(rider, mode = 'whatsapp') {
