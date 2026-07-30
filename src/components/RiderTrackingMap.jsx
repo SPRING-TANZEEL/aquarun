@@ -27,7 +27,14 @@ export default function RiderTrackingMap({ tenantId }) {
   const [deliveries, setDeliveries]       = useState([]) // completed today
   const [loading, setLoading]             = useState(true)
   const [lastUpdate, setLastUpdate]       = useState(null)
-  const [selectedRider, setSelectedRider] = useState(null) // null = all riders
+  const [selectedRider, setSelectedRider] = useState(null) } // null = all riders
+
+  function selectRider(riderId) {
+    setSelectedRider(riderId)
+    if (mapInstanceRef.current) {
+      mapInstanceRef.current._hasInitialBounds = false
+    }
+  
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
   const [showPanel, setShowPanel]         = useState(true)
 
@@ -344,18 +351,22 @@ export default function RiderTrackingMap({ tenantId }) {
       }
     })
 
-    // Fit bounds
-    const allPoints = [
-      ...visibleRiders.map(r => [r.latitude, r.longitude]),
-      ...orders.filter(o => visibleRiders.find(r => r.rider_id === o.rider_id) && o.customers?.latitude)
-              .map(o => [o.customers.latitude, o.customers.longitude])
-    ]
-    if (allPoints.length > 1) {
-      try {
-        map.fitBounds(L.default.latLngBounds(allPoints), { padding: [40, 40], maxZoom: 15 })
-      } catch {}
-    } else if (allPoints.length === 1) {
-      map.setView(allPoints[0], 14)
+    // Only fit bounds on first load — never on refresh
+    if (!mapInstanceRef.current._hasInitialBounds) {
+      const allPoints = [
+        ...visibleRiders.map(r => [r.latitude, r.longitude]),
+        ...orders.filter(o => visibleRiders.find(r => r.rider_id === o.rider_id) && o.customers?.latitude)
+                .map(o => [o.customers.latitude, o.customers.longitude])
+      ]
+      if (allPoints.length > 1) {
+        try {
+          map.fitBounds(L.default.latLngBounds(allPoints), { padding: [40, 40], maxZoom: 15 })
+          mapInstanceRef.current._hasInitialBounds = true
+        } catch {}
+      } else if (allPoints.length === 1) {
+        map.setView(allPoints[0], 14)
+        mapInstanceRef.current._hasInitialBounds = true
+      }
     }
   }
 
@@ -414,7 +425,7 @@ export default function RiderTrackingMap({ tenantId }) {
 
       {/* Rider filter tabs */}
       <div style={{ background: '#1e3a5f', padding: '10px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <button onClick={() => setSelectedRider(null)} style={{
+        <button onClick={() => selectRider(null)} style={{
           padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
           background: !selectedRider ? '#0f4c81' : 'rgba(255,255,255,0.1)',
           color: !selectedRider ? '#fff' : '#93c5fd',
@@ -425,7 +436,7 @@ export default function RiderTrackingMap({ tenantId }) {
           const stats = getRiderStats(r.rider_id)
           const color = r.riderInfo?.color || '#0f4c81'
           return (
-            <button key={r.rider_id} onClick={() => setSelectedRider(r.rider_id === selectedRider ? null : r.rider_id)} style={{
+            <button key={r.rider_id} onClick={() => selectRider(r.rider_id === selectedRider ? null : r.rider_id)} style={{
               padding: '6px 14px', borderRadius: 20, border: `2px solid ${selectedRider === r.rider_id ? color : 'transparent'}`, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
               background: selectedRider === r.rider_id ? color : 'rgba(255,255,255,0.1)',
               color: '#fff', display: 'flex', alignItems: 'center', gap: 6,
@@ -520,6 +531,25 @@ export default function RiderTrackingMap({ tenantId }) {
                       <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.8)' }}>🍶 {stats.total19l} bottles</span>
                     </div>
                   </div>
+
+                  {/* Next stops highlight */}
+                  {(() => {
+                    const nextPending = riderOrders.filter(o => !stats.deliveredIds.has(o.customer_id) && o.status !== 'completed').slice(0, 4)
+                    if (nextPending.length === 0) return null
+                    return (
+                      <div style={{ background: '#fff8e1', borderBottom: '1px solid #fde68a', padding: '8px 14px' }}>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: '#b45309', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: 0.5 }}>⏭ Next Stops</p>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {nextPending.map((o, i) => (
+                            <div key={o.id} style={{ background: 'white', border: '1.5px solid #fde68a', borderRadius: 6, padding: '4px 8px', fontSize: 10, fontWeight: 700, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4 }}>
+                              <span style={{ background: '#b45309', color: 'white', borderRadius: '50%', width: 14, height: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, flexShrink: 0 }}>{i + 1}</span>
+                              {(o.customers?.full_name || 'Customer').slice(0, 14)}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Order list */}
                   <div>
