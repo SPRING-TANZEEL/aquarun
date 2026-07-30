@@ -38,6 +38,15 @@ export default async function handler(req, res) {
       return res.json({ ok: true })
     }
 
+    if (action === 'toggleFeature') {
+      const { field, value } = req.body
+      const allowed = ['has_map_feature', 'has_tracking_feature']
+      if (!allowed.includes(field)) return res.status(400).json({ error: 'Invalid field' })
+      const { error } = await supabaseAdmin.from('tenants').update({ [field]: value }).eq('id', tenantId)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.json({ ok: true })
+    }
+
     // ── SET TRANSACTION PASSWORD ────────────────────────────────────
     if (action === 'setTransactionPassword') {
       const { txnPassword } = req.body

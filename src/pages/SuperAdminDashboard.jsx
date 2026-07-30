@@ -128,15 +128,12 @@ export default function SuperAdminDashboard({ onLogout }) {
   async function toggleFeature(t, field) {
     try {
       const newVal = !t[field]
-      // Update local state immediately for smooth toggle
       setTenants(prev => prev.map(x => x.id === t.id ? { ...x, [field]: newVal } : x))
-      const { error } = await supabase.from('tenants').update({ [field]: newVal }).eq('id', t.id)
-      if (error) {
-        // Revert on error
-        setTenants(prev => prev.map(x => x.id === t.id ? { ...x, [field]: !newVal } : x))
-        alert('Error: ' + error.message)
-      }
-    } catch (e) { alert('Error: ' + e.message) }
+      await superAdminAction({ action: 'toggleFeature', tenantId: t.id, field, value: newVal })
+    } catch (e) {
+      setTenants(prev => prev.map(x => x.id === t.id ? { ...x, [field]: !t[field] } : x))
+      alert('Error: ' + e.message)
+    }
   }
 
   async function recordPayment(t) {
