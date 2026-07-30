@@ -1,14 +1,10 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-// All mutating SuperAdmin actions go through this server-side route
-// so the service role key bypasses RLS on the tenants table.
 async function superAdminAction(payload) {
   const res = await fetch('/api/super-admin-actions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   })
   const data = await res.json()
@@ -16,14 +12,47 @@ async function superAdminAction(payload) {
   return data
 }
 
+const PLAN_COLORS = {
+  basic:    { bg: '#e3f0ff', color: '#0f4c81', label: 'Basic' },
+  standard: { bg: '#e8f5e9', color: '#1a7a4a', label: 'Standard' },
+  premium:  { bg: '#f3e8ff', color: '#7c3aed', label: 'Premium' },
+  owner:    { bg: '#fff8e1', color: '#b45309', label: 'Owner' },
+}
+
+function FeatureToggle({ active, onToggle, icon, label }) {
+  return (
+    <button onClick={onToggle} style={{
+      display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px',
+      borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+      background: active ? '#e8f5e9' : '#f0f4f8',
+      color: active ? '#1a7a4a' : '#888',
+      transition: 'all 0.15s',
+    }}>
+      <span>{icon}</span>
+      <span>{label}</span>
+      <span style={{
+        width: 28, height: 14, borderRadius: 7, position: 'relative',
+        background: active ? '#1a7a4a' : '#ccc', transition: 'all 0.15s', flexShrink: 0,
+      }}>
+        <span style={{
+          position: 'absolute', top: 2, left: active ? 16 : 2,
+          width: 10, height: 10, borderRadius: '50%', background: 'white',
+          transition: 'all 0.15s',
+        }} />
+      </span>
+    </button>
+  )
+}
+
 export default function SuperAdminDashboard({ onLogout }) {
   const [tenants, setTenants] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [editTenant, setEditTenant] = useState(null)
+  const [expandedId, setExpandedId] = useState(null)
   const [form, setForm] = useState({
-    tenant_code: '', business_name: '', admin_password: '', email: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: ''
+    tenant_code: '', business_name: '', admin_password: '', email: '',
+    plan: 'basic', setup_fee: '', monthly_fee: '', notes: ''
   })
 
   useEffect(() => { fetchTenants() }, [])
@@ -35,404 +64,366 @@ export default function SuperAdminDashboard({ onLogout }) {
     setLoading(false)
   }
 
+  // ── Stats ────────────────────────────────────────────────────
+  const totalClients   = tenants.length
+  const activeClients  = tenants.filter(t => t.is_active).length
+  const monthlyRevenue = tenants.filter(t => t.is_active && t.tenant_code !== 'SW001').reduce((s, t) => s + Number(t.monthly_fee || 0), 0)
+  const overdueCount   = tenants.filter(t => t.next_due_date && new Date(t.next_due_date) < new Date() && t.is_active && t.tenant_code !== 'SW001').length
+
+  // ── Actions ──────────────────────────────────────────────────
   async function addTenant() {
-    if (!form.tenant_code || !form.business_name || !form.admin_password) {
-      return alert('Business ID, Name and Password are required')
-    }
-    if (!form.email) {
-      return alert('Email is required for client login')
-    }
+    if (!form.tenant_code || !form.business_name || !form.admin_password) return alert('Business ID, Name and Password are required')
+    if (!form.email) return alert('Email is required for client login')
     setSaving(true)
-
-    // Create Supabase Auth account via super-admin-actions API
-    const authRes = await superAdminAction({
-      action: 'createAuthUser',
-      email: form.email.trim().toLowerCase(),
-      password: form.admin_password,
-      tenantCode: form.tenant_code.toUpperCase()
-    })
-
-    if (!authRes.ok && !authRes.auth_user_id) {
-      alert('Error creating auth account: ' + (authRes.error || 'Unknown error'))
-      setSaving(false)
-      return
-    }
-
-    const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
-    const hashedPassword = hashData || form.admin_password
-
-    let createRes
     try {
-      createRes = await superAdminAction({
+      const authRes = await superAdminAction({
+        action: 'createAuthUser',
+        email: form.email.trim().toLowerCase(),
+        password: form.admin_password,
+        tenantCode: form.tenant_code.toUpperCase()
+      })
+      if (!authRes.ok && !authRes.auth_user_id) { alert('Error creating auth account: ' + (authRes.error || 'Unknown error')); setSaving(false); return }
+
+      const { data: hashData } = await supabase.rpc('hash_password', { password_input: form.admin_password })
+      const hashedPassword = hashData || form.admin_password
+
+      const createRes = await superAdminAction({
         action: 'createTenant',
         tenantData: {
-        tenant_code: form.tenant_code.toUpperCase(),
-        business_name: form.business_name,
-        admin_password: hashedPassword,
-        email: form.email.trim().toLowerCase(),
-        auth_user_id: authRes.auth_user_id,
-        plan: form.plan,
-        setup_fee: Number(form.setup_fee) || 0,
-        monthly_fee: Number(form.monthly_fee) || 0,
-        notes: form.notes,
-        setup_fee_paid: false,
-        is_active: true,
-        setup_date: new Date().toISOString().split('T')[0],
-        next_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      }
+          tenant_code: form.tenant_code.toUpperCase(),
+          business_name: form.business_name,
+          admin_password: hashedPassword,
+          email: form.email.trim().toLowerCase(),
+          auth_user_id: authRes.auth_user_id,
+          plan: form.plan,
+          setup_fee: Number(form.setup_fee) || 0,
+          monthly_fee: Number(form.monthly_fee) || 0,
+          notes: form.notes,
+          setup_fee_paid: false,
+          is_active: true,
+          setup_date: new Date().toISOString().split('T')[0],
+          next_due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+        }
       })
+      if (!createRes?.ok) { alert('Error: ' + (createRes?.error || 'Unknown error')); setSaving(false); return }
+
+      setForm({ tenant_code: '', business_name: '', admin_password: '', email: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: '' })
+      setShowAddForm(false)
+      fetchTenants()
+      alert(`✅ Client created!\n\nBusiness ID: ${form.tenant_code.toUpperCase()}\nEmail: ${form.email}\nPassword: ${form.admin_password}\n\nShare these credentials with the client.`)
     } catch (err) {
-      alert('Network error: ' + err.message)
-      setSaving(false)
-      return
+      alert('Error: ' + err.message)
     }
-
-    if (!createRes?.ok) { alert('Error: ' + (createRes?.error || 'Unknown error')); setSaving(false); return }
-    const newTenant = createRes.tenant
-
-    const tenantUUID = newTenant.id
-    // COA and settings are now created inside the createTenant API action
-
-    setForm({ tenant_code: '', business_name: '', admin_password: '', email: '', plan: 'basic', setup_fee: '', monthly_fee: '', notes: '' })
-    setShowAddForm(false)
-    fetchTenants()
     setSaving(false)
-    alert(`✅ Client created!\n\nBusiness ID: ${form.tenant_code.toUpperCase()}\nEmail: ${form.email}\nPassword: ${form.admin_password}\n\nShare these details with the client.`)
   }
 
-  async function createDefaultCOA(tenantId) {
-    const accounts = [
-      { tenant_id: tenantId, account_code: '1001', account_name: 'Cash in Hand', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1002', account_name: 'JazzCash Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1003', account_name: 'Bank Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1100', account_name: 'Accounts Receivable', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1200', account_name: 'Inventory - Raw Materials', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1201', account_name: 'Inventory - Finished Goods', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1202', account_name: 'Inventory - Trading Items', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1300', account_name: 'Prepaid Expenses', account_type: 'asset', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1500', account_name: 'Vehicle - Delivery', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1501', account_name: 'Machinery & Equipment', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1502', account_name: 'Accumulated Depreciation', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '2001', account_name: 'Accounts Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '2100', account_name: 'Salary Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '2200', account_name: 'Advance from Customers', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '2300', account_name: 'Tax Payable', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '3001', account_name: 'Owner Capital', account_type: 'equity', account_subtype: 'capital', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '3002', account_name: 'Owner Drawings', account_type: 'equity', account_subtype: 'drawings', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '3003', account_name: 'Retained Earnings', account_type: 'equity', account_subtype: 'capital', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '4001', account_name: 'Water Sales - 19L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '4002', account_name: 'Water Sales - Half Litre', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '4003', account_name: 'Water Sales - 1.5L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '4004', account_name: 'Other Sales', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '4100', account_name: 'Delivery Charges', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '4200', account_name: 'Other Income', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '5001', account_name: 'Raw Material Cost', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '5002', account_name: 'Production Overhead', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '5003', account_name: 'Cost of Goods Sold', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '5004', account_name: 'Raw Material Consumed', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6001', account_name: 'Rider Salaries', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6002', account_name: 'Salary Advances', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6003', account_name: 'Rider Field Expenses', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6004', account_name: 'Rent', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6005', account_name: 'Electricity', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6006', account_name: 'Fuel - Office', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6007', account_name: 'Maintenance', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6008', account_name: 'Supplies', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6009', account_name: 'Other Expenses', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6010', account_name: 'Water Testing Fees', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6011', account_name: 'Vehicle Running Cost', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6012', account_name: 'Depreciation', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6013', account_name: 'Telephone & Internet', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6014', account_name: 'Bank Charges', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6015', account_name: 'Printing & Stationery', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6016', account_name: 'Advertising & Marketing', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1004', account_name: 'EasyPaisa Account', account_type: 'asset', account_subtype: 'cash', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1101', account_name: 'Receivable from Riders', account_type: 'asset', account_subtype: 'receivable', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1102', account_name: 'JazzCash Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6017', account_name: 'Rider Fuel & Vehicle', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6018', account_name: 'Rider Refreshments', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '6019', account_name: 'Rider Repairs', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
-      { tenant_id: tenantId, account_code: '1104', account_name: 'Salary Advances to Riders', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
-    ]
-    await supabase.from('chart_of_accounts').insert(accounts)
-  }
-
-  async function createDefaultSettings(tenantId, businessName) {
-    const settings = [
-      { setting_key: 'business_name', setting_value: businessName, tenant_id: tenantId },
-      { setting_key: 'setup_completed', setting_value: 'false', tenant_id: tenantId },
-      { setting_key: 'opening_cash_balance', setting_value: '0', tenant_id: tenantId },
-      { setting_key: 'opening_jazzcash_balance', setting_value: '0', tenant_id: tenantId },
-      { setting_key: 'opening_bank_balance', setting_value: '0', tenant_id: tenantId },
-    ]
-    await supabase.from('business_settings').insert(settings)
-  }
-
-  async function setTransactionPassword(tenant) {
-    const newPass = prompt("Set Transaction Password for " + tenant.business_name + "\n\nThis password is required to void or restore any transaction.\nShare ONLY with business owner.\n\nEnter new transaction password:")
-    if (!newPass || newPass.trim().length < 4) return alert("Password must be at least 4 characters")
+  async function toggleActive(t) {
+    if (t.tenant_code === 'SW001') return alert('Cannot deactivate your own business')
     try {
-      await superAdminAction({ action: 'setTransactionPassword', tenantId: tenant.id, txnPassword: newPass.trim() })
-      alert("Transaction password set!\n\nBusiness: " + tenant.business_name + "\nPassword: " + newPass.trim() + "\n\nShare ONLY with business owner.")
-    } catch (e) { alert("Error: " + e.message) }
-  }
-
-  async function toggleActive(tenant) {
-    if (tenant.tenant_code === 'SW001') return alert('Cannot deactivate your own business')
-    try {
-      await superAdminAction({ action: 'toggleActive', tenantId: tenant.id, isActive: !tenant.is_active })
+      await superAdminAction({ action: 'toggleActive', tenantId: t.id, isActive: !t.is_active })
       fetchTenants()
-    } catch (e) { alert("Error: " + e.message) }
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
-  async function recordPayment(tenant) {
-    const amount = prompt(`Record payment for ${tenant.business_name}\nMonthly fee: Rs. ${tenant.monthly_fee}\nEnter amount received:`)
+  async function toggleFeature(t, field) {
+    try {
+      await supabase.from('tenants').update({ [field]: !t[field] }).eq('id', t.id)
+      fetchTenants()
+    } catch (e) { alert('Error: ' + e.message) }
+  }
+
+  async function recordPayment(t) {
+    const amount = prompt(`Record payment for ${t.business_name}\nMonthly fee: Rs. ${t.monthly_fee}\nEnter amount received:`)
     if (!amount || isNaN(amount)) return
-    const nextDue = new Date()
-    nextDue.setMonth(nextDue.getMonth() + 1)
+    const nextDue = new Date(); nextDue.setMonth(nextDue.getMonth() + 1)
     try {
-      await superAdminAction({
-        action: 'recordPayment',
-        tenantId: tenant.id,
-        amount: Number(amount),
-        lastPaymentDate: new Date().toISOString().split('T')[0],
-        nextDueDate: nextDue.toISOString().split('T')[0],
-      })
-      fetchTenants()
-      alert('✅ Payment recorded!')
-    } catch (e) { alert("Error: " + e.message) }
+      await superAdminAction({ action: 'recordPayment', tenantId: t.id, amount: Number(amount), lastPaymentDate: new Date().toISOString().split('T')[0], nextDueDate: nextDue.toISOString().split('T')[0] })
+      fetchTenants(); alert('✅ Payment recorded!')
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
-  async function resetPassword(tenant) {
-    const newPass = prompt(`Reset password for ${tenant.business_name}\nEnter new password:`)
+  async function resetPassword(t) {
+    const newPass = prompt(`Reset password for ${t.business_name}\nEnter new password:`)
     if (!newPass || newPass.trim().length < 4) return alert('Password must be at least 4 characters')
     try {
-      await superAdminAction({ action: 'resetPassword', tenantId: tenant.id, newPassword: newPass.trim() })
-      alert(`✅ Password reset!\n\nBusiness ID: ${tenant.tenant_code}\nNew Password: ${newPass.trim()}`)
+      await superAdminAction({ action: 'resetPassword', tenantId: t.id, newPassword: newPass.trim() })
+      alert(`✅ Password reset!\n\nBusiness ID: ${t.tenant_code}\nNew Password: ${newPass.trim()}`)
       fetchTenants()
     } catch (e) { alert('Error: ' + e.message) }
   }
 
-  async function changeBusinessId(tenant) {
-    const newId = prompt(`Change Business ID for ${tenant.business_name}\nCurrent ID: ${tenant.tenant_code}\nEnter new Business ID:`)
+  async function setTransactionPassword(t) {
+    const txnPass = prompt(`Set transaction password for ${t.business_name}:`)
+    if (!txnPass || txnPass.trim().length < 4) return alert('Password must be at least 4 characters')
+    try {
+      await superAdminAction({ action: 'setTransactionPassword', tenantId: t.id, txnPassword: txnPass.trim() })
+      alert('✅ Transaction password set!')
+    } catch (e) { alert('Error: ' + e.message) }
+  }
+
+  async function changeBusinessId(t) {
+    const newId = prompt(`Change Business ID for ${t.business_name}\nCurrent: ${t.tenant_code}\nNew Business ID:`)
     if (!newId || newId.trim().length < 3) return alert('Business ID must be at least 3 characters')
-    const cleanId = newId.trim().toUpperCase()
     try {
-      await superAdminAction({ action: 'changeBusinessId', tenantId: tenant.id, newCode: cleanId })
-      alert(`✅ Business ID changed!\n\nNew Business ID: ${cleanId}\nPassword: unchanged\n\nShare new ID with client.`)
+      await superAdminAction({ action: 'changeBusinessId', tenantId: t.id, newCode: newId.trim().toUpperCase() })
+      alert(`✅ Business ID changed to: ${newId.trim().toUpperCase()}`)
       fetchTenants()
     } catch (e) { alert('Error: ' + e.message) }
   }
 
-  async function deleteTenant(tenant) {
-    if (tenant.tenant_code === 'SW001') return alert('Cannot delete your own business')
-    if (!window.confirm(`DELETE ${tenant.business_name}?\n\nThis will permanently delete ALL data. This cannot be undone.`)) return
-    if (!window.confirm(`Final confirmation — delete ${tenant.business_name} permanently?`)) return
+  async function deleteTenant(t) {
+    if (t.tenant_code === 'SW001') return alert('Cannot delete your own business')
+    if (!window.confirm(`DELETE ${t.business_name}?\n\nThis will permanently delete ALL data. This cannot be undone.`)) return
+    if (!window.confirm(`Final confirmation — delete ${t.business_name} permanently?`)) return
     try {
-      await superAdminAction({ action: 'deleteTenant', tenantId: tenant.id, tenantCode: tenant.tenant_code })
-      alert(`✅ ${tenant.business_name} deleted successfully.`)
+      await superAdminAction({ action: 'deleteTenant', tenantId: t.id, tenantCode: t.tenant_code })
+      alert(`✅ ${t.business_name} deleted.`)
       fetchTenants()
     } catch (e) { alert('Error: ' + e.message) }
   }
 
-  const totalMonthly = tenants.filter(t => t.is_active && t.tenant_code !== 'SW001').reduce((s, t) => s + Number(t.monthly_fee || 0), 0)
-  const totalClients = tenants.filter(t => t.tenant_code !== 'SW001').length
-  const activeClients = tenants.filter(t => t.is_active && t.tenant_code !== 'SW001').length
-  const overdueClients = tenants.filter(t => {
-    if (!t.next_due_date || t.tenant_code === 'SW001') return false
-    return new Date(t.next_due_date) < new Date()
-  }).length
+  function copyWhatsApp(t) {
+    const msg = `Assalam o Alaikum! 🎉\nYour AquaRun account is ready.\n\n🌐 Website: aquarun.pk\n🏢 Business ID: ${t.tenant_code}\n🔑 Password: [your password]\n\nPlease change your password after first login.\nSupport: +92 323 7919338`
+    navigator.clipboard.writeText(msg).then(() => alert('✅ Message copied! Paste in WhatsApp.')).catch(() => prompt('Copy this:', msg))
+  }
 
-  const inp = { width: '100%', padding: '10px 14px', border: '1.5px solid #e8eaed', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', marginBottom: '12px', color: '#333', background: 'white' }
+  const inp = {
+    width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0',
+    borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box',
+    background: 'white', color: '#333',
+  }
+
+  const isOverdue = (t) => t.next_due_date && new Date(t.next_due_date) < new Date() && t.is_active && t.tenant_code !== 'SW001'
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f0f2f5', fontFamily: "'Segoe UI', sans-serif" }}>
+    <div style={{ minHeight: '100vh', background: '#f0f4f8', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
-      {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f4c81)', color: 'white', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ fontSize: '28px' }}>💧</div>
+      {/* Top Bar */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0f4c81 0%, #1a6bad 100%)',
+        padding: '0 24px', height: 56,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>💧</div>
           <div>
-            <p style={{ fontSize: '18px', fontWeight: '800', margin: 0 }}>AquaRun SuperAdmin</p>
-            <p style={{ fontSize: '12px', opacity: 0.6, margin: 0 }}>Client Management Portal</p>
+            <p style={{ color: '#fff', fontWeight: 800, fontSize: 15, margin: 0, letterSpacing: '-0.3px' }}>AquaRun SuperAdmin</p>
+            <p style={{ color: '#93c5fd', fontSize: 11, margin: 0 }}>Client Management Portal</p>
           </div>
         </div>
-        <button onClick={onLogout}
-          style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+        <button onClick={onLogout} style={{ padding: '7px 16px', background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
           Logout
         </button>
       </div>
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 20px' }}>
+      <div style={{ maxWidth: 1300, margin: '0 auto', padding: '24px 16px' }}>
 
-        {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        {/* Stats Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 24 }}>
           {[
-            { label: 'Total Clients', value: totalClients, icon: '🏢', color: '#0f4c81' },
-            { label: 'Active Clients', value: activeClients, icon: '✅', color: '#1a7a4a' },
-            { label: 'Monthly Revenue', value: `Rs. ${totalMonthly.toLocaleString()}`, icon: '💰', color: '#9c27b0' },
-            { label: 'Overdue', value: overdueClients, icon: '⚠️', color: '#f44336' },
+            { label: 'Total Clients', value: totalClients, icon: '🏢', color: '#0f4c81', bg: '#e3f0ff' },
+            { label: 'Active Clients', value: activeClients, icon: '✅', color: '#1a7a4a', bg: '#e8f5e9' },
+            { label: 'Monthly Revenue', value: `Rs. ${monthlyRevenue.toLocaleString()}`, icon: '💰', color: '#7c3aed', bg: '#f3e8ff' },
+            { label: 'Overdue', value: overdueCount, icon: '⚠️', color: overdueCount > 0 ? '#c62828' : '#1a7a4a', bg: overdueCount > 0 ? '#ffebee' : '#e8f5e9' },
           ].map(s => (
-            <div key={s.label} style={{ background: 'white', borderRadius: '12px', padding: '18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', borderTop: `4px solid ${s.color}` }}>
-              <p style={{ fontSize: '11px', color: '#888', margin: '0 0 8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</p>
-              <p style={{ fontSize: '28px', margin: '0 0 2px' }}>{s.icon}</p>
-              <p style={{ fontSize: '22px', fontWeight: '700', color: s.color, margin: 0 }}>{s.value}</p>
+            <div key={s.label} style={{ background: 'white', borderRadius: 12, padding: '16px 20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: `1px solid ${s.bg}`, borderLeft: `4px solid ${s.color}` }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ fontSize: 11, color: '#888', margin: '0 0 6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</p>
+                  <p style={{ fontSize: 24, fontWeight: 800, color: s.color, margin: 0, lineHeight: 1 }}>{s.value}</p>
+                </div>
+                <div style={{ width: 44, height: 44, borderRadius: 10, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{s.icon}</div>
+              </div>
             </div>
           ))}
         </div>
 
-        {/* Main Card */}
-        <div style={{ background: 'white', borderRadius: '16px', padding: '24px', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', marginBottom: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>🏢 Client Accounts</h2>
-            <button onClick={() => setShowAddForm(!showAddForm)}
-              style={{ padding: '10px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
+        {/* Client Accounts */}
+        <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden', marginBottom: 20 }}>
+          {/* Header */}
+          <div style={{ padding: '18px 24px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#1a1a2e' }}>🏢 Client Accounts</h2>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: '#888' }}>{activeClients} active · {totalClients} total</p>
+            </div>
+            <button onClick={() => setShowAddForm(!showAddForm)} style={{
+              padding: '10px 20px', background: showAddForm ? '#6b7280' : '#0f4c81', color: 'white',
+              border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
               {showAddForm ? '✕ Cancel' : '+ Add New Client'}
             </button>
           </div>
 
           {/* Add Form */}
           {showAddForm && (
-            <div style={{ background: '#f8f9fa', borderRadius: '12px', padding: '20px', marginBottom: '20px', border: '1px solid #e8eaed' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 16px' }}>New Client Setup</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ padding: '20px 24px', background: '#f8fafc', borderBottom: '1px solid #e0e0e0' }}>
+              <h3 style={{ margin: '0 0 16px', fontSize: 14, color: '#0f4c81', fontWeight: 700 }}>➕ New Client Account</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginBottom: 12 }}>
+                {[
+                  { key: 'tenant_code', label: 'Business ID *', placeholder: 'e.g. ABC001' },
+                  { key: 'business_name', label: 'Business Name *', placeholder: 'e.g. Pure Water Kamoke' },
+                  { key: 'email', label: 'Email *', placeholder: 'admin@example.com' },
+                  { key: 'admin_password', label: 'Password *', placeholder: 'Min 4 characters' },
+                  { key: 'setup_fee', label: 'Setup Fee (Rs.)', placeholder: '0' },
+                  { key: 'monthly_fee', label: 'Monthly Fee (Rs.)', placeholder: '2500' },
+                ].map(f => (
+                  <div key={f.key}>
+                    <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 4, fontWeight: 600 }}>{f.label}</label>
+                    <input value={form[f.key]} onChange={e => setForm({ ...form, [f.key]: e.target.value })}
+                      placeholder={f.placeholder} style={inp} />
+                  </div>
+                ))}
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Business ID * <span style={{ color: '#888', fontWeight: '400' }}>(e.g. ABC001)</span></label>
-                  <input value={form.tenant_code} onChange={e => setForm({ ...form, tenant_code: e.target.value.toUpperCase() })}
-                    placeholder="ABC001" style={inp} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Business Name *</label>
-                  <input value={form.business_name} onChange={e => setForm({ ...form, business_name: e.target.value })}
-                    placeholder="ABC Water Company" style={inp} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Admin Password *</label>
-                  <input value={form.admin_password} onChange={e => setForm({ ...form, admin_password: e.target.value })}
-                    placeholder="Strong password" style={inp} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Client Email *</label>
-                  <input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                    placeholder="client@email.com" style={inp} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Plan</label>
-                  <select value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })} style={inp}>
+                  <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 4, fontWeight: 600 }}>Plan</label>
+                  <select value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })}
+                    style={{ ...inp }}>
                     <option value="basic">Basic</option>
                     <option value="standard">Standard</option>
                     <option value="premium">Premium</option>
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Setup Fee (Rs.)</label>
-                  <input type="number" value={form.setup_fee} onChange={e => setForm({ ...form, setup_fee: e.target.value })}
-                    placeholder="15000" style={inp} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Monthly Fee (Rs.)</label>
-                  <input type="number" value={form.monthly_fee} onChange={e => setForm({ ...form, monthly_fee: e.target.value })}
-                    placeholder="2000" style={inp} />
+                  <label style={{ fontSize: 11, color: '#555', display: 'block', marginBottom: 4, fontWeight: 600 }}>Notes</label>
+                  <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+                    placeholder="Any notes..." style={inp} />
                 </div>
               </div>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Notes</label>
-                <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                  placeholder="Client contact, location, any notes..." style={inp} />
-              </div>
-              <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600', margin: 0 }}>
-                  ✅ Full Chart of Accounts (42 accounts) will be created automatically
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => setShowAddForm(false)}
-                  style={{ flex: 1, padding: '12px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px' }}>
-                  Cancel
-                </button>
-                <button onClick={addTenant} disabled={saving}
-                  style={{ flex: 2, padding: '12px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
-                  {saving ? 'Creating...' : '✓ Create Client Account'}
-                </button>
-              </div>
+              <button onClick={addTenant} disabled={saving} style={{
+                padding: '11px 28px', background: '#1a7a4a', color: 'white', border: 'none',
+                borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 700,
+              }}>{saving ? '⏳ Creating...' : '✓ Create Client Account'}</button>
             </div>
           )}
 
-          {/* Clients Table */}
-          {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : (
+          {/* Table */}
+          {loading ? (
+            <div style={{ padding: 60, textAlign: 'center', color: '#888' }}>Loading clients...</div>
+          ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
                 <thead>
                   <tr style={{ background: '#f8f9fa' }}>
-                    {['Business ID', 'Business Name', 'Plan', 'Setup Fee', 'Monthly Fee', 'Next Due', 'Status', 'Actions'].map(h => (
-                      <th key={h} style={{ padding: '12px 14px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '700', borderBottom: '2px solid #eee', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
+                    {['Business', 'Plan', 'Fees', 'Next Due', 'Features', 'Status', 'Actions'].map(h => (
+                      <th key={h} style={{ padding: '12px 16px', textAlign: 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '1px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {tenants.map(t => {
-                    const isOverdue = t.next_due_date && new Date(t.next_due_date) < new Date() && t.tenant_code !== 'SW001'
+                  {tenants.map((t, idx) => {
+                    const plan = PLAN_COLORS[t.plan] || PLAN_COLORS.basic
+                    const overdue = isOverdue(t)
+                    const isExpanded = expandedId === t.id
+                    const isOwner = t.tenant_code === 'SW001'
                     return (
-                      <tr key={t.id} style={{ borderBottom: '1px solid #f0f0f0', background: isOverdue ? '#fff5f5' : 'white' }}>
-                        <td style={{ padding: '14px', fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>{t.tenant_code}</td>
-                        <td style={{ padding: '14px' }}>
-                          <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 2px' }}>{t.business_name}</p>
-                          {t.notes && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{t.notes}</p>}
+                      <tr key={t.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                        {/* Business */}
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 8, background: isOwner ? '#fff8e1' : '#e3f0ff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                              {isOwner ? '⭐' : '🏢'}
+                            </div>
+                            <div>
+                              <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 1px', color: '#1a1a2e' }}>{t.business_name}</p>
+                              <p style={{ fontSize: 11, color: '#0f4c81', margin: '0 0 1px', fontWeight: 600 }}>{t.tenant_code}</p>
+                              {t.email && <p style={{ fontSize: 10, color: '#aaa', margin: 0 }}>{t.email}</p>}
+                              {t.notes && <p style={{ fontSize: 10, color: '#888', margin: '2px 0 0', fontStyle: 'italic' }}>{t.notes}</p>}
+                            </div>
+                          </div>
                         </td>
-                        <td style={{ padding: '14px' }}>
-                          <span style={{ fontSize: '11px', background: '#e3f0ff', color: '#0f4c81', padding: '3px 10px', borderRadius: '20px', fontWeight: '600', textTransform: 'capitalize' }}>
-                            {t.plan}
+
+                        {/* Plan */}
+                        <td style={{ padding: '14px 16px' }}>
+                          <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: plan.bg, color: plan.color }}>
+                            {plan.label}
                           </span>
                         </td>
-                        <td style={{ padding: '14px', fontSize: '13px', color: '#333' }}>
-                          Rs. {Number(t.setup_fee || 0).toLocaleString()}
-                          {t.setup_fee_paid && <span style={{ fontSize: '10px', color: '#1a7a4a', marginLeft: '4px' }}>✅</span>}
+
+                        {/* Fees */}
+                        <td style={{ padding: '14px 16px', fontSize: 12 }}>
+                          {isOwner ? <span style={{ color: '#aaa' }}>—</span> : (
+                            <div>
+                              <p style={{ margin: '0 0 2px', color: '#555' }}>Setup: <strong>Rs. {Number(t.setup_fee || 0).toLocaleString()}</strong></p>
+                              <p style={{ margin: 0, color: '#555' }}>Monthly: <strong style={{ color: '#1a7a4a' }}>Rs. {Number(t.monthly_fee || 0).toLocaleString()}</strong></p>
+                              {t.last_payment_date && <p style={{ margin: '2px 0 0', fontSize: 10, color: '#888' }}>Last paid: {new Date(t.last_payment_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>}
+                            </div>
+                          )}
                         </td>
-                        <td style={{ padding: '14px', fontSize: '13px', fontWeight: '600', color: '#1a7a4a' }}>
-                          {t.tenant_code === 'SW001' ? '—' : 'Rs. ' + Number(t.monthly_fee || 0).toLocaleString()}
+
+                        {/* Next Due */}
+                        <td style={{ padding: '14px 16px' }}>
+                          {isOwner ? <span style={{ color: '#aaa' }}>—</span> : (
+                            <span style={{
+                              fontSize: 12, fontWeight: 600,
+                              color: overdue ? '#c62828' : '#1a7a4a',
+                              background: overdue ? '#ffebee' : '#e8f5e9',
+                              padding: '4px 8px', borderRadius: 6,
+                            }}>
+                              {overdue ? '⚠️ ' : ''}
+                              {t.next_due_date ? new Date(t.next_due_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                            </span>
+                          )}
                         </td>
-                        <td style={{ padding: '14px', fontSize: '12px', color: isOverdue ? '#f44336' : '#555', fontWeight: isOverdue ? '700' : '400' }}>
-                          {t.tenant_code === 'SW001' ? '—' : t.next_due_date ? new Date(t.next_due_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                          {isOverdue && <span style={{ display: 'block', fontSize: '10px', color: '#f44336' }}>OVERDUE</span>}
+
+                        {/* Features */}
+                        <td style={{ padding: '14px 16px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                            <FeatureToggle
+                              active={t.has_map_feature}
+                              onToggle={() => toggleFeature(t, 'has_map_feature')}
+                              icon="🗺️" label="Map & Route"
+                            />
+                            <FeatureToggle
+                              active={t.has_map_feature}
+                              onToggle={() => toggleFeature(t, 'has_map_feature')}
+                              icon="📡" label="Live Tracking"
+                            />
+                          </div>
                         </td>
-                        <td style={{ padding: '14px' }}>
-                          {t.tenant_code === 'SW001' ? (
-                            <span style={{ fontSize: '11px', background: '#e8f5e9', color: '#1a7a4a', padding: '4px 10px', borderRadius: '20px', fontWeight: '600' }}>Your Business</span>
+
+                        {/* Status */}
+                        <td style={{ padding: '14px 16px' }}>
+                          {isOwner ? (
+                            <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#fff8e1', color: '#b45309' }}>Your Business</span>
                           ) : (
-                            <span onClick={() => toggleActive(t)}
-                              style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', background: t.is_active ? '#e8f5e9' : '#ffebee', color: t.is_active ? '#1a7a4a' : '#c62828' }}>
+                            <span onClick={() => toggleActive(t)} style={{
+                              padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                              background: t.is_active ? '#e8f5e9' : '#ffebee',
+                              color: t.is_active ? '#1a7a4a' : '#c62828',
+                            }}>
                               {t.is_active ? '✅ Active' : '❌ Inactive'}
                             </span>
                           )}
                         </td>
-                        <td style={{ padding: '14px' }}>
-                          {t.tenant_code !== 'SW001' && (
-                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                              <button onClick={() => recordPayment(t)}
-                                style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                💰 Payment
+
+                        {/* Actions */}
+                        <td style={{ padding: '14px 16px' }}>
+                          {!isOwner && (
+                            <div>
+                              <button onClick={() => setExpandedId(isExpanded ? null : t.id)} style={{
+                                padding: '5px 12px', background: '#f0f4f8', color: '#555', border: 'none',
+                                borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, marginBottom: 6,
+                              }}>
+                                {isExpanded ? '▲ Less' : '▼ Actions'}
                               </button>
-                              <button onClick={() => resetPassword(t)}
-                                style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                🔑 Password
-                              </button>
-                              <button onClick={() => setTransactionPassword(t)}
-                                style={{ padding: "5px 10px", background: "#fce4ec", color: "#c62828", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "11px", fontWeight: "600", whiteSpace: "nowrap" }}>
-                                🔐 Txn Password
-                              </button>
-                              <button onClick={() => changeBusinessId(t)}
-                                style={{ padding: '5px 10px', background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                🏢 Change ID
-                              </button>
-                              <button onClick={() => toggleActive(t)}
-                                style={{ padding: '5px 10px', background: t.is_active ? '#fff8e1' : '#e8f5e9', color: t.is_active ? '#f57f17' : '#1a7a4a', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                {t.is_active ? '⏸ Deactivate' : '▶ Activate'}
-                              </button>
-                              <button onClick={() => deleteTenant(t)}
-                                style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-                                🗑️ Delete
-                              </button>
+                              {isExpanded && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                    <button onClick={() => recordPayment(t)} style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>💰 Payment</button>
+                                    <button onClick={() => resetPassword(t)} style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🔑 Password</button>
+                                    <button onClick={() => setTransactionPassword(t)} style={{ padding: '5px 10px', background: '#fce4ec', color: '#c62828', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🔐 Txn Pass</button>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                                    <button onClick={() => changeBusinessId(t)} style={{ padding: '5px 10px', background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🏢 Change ID</button>
+                                    <button onClick={() => toggleActive(t)} style={{ padding: '5px 10px', background: t.is_active ? '#fff8e1' : '#e8f5e9', color: t.is_active ? '#f57f17' : '#1a7a4a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                                      {t.is_active ? '⏸ Deactivate' : '▶ Activate'}
+                                    </button>
+                                    <button onClick={() => copyWhatsApp(t)} style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>💬 WA Share</button>
+                                    <button onClick={() => deleteTenant(t)} style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🗑️ Delete</button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           )}
                         </td>
@@ -446,20 +437,21 @@ export default function SuperAdminDashboard({ onLogout }) {
         </div>
 
         {/* Login Credentials Helper */}
-        <div style={{ background: '#1a1a2e', borderRadius: '12px', padding: '20px', color: 'white' }}>
-          <p style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 12px' }}>📋 How to Share Login with New Client</p>
-          <p style={{ fontSize: '12px', opacity: 0.7, margin: '0 0 12px' }}>Send this WhatsApp message to your new client:</p>
-          <div style={{ background: 'rgba(255,255,255,0.1)', borderRadius: '8px', padding: '14px', fontSize: '12px', lineHeight: 1.8, fontFamily: 'monospace' }}>
+        <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '20px 24px', color: 'white' }}>
+          <p style={{ fontSize: 14, fontWeight: 700, margin: '0 0 8px' }}>📋 How to Share Login with New Client</p>
+          <p style={{ fontSize: 12, opacity: 0.7, margin: '0 0 12px' }}>Copy this WhatsApp message template:</p>
+          <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 8, padding: '14px 16px', fontSize: 12, lineHeight: 2, fontFamily: 'monospace', border: '1px solid rgba(255,255,255,0.1)' }}>
             Assalam o Alaikum! 🎉<br />
             Your AquaRun account is ready.<br /><br />
-            🌐 Website: aquarun.vercel.app<br />
+            🌐 Website: aquarun.pk<br />
             🏢 Business ID: [TENANT_CODE]<br />
-            👤 Username: admin<br />
+            📧 Email: [EMAIL]<br />
             🔑 Password: [PASSWORD]<br /><br />
             Please change your password after first login.<br />
             Support: +92 323 7919338
           </div>
         </div>
+
       </div>
     </div>
   )
