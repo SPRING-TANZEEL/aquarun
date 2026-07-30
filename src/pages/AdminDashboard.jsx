@@ -763,7 +763,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, user, 
           )}
 
           {activePage === 'customers' && <CustomerManagement tenantId={tenantId} />}
-          {activePage === 'orders' && <Orders tenantId={tenantId} hasMapFeature={currentTenant?.has_map_feature || false} />}
+          {activePage === 'orders' && <Orders tenantId={tenantId} hasMapFeature={hasMapFeature} />}
           {activePage === 'riders' && <RiderManagement tenantId={tenantId} />}
           {activePage === 'cashtransfer' && <CashTransferManagement tenantId={tenantId} onUpdate={fetchDashboard} />}
           {activePage === 'jazzcash' && <JazzCashReconciliation tenantId={tenantId} onUpdate={fetchDashboard} />}
