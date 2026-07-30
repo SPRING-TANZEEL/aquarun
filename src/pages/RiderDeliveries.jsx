@@ -24,6 +24,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [filter, setFilter] = useState('today')
   const [generatingSchedule, setGeneratingSchedule] = useState(false)
   const [scheduleGenerated, setScheduleGenerated] = useState(false)
+  const [currentOrderIndex, setCurrentOrderIndex] = useState(null)
+  const [navigating, setNavigating] = useState(false)
 
   useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady, tenantId])
 
@@ -287,12 +289,28 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
       savedOffline: !isOnline
     })
-    setSelectedOrder(null)
     setPaymentMethod(null)
     setCashReceived('')
     setBottlesReturned(0)
-    fetchOrders()
     setSaving(false)
+
+    // Auto-advance to next order
+    await fetchOrders()
+    setSelectedOrder(null)
+    if (currentOrderIndex !== null && currentOrderIndex + 1 < orders.length) {
+      const nextOrder = orders[currentOrderIndex + 1]
+      if (nextOrder) {
+        setTimeout(() => {
+          setCurrentOrderIndex(currentOrderIndex + 1)
+          selectOrder(nextOrder)
+          setNavigating(false)
+        }, 1500)
+      } else {
+        setCurrentOrderIndex(null)
+      }
+    } else {
+      setCurrentOrderIndex(null)
+    }
   }
 
   function numBtn(val, setVal, min = 0) {
@@ -356,6 +374,15 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           {success.savedOffline && (
             <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>📵 Saved offline — will sync later</p>
           )}
+          {currentOrderIndex !== null && currentOrderIndex + 1 < orders.length && (
+            <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.5)', borderRadius: 8 }}>
+              <p style={{ fontSize: 12, color: '#1a7a4a', fontWeight: 700, margin: '0 0 2px' }}>⏭ Next Stop:</p>
+              <p style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1b5e20' }}>{orders[currentOrderIndex + 1]?.customers?.full_name}</p>
+              {orders[currentOrderIndex + 1]?.customers?.address && (
+                <p style={{ fontSize: 11, color: '#2e7d32', margin: '1px 0 0' }}>📍 {orders[currentOrderIndex + 1]?.customers?.address}</p>
+              )}
+            </div>
+          )}
           <button onClick={() => setSuccess(null)}
             style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
             OK
@@ -365,6 +392,18 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
       {selectedOrder ? (
         <div>
+          {/* Progress indicator */}
+          {currentOrderIndex !== null && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1, height: 4, background: '#e0e0e0', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${((currentOrderIndex + 1) / orders.length) * 100}%`, background: '#1a7a4a', borderRadius: 2, transition: 'width 0.3s' }} />
+              </div>
+              <span style={{ fontSize: 12, color: '#555', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                Stop {currentOrderIndex + 1} of {orders.length}
+              </span>
+            </div>
+          )}
+
           {/* Customer header */}
           <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -390,11 +429,27 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 )}
               </div>
             </div>
-            {selectedOrder.customers?.google_maps_link && (
-              <a href={selectedOrder.customers.google_maps_link} target="_blank" rel="noreferrer"
-                style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', background: 'rgba(255,255,255,0.2)', color: 'white', borderRadius: '6px', fontSize: '12px', fontWeight: '600', textDecoration: 'none' }}>
-                🗺️ Open in Maps
+            {(selectedOrder.customers?.latitude || selectedOrder.customers?.address || selectedOrder.customers?.google_maps_link) && (
+              <a href={(() => {
+                const dest = selectedOrder.customers?.latitude && selectedOrder.customers?.longitude
+                  ? `${selectedOrder.customers.latitude},${selectedOrder.customers.longitude}`
+                  : encodeURIComponent(selectedOrder.customers?.address || '')
+                const isAndroid = /android/i.test(navigator.userAgent)
+                const isIOS = /iphone|ipad/i.test(navigator.userAgent)
+                if (selectedOrder.customers?.google_maps_link) return selectedOrder.customers.google_maps_link
+                if (isAndroid) return `google.navigation:q=${dest}`
+                if (isIOS) return `comgooglemaps://?daddr=${dest}&directionsmode=driving`
+                return `https://www.google.com/maps/dir/Current+Location/${dest}`
+              })()} target="_blank" rel="noreferrer"
+                onClick={() => setNavigating(true)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: '10px', padding: '10px 18px', background: navigating ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)', color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: '700', textDecoration: 'none', width: '100%', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.4)' }}>
+                {navigating ? '🧭 Navigating — Tap to record delivery below' : '▶ Navigate to Customer'}
               </a>
+            )}
+            {navigating && (
+              <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, textAlign: 'center' }}>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', margin: 0, fontWeight: 600 }}>📱 Arrived? Scroll down to record delivery</p>
+              </div>
             )}
           </div>
 
@@ -567,7 +622,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 const balance = Number(o.customers?.balance || 0)
                 const ourBottles = Number(o.customers?.our_bottles_placed || 0)
                 return (
-                  <div key={o.id} onClick={() => selectOrder(o)}
+                  <div key={o.id} onClick={() => { selectOrder(o); setCurrentOrderIndex(idx); setNavigating(false) }}
                     style={{ background: o.is_priority ? '#fff8f8' : 'white', borderRadius: '12px', padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', cursor: 'pointer', border: o.is_priority ? '2px solid #fca5a5' : '1px solid #eee', borderLeft: o.is_priority ? '4px solid #c62828' : undefined }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div style={{ flex: 1 }}>
