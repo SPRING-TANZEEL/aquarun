@@ -84,7 +84,7 @@ function getPeriodDates(period) {
   }
 }
 
-export default function AdminDashboard({ tenantId, hasMapFeature = false, user, onLogout }) {
+export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTrackingFeature = false, user, onLogout }) {
   const [activePage, setActivePage] = useState(() => {
     return localStorage.getItem('aquarun_active_page') || 'dashboard'
   })
@@ -498,7 +498,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, user, 
         </div>
 
         <nav style={{ flex: 1, padding: '10px 0', overflowY: 'auto' }}>
-          {menuItems.filter(item => item.key !== 'tracking' || hasMapFeature).map(item => (
+          {menuItems.filter(item => item.key !== 'tracking' || hasTrackingFeature).map(item => (
             <button key={item.key} onClick={() => navigateTo(item.key)}
               style={{
                 width: '100%', padding: '11px 20px', border: 'none', textAlign: 'left',
@@ -766,7 +766,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, user, 
 
           {activePage === 'customers' && <CustomerManagement tenantId={tenantId} />}
           {activePage === 'orders' && <Orders tenantId={tenantId} hasMapFeature={hasMapFeature} />}
-          {activePage === 'tracking' && hasMapFeature && <RiderTrackingMap tenantId={tenantId} />}
+          {activePage === 'tracking' && hasTrackingFeature && <RiderTrackingMap tenantId={tenantId} />} 
           {activePage === 'riders' && <RiderManagement tenantId={tenantId} />}
           {activePage === 'cashtransfer' && <CashTransferManagement tenantId={tenantId} onUpdate={fetchDashboard} />}
           {activePage === 'jazzcash' && <JazzCashReconciliation tenantId={tenantId} onUpdate={fetchDashboard} />}
