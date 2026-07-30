@@ -104,7 +104,7 @@ export default function RiderDashboard({ user, onLogout }) {
     }
 
     sendLocation()
-    interval = setInterval(sendLocation, 60000)
+    interval = setInterval(sendLocation, 15000)
 
     // Mark inactive on logout/close
     const markInactive = () => {

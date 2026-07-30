@@ -23,7 +23,7 @@ export default function RiderTrackingMap({ tenantId }) {
 
   useEffect(() => {
     fetchRiderLocations()
-    const interval = setInterval(fetchRiderLocations, 30000)
+    const interval = setInterval(fetchRiderLocations, 10000)
     return () => clearInterval(interval)
   }, [tenantId])
 
