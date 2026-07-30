@@ -326,7 +326,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             <a href={`https://www.google.com/maps/dir/${stops.join('/')}`}
               target="_blank" rel="noreferrer"
               style={{ padding: '8px 14px', background: '#1a7a4a', color: 'white', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-              🗺️ {t('My Route', 'میرا روٹ')}
+              🗺️ My Route
             </a>
           )
         })()}
