@@ -41,6 +41,11 @@ const T = {
     notif_done_en: "✅ Delivered! Ledger Updated",
     pr_eye: "Pricing", pr_title: "Simple, Transparent Pricing", pr_sub: "One plan. Everything included. No surprises.",
     pr_popular: "Most Popular", pr_label: "Professional", pr_mo: "/month",
+    pr_map_label: "Map & Route", pr_map_badge: "Premium Add-on", pr_map_price: "500",
+    pr_map_features: ["Customer Location on Map", "Full Day Route Planning", "WhatsApp Route to Rider", "GPS Navigation Links", "Delivery Proof GPS"],
+    pr_track_label: "Live Tracking", pr_track_badge: "Premium Add-on", pr_track_price: "500",
+    pr_track_features: ["Real-time Rider Location", "Live Map Dashboard", "Color-coded Status Pins", "30-second Updates", "Mobile Friendly"],
+    pr_addon_note: "Add-ons can be combined with any plan",
     pr_setup: "+ Rs. 15,000 one-time setup",
     pf: ["Unlimited Deliveries", "Unlimited Customers & Riders", "Full Double-Entry Accounting",
          "Invoice Generation (A4 + Thermal)", "JazzCash & EasyPaisa Support",
@@ -102,6 +107,11 @@ const T = {
     notif_done_en: "✅ ڈیلیور! لیجر اپڈیٹ",
     pr_eye: "قیمت", pr_title: "سادہ اور شفاف قیمت", pr_sub: "ایک پلان۔ سب کچھ شامل۔ کوئی چھپی فیس نہیں۔",
     pr_popular: "سب سے مقبول", pr_label: "پروفیشنل", pr_mo: "/ماہ",
+    pr_map_label: "میپ اور روٹ", pr_map_badge: "پریمیم ایڈ-آن", pr_map_price: "500",
+    pr_map_features: ["کسٹمر لوکیشن میپ پر", "پورے دن کی روٹ پلاننگ", "واٹس ایپ پر روٹ شیئر", "جی پی ایس نیویگیشن لنکس", "ڈیلیوری پروف جی پی ایس"],
+    pr_track_label: "لائیو ٹریکنگ", pr_track_badge: "پریمیم ایڈ-آن", pr_track_price: "500",
+    pr_track_features: ["رائیڈر کی ریئل ٹائم لوکیشن", "لائیو میپ ڈیش بورڈ", "رنگ کوڈڈ اسٹیٹس پن", "۳۰ سیکنڈ میں اپڈیٹ", "موبائل فرینڈلی"],
+    pr_addon_note: "ایڈ-آنز کسی بھی پلان کے ساتھ شامل کریں",
     pr_setup: "+ Rs. 15,000 ایک بار سیٹ اپ فیس",
     pf: ["لامحدود ڈیلیوریاں", "لامحدود کسٹمرز و رائیڈرز", "مکمل ڈبل اینٹری اکاؤنٹنگ",
          "انوائس (A4 + تھرمل)", "جازکیش و ایزی پیسہ سپورٹ",
@@ -378,7 +388,7 @@ const CSS = `
 .ar-pricing .ar-eye{color:var(--accent);}
 .ar-pricing .ar-title{color:#fff;}
 .ar-pricing .ar-sub{color:rgba(255,255,255,.5);}
-.ar-pc-wrap{max-width:440px;margin:52px auto 0;}
+.ar-pc-wrap{max-width:1100px;margin:52px auto 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:24px;}
 .ar-pc{background:rgba(30,136,229,.12);border:1px solid rgba(30,136,229,.35);border-radius:20px;padding:38px 30px;position:relative;transition:transform .25s,box-shadow .25s;}
 .ar-pc:hover{transform:translateY(-6px);box-shadow:0 20px 50px rgba(0,0,0,.3);}
 .ar-pc-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--brand),var(--accent));color:#fff;font-size:.68rem;font-weight:800;padding:4px 16px;border-radius:99px;letter-spacing:.05em;text-transform:uppercase;white-space:nowrap;}
@@ -780,6 +790,8 @@ export default function Landing({ onLogin }) {
           <div className="ar-sub">{t.pr_sub}</div>
         </div>
         <div className="ar-pc-wrap ar-reveal">
+
+          {/* Main Plan */}
           <div className="ar-pc">
             <div className="ar-pc-badge">{t.pr_popular}</div>
             <div className="ar-pc-label">{t.pr_label}</div>
@@ -794,6 +806,39 @@ export default function Landing({ onLogin }) {
             </ul>
             <a href="#contact" className="ar-pc-btn">{t.pr_cta}</a>
           </div>
+
+          {/* Map & Route Add-on */}
+          <div className="ar-pc" style={{ border: '1px solid rgba(0,180,216,0.4)', background: 'rgba(0,180,216,0.08)' }}>
+            <div className="ar-pc-badge" style={{ background: 'linear-gradient(135deg,#00B4D8,#0077B6)' }}>{t.pr_map_badge}</div>
+            <div className="ar-pc-label">🗺️ {t.pr_map_label}</div>
+            <div className="ar-pc-price">
+              <span className="ar-pc-cur">Rs.</span>
+              <span className="ar-pc-amt">{t.pr_map_price}</span>
+              <span className="ar-pc-per">{t.pr_mo}</span>
+            </div>
+            <div className="ar-pc-setup" style={{ color: 'rgba(255,255,255,0.5)' }}>{t.pr_addon_note}</div>
+            <ul className="ar-pc-ul">
+              {t.pr_map_features.map((f, i) => <li key={i}><span className="ar-chk">✓</span><span>{f}</span></li>)}
+            </ul>
+            <a href="#contact" className="ar-pc-btn" style={{ background: 'linear-gradient(135deg,#00B4D8,#0077B6)' }}>{t.pr_cta}</a>
+          </div>
+
+          {/* Live Tracking Add-on */}
+          <div className="ar-pc" style={{ border: '1px solid rgba(124,58,237,0.4)', background: 'rgba(124,58,237,0.08)' }}>
+            <div className="ar-pc-badge" style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>{t.pr_track_badge}</div>
+            <div className="ar-pc-label">📡 {t.pr_track_label}</div>
+            <div className="ar-pc-price">
+              <span className="ar-pc-cur">Rs.</span>
+              <span className="ar-pc-amt">{t.pr_track_price}</span>
+              <span className="ar-pc-per">{t.pr_mo}</span>
+            </div>
+            <div className="ar-pc-setup" style={{ color: 'rgba(255,255,255,0.5)' }}>{t.pr_addon_note}</div>
+            <ul className="ar-pc-ul">
+              {t.pr_track_features.map((f, i) => <li key={i}><span className="ar-chk">✓</span><span>{f}</span></li>)}
+            </ul>
+            <a href="#contact" className="ar-pc-btn" style={{ background: 'linear-gradient(135deg,#7c3aed,#5b21b6)' }}>{t.pr_cta}</a>
+          </div>
+
         </div>
       </section>
 
