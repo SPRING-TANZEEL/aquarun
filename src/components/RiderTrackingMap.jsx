@@ -10,13 +10,19 @@ export default function RiderTrackingMap({ tenantId }) {
   const markersRef = useRef({})
 
   useEffect(() => {
-    // Load Leaflet CSS
     if (!document.getElementById('leaflet-css')) {
       const link = document.createElement('link')
       link.id = 'leaflet-css'
       link.rel = 'stylesheet'
       link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
       document.head.appendChild(link)
+    }
+    // Fix Leaflet z-index issue with sidebars
+    if (!document.getElementById('leaflet-zfix')) {
+      const style = document.createElement('style')
+      style.id = 'leaflet-zfix'
+      style.textContent = '.leaflet-pane { z-index: 1 !important; } .leaflet-top, .leaflet-bottom { z-index: 2 !important; }'
+      document.head.appendChild(style)
     }
     return () => {}
   }, [])
@@ -269,7 +275,7 @@ export default function RiderTrackingMap({ tenantId }) {
           <p style={{ color: '#888', fontSize: 13 }}>Riders will appear here when they are on delivery</p>
         </div>
       ) : (
-        <div ref={mapRef} style={{ height: 450, width: '100%' }} />
+        <div ref={mapRef} style={{ height: 450, width: '100%', zIndex: 0, position: 'relative' }} />
       )}
 
       {/* Legend */}
