@@ -659,9 +659,8 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
 
   // ── WhatsApp notification ──
   function googleMapsNavLink(lat, lng, address) {
-    // Use current location as origin automatically
-    if (lat && lng) return `https://www.google.com/maps/dir/Current+Location/${lat},${lng}`
-    return `https://www.google.com/maps/dir/Current+Location/${encodeURIComponent(address)}`
+    if (lat && lng) return `https://www.google.com/maps?q=${lat},${lng}`
+    return `https://www.google.com/maps/search/${encodeURIComponent(address)}`
   }
 
   function generateRouteLink(riderId) {
