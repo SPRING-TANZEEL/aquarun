@@ -1,6 +1,7 @@
 import SetupWizard from '../components/SetupWizard'
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
+import RiderTrackingMap from '../components/RiderTrackingMap'
 import * as AccountingEngine from '../accountingEngine'
 import CustomerManagement from './CustomerManagement'
 import AdminQuickSale from './AdminQuickSale'
@@ -21,6 +22,7 @@ const menuItems = [
   { key: 'customers', icon: '👥', label: 'Customers' },
   { key: 'quicksale', icon: '⚡', label: 'Quick Sale & Payment' },
   { key: 'orders', icon: '📦', label: 'Orders' },
+  { key: 'tracking', icon: '📡', label: 'Live Tracking' },
   { key: 'riders', icon: '🚴', label: 'Riders' },
   { key: 'cashtransfer', icon: '💸', label: 'Cash Transfers' },
   { key: 'jazzcash', icon: '📱', label: 'JazzCash' },
@@ -496,7 +498,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, user, 
         </div>
 
         <nav style={{ flex: 1, padding: '10px 0', overflowY: 'auto' }}>
-          {menuItems.map(item => (
+          {menuItems.filter(item => item.key !== 'tracking' || hasMapFeature).map(item => (
             <button key={item.key} onClick={() => navigateTo(item.key)}
               style={{
                 width: '100%', padding: '11px 20px', border: 'none', textAlign: 'left',
@@ -764,6 +766,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, user, 
 
           {activePage === 'customers' && <CustomerManagement tenantId={tenantId} />}
           {activePage === 'orders' && <Orders tenantId={tenantId} hasMapFeature={hasMapFeature} />}
+          {activePage === 'tracking' && hasMapFeature && <RiderTrackingMap tenantId={tenantId} />}
           {activePage === 'riders' && <RiderManagement tenantId={tenantId} />}
           {activePage === 'cashtransfer' && <CashTransferManagement tenantId={tenantId} onUpdate={fetchDashboard} />}
           {activePage === 'jazzcash' && <JazzCashReconciliation tenantId={tenantId} onUpdate={fetchDashboard} />}

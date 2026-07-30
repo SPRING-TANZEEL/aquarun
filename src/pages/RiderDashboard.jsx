@@ -65,6 +65,46 @@ export default function RiderDashboard({ user, onLogout }) {
     }
   }, [user])
 
+  // ── GPS TRACKING ──────────────────────────────────────────────
+  useEffect(() => {
+    if (!user?.id || !user?.tenant_id) return
+    let interval = null
+
+    async function sendLocation() {
+      if (!navigator.onLine) return
+      try {
+        const pos = await new Promise((res, rej) =>
+          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, maximumAge: 30000 })
+        )
+        await supabase.from('rider_locations').upsert({
+          rider_id: user.id,
+          tenant_id: user.tenant_id,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          updated_at: new Date().toISOString(),
+          is_active: true
+        }, { onConflict: 'rider_id' })
+      } catch (err) {
+        console.log('GPS tracking:', err.message)
+      }
+    }
+
+    sendLocation()
+    interval = setInterval(sendLocation, 60000)
+
+    // Mark inactive on logout/close
+    const markInactive = () => {
+      supabase.from('rider_locations').update({ is_active: false }).eq('rider_id', user.id)
+    }
+    window.addEventListener('beforeunload', markInactive)
+
+    return () => {
+      clearInterval(interval)
+      window.removeEventListener('beforeunload', markInactive)
+      markInactive()
+    }
+  }, [user?.id])
+
   async function syncOfflinePayments() {
     const { supabase } = await import('../supabase')
     const { postPaymentJournal } = await import('../accountingEngine')
