@@ -56,7 +56,7 @@ export default function RiderTrackingMap({ tenantId }) {
         .gte('updated_at', twoHoursAgo)
         .eq('is_active', true)
 
-      if (!locations || locations.length === 0) { setRiders([]); setLoading(false); return }
+      if (!locations || locations.length === 0) { setRiders([]); setLoading(false); setLastUpdate(new Date()); return }
 
       // Fetch rider names separately
       const riderIds = locations.map(l => l.rider_id)
