@@ -531,21 +531,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         </div>
       ) : (
         <div>
-          {/* Schedule Generator */}
-          <div style={{ background: scheduleGenerated ? '#e8f5e9' : '#f0f7ff', border: `1px solid ${scheduleGenerated ? '#4caf50' : '#c8d8ff'}`, borderRadius: '10px', padding: '12px 16px', marginBottom: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: scheduleGenerated ? '#1a7a4a' : '#0f4c81', margin: '0 0 2px' }}>
-                {scheduleGenerated ? '✅ Schedule Generated' : '📅 Recurring Schedule'}
-              </p>
-              <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                {new Date().toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'short' })}
-              </p>
-            </div>
-            <button onClick={generateTodaySchedule} disabled={generatingSchedule || scheduleGenerated}
-              style={{ padding: '8px 14px', background: scheduleGenerated ? 'white' : '#0f4c81', color: scheduleGenerated ? '#1a7a4a' : 'white', border: scheduleGenerated ? '1px solid #4caf50' : 'none', borderRadius: '8px', cursor: scheduleGenerated ? 'default' : 'pointer', fontSize: '12px', fontWeight: '700', whiteSpace: 'nowrap' }}>
-              {generatingSchedule ? '⏳...' : scheduleGenerated ? '✅ Done' : '⚡ Generate'}
-            </button>
-          </div>
 
           {/* Filter tabs */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
