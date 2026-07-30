@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 import { initDB, getPendingCount } from '../offlineDB'
 import { syncToServer, startAutoSync, onSyncUpdate, downloadRiderData } from '../syncManager'
 import RiderDeliveries from './RiderDeliveries'
