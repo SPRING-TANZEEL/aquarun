@@ -478,7 +478,7 @@ function CustomerCard({ c, isSelected, onToggle }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-export default function Orders({ tenantId }) {
+export default function Orders({ tenantId, hasMapFeature = false }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 640)
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 640)
@@ -658,6 +658,15 @@ export default function Orders({ tenantId }) {
   }
 
   // ── WhatsApp notification ──
+  function generateRouteLink(riderId) {
+    const riderOrders = orders.filter(o => o.riders?.id === riderId && o.status === 'assigned')
+    const stops = riderOrders
+      .filter(o => o.customers?.address)
+      .map(o => encodeURIComponent(o.customers.address))
+    if (stops.length === 0) return null
+    return `https://www.google.com/maps/dir/${stops.join('/')}`
+  }
+
   function notifyRider(rider) {
     if (!rider) return
     const riderOrders = orders.filter(o => o.riders?.id === rider.id && o.status === 'assigned')
@@ -1281,15 +1290,24 @@ export default function Orders({ tenantId }) {
               <p style={{ fontSize: 12, fontWeight: 700, color: '#555', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>🔄 Transfer All Orders by Rider</p>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {ridersWithOrders.map(r => (
-                  <button key={r.id} onClick={() => openTransferForRider(r)} style={{
-                    padding: '7px 14px', background: '#f0f4f8', border: '1.5px solid #e0e0e0',
-                    borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0f4c81',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
-                    🚴 {r.full_name}
-                    <span style={{ background: '#0f4c81', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 11 }}>{r.orderCount}</span>
-                    → Transfer
-                  </button>
+                  <div key={r.id} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <button onClick={() => openTransferForRider(r)} style={{
+                      padding: '7px 14px', background: '#f0f4f8', border: '1.5px solid #e0e0e0',
+                      borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0f4c81',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}>
+                      🚴 {r.full_name}
+                      <span style={{ background: '#0f4c81', color: '#fff', borderRadius: 4, padding: '1px 6px', fontSize: 11 }}>{r.orderCount}</span>
+                      → Transfer
+                    </button>
+                    {hasMapFeature && generateRouteLink(r.id) && (
+                      <a href={generateRouteLink(r.id)} target="_blank" rel="noreferrer" style={{
+                        padding: '7px 12px', background: '#e8f5e9', border: '1.5px solid #86efac',
+                        borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1a7a4a',
+                        textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
+                      }}>🗺️ Route</a>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -1397,6 +1415,13 @@ export default function Orders({ tenantId }) {
                             💬 WhatsApp
                           </a>
                         )}
+                        {hasMapFeature && o.customers?.address && (
+                          <a href={`https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`}
+                            target="_blank" rel="noreferrer"
+                            style={{ padding: '5px 10px', background: '#f0f7ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none' }}>
+                            📍 Map
+                          </a>
+                        )}
                       </div>
                     </div>
                   )
@@ -1473,6 +1498,13 @@ export default function Orders({ tenantId }) {
                                 target="_blank" rel="noreferrer"
                                 style={{ padding: '4px 10px', background: '#e8f5e9', color: '#1a7a4a', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
                                 💬 WA
+                              </a>
+                            )}
+                            {hasMapFeature && o.customers?.address && (
+                              <a href={`https://www.google.com/maps/search/${encodeURIComponent(o.customers.address)}`}
+                                target="_blank" rel="noreferrer"
+                                style={{ padding: '4px 10px', background: '#f0f7ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                📍 Map
                               </a>
                             )}
                           </div>

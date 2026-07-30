@@ -82,7 +82,7 @@ function getPeriodDates(period) {
   }
 }
 
-export default function AdminDashboard({ user, tenantId, onLogout }) {
+export default function AdminDashboard({ tenantId, hasMapFeature = false, user, onLogout }) {
   const [activePage, setActivePage] = useState(() => {
     return localStorage.getItem('aquarun_active_page') || 'dashboard'
   })
@@ -763,7 +763,7 @@ export default function AdminDashboard({ user, tenantId, onLogout }) {
           )}
 
           {activePage === 'customers' && <CustomerManagement tenantId={tenantId} />}
-          {activePage === 'orders' && <Orders tenantId={tenantId} />}
+          {activePage === 'orders' && <Orders tenantId={tenantId} hasMapFeature={currentTenant?.has_map_feature || false} />}
           {activePage === 'riders' && <RiderManagement tenantId={tenantId} />}
           {activePage === 'cashtransfer' && <CashTransferManagement tenantId={tenantId} onUpdate={fetchDashboard} />}
           {activePage === 'jazzcash' && <JazzCashReconciliation tenantId={tenantId} onUpdate={fetchDashboard} />}
