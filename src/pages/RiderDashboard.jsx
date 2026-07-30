@@ -26,6 +26,7 @@ export default function RiderDashboard({ user, onLogout }) {
   const [downloading, setDownloading] = useState(false)
   const [downloadDone, setDownloadDone] = useState(false)
   const [showSyncBar, setShowSyncBar] = useState(true)
+  const [locationStatus, setLocationStatus] = useState('unknown') // 'granted' | 'denied' | 'unknown'
   const [lang, setLang] = useState(() => localStorage.getItem('aquarun_lang') || 'en')
 
   function t(en, ur) { return lang === 'ur' ? ur : en }
@@ -71,12 +72,11 @@ export default function RiderDashboard({ user, onLogout }) {
     if (!user?.id || !user?.tenant_id) return
     let interval = null
 
-    // Request permission explicitly first
+    // Check and request permission explicitly
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'geolocation' }).then(result => {
-        if (result.state === 'denied') {
-          console.log('Location permission denied by user')
-        }
+        setLocationStatus(result.state)
+        result.onchange = () => setLocationStatus(result.state)
       })
     }
 
@@ -265,7 +265,41 @@ export default function RiderDashboard({ user, onLogout }) {
       </div>
 
       {/* Sync Status Bar */}
-      {showSyncBar && (
+      {locationStatus === 'denied' && (
+          <div style={{ background: '#ffebee', border: '1px solid #fca5a5', borderRadius: 8, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>📍</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#c62828', margin: '0 0 2px' }}>{t('Location Access Blocked', 'لوکیشن بند ہے')}</p>
+              <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{t('Please allow location in browser settings for delivery tracking', 'ڈیلیوری ٹریکنگ کے لیے براہ کرم براؤزر سیٹنگز میں لوکیشن اجازت دیں')}</p>
+            </div>
+            <button onClick={() => navigator.geolocation.getCurrentPosition(() => setLocationStatus('granted'), () => {})}
+              style={{ padding: '6px 12px', background: '#c62828', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {t('Allow', 'اجازت دیں')}
+            </button>
+          </div>
+        )}
+        {locationStatus === 'unknown' && (
+          <div style={{ background: '#fff3e0', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 20 }}>📍</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#b45309', margin: '0 0 2px' }}>{t('Enable Location', 'لوکیشن آن کریں')}</p>
+              <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{t('Tap Allow when browser asks for location permission', 'براؤزر لوکیشن مانگے تو اجازت دیں ٹیپ کریں')}</p>
+            </div>
+            <button onClick={() => navigator.geolocation.getCurrentPosition(
+              () => setLocationStatus('granted'),
+              () => setLocationStatus('denied')
+            )} style={{ padding: '6px 12px', background: '#b45309', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              {t('Enable', 'آن کریں')}
+            </button>
+          </div>
+        )}
+        {locationStatus === 'granted' && (
+          <div style={{ background: '#e8f5e9', border: '1px solid #86efac', borderRadius: 8, padding: '8px 14px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 16 }}>📍</span>
+            <p style={{ fontSize: 12, color: '#1a7a4a', fontWeight: 600, margin: 0 }}>{t('Location Active — Admin can track your delivery', 'لوکیشن آن — ایڈمن آپ کی ڈیلیوری ٹریک کر رہا ہے')}</p>
+          </div>
+        )}
+        {showSyncBar && (
         <div style={{ background: pendingCount > 0 ? '#fff7ed' : isOnline ? '#f0fdf4' : '#fef2f2', borderBottom: '1px solid ' + (pendingCount > 0 ? '#fed7aa' : isOnline ? '#bbf7d0' : '#fecaca'), padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {syncing ? (
