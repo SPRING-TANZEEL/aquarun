@@ -669,14 +669,24 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     return `https://www.google.com/maps/dir/${stops.join('/')}`
   }
 
-  function notifyRider(rider) {
+  function notifyRider(rider, mode = 'whatsapp') {
     if (!rider) return
     const riderOrders = orders.filter(o => o.riders?.id === rider.id && o.status === 'assigned')
     const total19l = riderOrders.reduce((s, o) => s + (o.qty_19l || 0), 0)
-    const summary = riderOrders.map(o => `• ${o.customers?.full_name} — ${[o.qty_19l > 0 && `19L×${o.qty_19l}`, o.qty_half_litre > 0 && `½L×${o.qty_half_litre}`].filter(Boolean).join(' ')}`).join('\n')
-    const msg = `🚴 Delivery Orders for Today\n\n${summary}\n\nTotal 19L: ${total19l} bottles\n\nPlease confirm receipt.`
-    const phone = rider.mobile || ''
-    window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank')
+    const summary = riderOrders.map(o => `• ${o.customers?.full_name}${o.customers?.address ? ` — ${o.customers.address}` : ''} — ${[o.qty_19l > 0 && `19L×${o.qty_19l}`, o.qty_half_litre > 0 && `½L×${o.qty_half_litre}`].filter(Boolean).join(' ')}`).join('\n')
+    const routeLink = hasMapFeature ? generateRouteLink(rider.id) : null
+    const msg = `🚴 Delivery Orders for Today\n\n${summary}\n\nTotal 19L: ${total19l} bottles${routeLink ? `\n\n🗺️ Route Map:\n${routeLink}` : ''}\n\nPlease confirm receipt.`
+    if (mode === 'whatsapp') {
+      const phone = (rider.mobile || '').replace(/\D/g, '')
+      window.open(`https://wa.me/${phone}?text=${encodeURIComponent(msg)}`, '_blank')
+    }
+    if (mode === 'copy') {
+      navigator.clipboard.writeText(msg).then(() => {
+        alert(`✅ Copied! Paste in ${rider.full_name}'s WhatsApp chat.`)
+      }).catch(() => {
+        prompt(`Copy this message:`, msg)
+      })
+    }
   }
 
   // ── bulk data fetch ──
@@ -1309,6 +1319,16 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                         textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5,
                       }}>🗺️ Route</a>
                     )}
+                    <button onClick={() => notifyRider(r, 'whatsapp')} style={{
+                      padding: '7px 12px', background: '#e8f5e9', border: '1.5px solid #86efac',
+                      borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1a7a4a',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}>💬 WhatsApp</button>
+                    <button onClick={() => notifyRider(r, 'copy')} style={{
+                      padding: '7px 12px', background: '#f0f7ff', border: '1.5px solid #bfdbfe',
+                      borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#0f4c81',
+                      display: 'flex', alignItems: 'center', gap: 5,
+                    }}>📋 Copy</button>
                   </div>
                 ))}
               </div>
