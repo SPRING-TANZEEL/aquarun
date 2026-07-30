@@ -127,8 +127,15 @@ export default function SuperAdminDashboard({ onLogout }) {
 
   async function toggleFeature(t, field) {
     try {
-      await supabase.from('tenants').update({ [field]: !t[field] }).eq('id', t.id)
-      fetchTenants()
+      const newVal = !t[field]
+      // Update local state immediately for smooth toggle
+      setTenants(prev => prev.map(x => x.id === t.id ? { ...x, [field]: newVal } : x))
+      const { error } = await supabase.from('tenants').update({ [field]: newVal }).eq('id', t.id)
+      if (error) {
+        // Revert on error
+        setTenants(prev => prev.map(x => x.id === t.id ? { ...x, [field]: !newVal } : x))
+        alert('Error: ' + error.message)
+      }
     } catch (e) { alert('Error: ' + e.message) }
   }
 
@@ -370,13 +377,13 @@ export default function SuperAdminDashboard({ onLogout }) {
                         <td style={{ padding: '14px 16px' }}>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                             <FeatureToggle
-                              active={t.has_map_feature}
+                              active={t.has_map_feature || false}
                               onToggle={() => toggleFeature(t, 'has_map_feature')}
                               icon="🗺️" label="Map & Route"
                             />
                             <FeatureToggle
-                              active={t.has_map_feature}
-                              onToggle={() => toggleFeature(t, 'has_map_feature')}
+                              active={t.has_tracking_feature || false}
+                              onToggle={() => toggleFeature(t, 'has_tracking_feature')}
                               icon="📡" label="Live Tracking"
                             />
                           </div>
