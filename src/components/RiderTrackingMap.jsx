@@ -38,13 +38,30 @@ export default function RiderTrackingMap({ tenantId }) {
   async function fetchRiderLocations() {
     try {
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
-      const { data } = await supabase
+      const { data: locations } = await supabase
         .from('rider_locations')
-        .select('*, riders(full_name, is_active)')
+        .select('*')
         .eq('tenant_id', tenantId)
         .gte('updated_at', twoHoursAgo)
         .eq('is_active', true)
-      setRiders(data || [])
+
+      if (!locations || locations.length === 0) { setRiders([]); setLoading(false); return }
+
+      // Fetch rider names separately
+      const riderIds = locations.map(l => l.rider_id)
+      const { data: riderData } = await supabase
+        .from('riders')
+        .select('id, full_name, is_active')
+        .in('id', riderIds)
+
+      const riderMap = {}
+      riderData?.forEach(r => { riderMap[r.id] = r })
+
+      const enriched = locations.map(l => ({
+        ...l,
+        riders: riderMap[l.rider_id] || { full_name: 'Unknown' }
+      }))
+      setRiders(enriched)
       setLastUpdate(new Date())
       setLoading(false)
     } catch (err) {
