@@ -29,6 +29,28 @@ export default function RiderDashboard({ user, onLogout }) {
 
   function t(en, ur) { return lang === 'ur' ? ur : en }
 
+  async function testGPS() {
+    alert('User ID: ' + user?.id + '\nTenant ID: ' + user?.tenant_id)
+    try {
+      const pos = await new Promise((res, rej) =>
+        navigator.geolocation.getCurrentPosition(res, rej, { timeout: 15000 })
+      )
+      alert('GPS OK: ' + pos.coords.latitude + ', ' + pos.coords.longitude)
+      const { error } = await supabase.from('rider_locations').upsert({
+        rider_id: user.id,
+        tenant_id: user.tenant_id,
+        latitude: pos.coords.latitude,
+        longitude: pos.coords.longitude,
+        updated_at: new Date().toISOString(),
+        is_active: true
+      }, { onConflict: 'rider_id' })
+      if (error) alert('DB Error: ' + error.message)
+      else alert('✅ Location saved!')
+    } catch (err) {
+      alert('GPS Error: ' + err.message + ' (code: ' + err.code + ')')
+    }
+  }
+
   function toggleLang() {
     const next = lang === 'en' ? 'ur' : 'en'
     setLang(next)
@@ -70,11 +92,24 @@ export default function RiderDashboard({ user, onLogout }) {
     if (!user?.id || !user?.tenant_id) return
     let interval = null
 
+    // Request permission explicitly first
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'geolocation' }).then(result => {
+        if (result.state === 'denied') {
+          console.log('Location permission denied by user')
+        }
+      })
+    }
+
     async function sendLocation() {
       if (!navigator.onLine) return
       try {
         const pos = await new Promise((res, rej) =>
-          navigator.geolocation.getCurrentPosition(res, rej, { timeout: 10000, maximumAge: 30000 })
+          navigator.geolocation.getCurrentPosition(res, rej, { 
+            timeout: 15000, 
+            maximumAge: 0,
+            enableHighAccuracy: true 
+          })
         )
         await supabase.from('rider_locations').upsert({
           rider_id: user.id,
@@ -339,6 +374,7 @@ export default function RiderDashboard({ user, onLogout }) {
                 </div>
               )}
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                <button onClick={testGPS} style={{ padding: '10px 16px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>📍 Test GPS</button>
                 {isOnline && (
                   <button onClick={handleManualSync} disabled={syncing}
                     style={{ flex: 1, padding: '10px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
