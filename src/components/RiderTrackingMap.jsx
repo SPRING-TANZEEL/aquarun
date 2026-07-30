@@ -28,10 +28,15 @@ export default function RiderTrackingMap({ tenantId }) {
   }, [tenantId])
 
   useEffect(() => {
-    if (riders.length > 0 && mapRef.current && !mapInstanceRef.current) {
+    if (!mapRef.current) return
+    if (riders.length > 0 && !mapInstanceRef.current) {
       initMap()
-    } else if (mapInstanceRef.current) {
+    } else if (mapInstanceRef.current && riders.length > 0) {
       updateMarkers()
+    } else if (mapInstanceRef.current && riders.length === 0) {
+      // Clear all markers when no riders
+      Object.values(markersRef.current).forEach(({ marker }) => marker.remove())
+      markersRef.current = {}
     }
   }, [riders])
 
