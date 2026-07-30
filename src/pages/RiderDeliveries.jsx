@@ -322,8 +322,15 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               ? `${o.customers.latitude},${o.customers.longitude}`
               : encodeURIComponent(o.customers?.address || ''))
           if (stops.length === 0) return null
+          const isAndroid = /android/i.test(navigator.userAgent)
+          const isIOS = /iphone|ipad/i.test(navigator.userAgent)
+          const routeUrl = isAndroid
+            ? `google.navigation:q=${stops[stops.length - 1]}&waypoints=${stops.slice(0,-1).join('|')}`
+            : isIOS
+            ? `comgooglemaps://?daddr=${stops[stops.length - 1]}&waypoints=${stops.slice(0,-1).join('|')}&directionsmode=driving`
+            : `https://www.google.com/maps/dir/${stops.join('/')}`
           return (
-            <a href={`https://www.google.com/maps/dir/${stops.join('/')}`}
+            <a href={routeUrl}
               target="_blank" rel="noreferrer"
               style={{ padding: '8px 14px', background: '#1a7a4a', color: 'white', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
               🗺️ My Route
@@ -586,11 +593,16 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                           {balance > 0 ? `Rs. ${balance.toLocaleString()}` : balance < 0 ? `Adv ${Math.abs(balance).toLocaleString()}` : 'Clear'}
                         </p>
                         {(o.customers?.latitude || o.customers?.address) && (
-                          <a href={
-                            o.customers?.latitude && o.customers?.longitude
-                              ? `https://www.google.com/maps/dir/Current+Location/${o.customers.latitude},${o.customers.longitude}`
-                              : `https://www.google.com/maps/dir/Current+Location/${encodeURIComponent(o.customers.address)}`
-                          } target="_blank" rel="noreferrer"
+                          <a href={(() => {
+                            const dest = o.customers?.latitude && o.customers?.longitude
+                              ? `${o.customers.latitude},${o.customers.longitude}`
+                              : encodeURIComponent(o.customers?.address || '')
+                            const isAndroid = /android/i.test(navigator.userAgent)
+                            const isIOS = /iphone|ipad/i.test(navigator.userAgent)
+                            if (isAndroid) return `google.navigation:q=${dest}`
+                            if (isIOS) return `comgooglemaps://?daddr=${dest}&directionsmode=driving`
+                            return `https://www.google.com/maps/dir/Current+Location/${dest}`
+                          })()} target="_blank" rel="noreferrer"
                             onClick={e => e.stopPropagation()}
                             style={{ display: 'inline-block', padding: '4px 8px', background: '#e3f0ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginBottom: 4 }}>
                             📍 Nav
