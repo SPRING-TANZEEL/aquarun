@@ -34,6 +34,14 @@ export default function RiderTrackingMap({ tenantId }) {
     if (mapInstanceRef.current) {
       mapInstanceRef.current._hasInitialBounds = false
     }
+    // Zoom to selected rider immediately
+    if (riderId && mapInstanceRef.current) {
+      const rider = riders.find(r => r.rider_id === riderId)
+      if (rider) {
+        mapInstanceRef.current.setView([rider.latitude, rider.longitude], 15, { animate: true })
+        mapInstanceRef.current._hasInitialBounds = true // prevent re-fit
+      }
+    }
   }
 
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
