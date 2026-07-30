@@ -27,14 +27,15 @@ export default function RiderTrackingMap({ tenantId }) {
   const [deliveries, setDeliveries]       = useState([]) // completed today
   const [loading, setLoading]             = useState(true)
   const [lastUpdate, setLastUpdate]       = useState(null)
-  const [selectedRider, setSelectedRider] = useState(null) } // null = all riders
+  const [selectedRider, setSelectedRider] = useState(null) // null = all riders
 
   function selectRider(riderId) {
     setSelectedRider(riderId)
     if (mapInstanceRef.current) {
       mapInstanceRef.current._hasInitialBounds = false
     }
-  
+  }
+
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
   const [showPanel, setShowPanel]         = useState(true)
 
