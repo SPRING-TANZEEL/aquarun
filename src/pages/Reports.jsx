@@ -191,6 +191,12 @@ function CustomerLedger({ tenantId }) {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [monthlyInvoiceData, setMonthlyInvoiceData] = useState(null)
   const [generatingInvoice, setGeneratingInvoice] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  const firstOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split('T')[0]
+  const lastOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0]
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
 
@@ -369,10 +375,24 @@ function CustomerLedger({ tenantId }) {
     window.open(url, '_blank')
   }
 
-  const totalDebit = ledger.reduce((s, e) => s + (e.debit || 0), 0)
-  const totalCredit = ledger.reduce((s, e) => s + (e.credit || 0), 0)
+  const filteredLedger = ledger.filter(e => {
+    if (!dateFrom && !dateTo) return true
+    const eDate = new Date(e.date).toISOString().split('T')[0]
+    if (dateFrom && eDate < dateFrom) return false
+    if (dateTo && eDate > dateTo) return false
+    return true
+  })
+  const totalDebit = filteredLedger.reduce((s, e) => s + (e.debit || 0), 0)
+  const totalCredit = filteredLedger.reduce((s, e) => s + (e.credit || 0), 0)
   const openingBal = Number(selectedCustomer?.opening_balance || 0)
-  const closingBalance = ledger.length > 0 ? ledger[ledger.length - 1].runningBalance : openingBal
+  // Opening balance = all entries before dateFrom
+  const openingBalForFilter = dateFrom
+    ? ledger.filter(e => new Date(e.date).toISOString().split('T')[0] < dateFrom)
+             .reduce((s, e) => s + e.debit - e.credit, openingBal)
+    : openingBal
+  const closingBalance = filteredLedger.length > 0
+    ? openingBalForFilter + totalDebit - totalCredit
+    : openingBalForFilter
   const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })
 
   return (
@@ -414,12 +434,13 @@ function CustomerLedger({ tenantId }) {
         </div>
       ) : (
         <div>
-          <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '8px' }}>
-            <button onClick={() => { setSelectedCustomer(null); setLedger([]) }}
-              style={{ padding: '8px 16px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>
-              ← Back
-            </button>
-            <div style={{ display: 'flex', gap: '8px' }}>
+          <div className="no-print" style={{ marginBottom: '12px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+              <button onClick={() => { setSelectedCustomer(null); setLedger([]); setDateFrom(''); setDateTo('') }}
+                style={{ padding: '8px 16px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>
+                ← Back
+              </button>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button onClick={handleShareWhatsApp}
                 style={{ padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 💬 Share
@@ -432,6 +453,38 @@ function CustomerLedger({ tenantId }) {
                 style={{ padding: '10px 16px', background: '#e65100', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 📄 Monthly Invoice
               </button>
+            </div>
+            </div>
+            {/* Date Filter Bar */}
+            <div style={{ background: '#f8fafc', border: '1px solid #e0e0e0', borderRadius: '10px', padding: '10px 14px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '12px', fontWeight: '700', color: '#555', whiteSpace: 'nowrap' }}>📅 Period:</span>
+              {[
+                { label: 'All Time', from: '', to: '' },
+                { label: 'This Month', from: firstOfMonth, to: today },
+                { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
+              ].map(p => (
+                <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+                  style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+                    background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
+                    color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555',
+                  }}>{p.label}</button>
+              ))}
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                  style={{ padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+                <span style={{ fontSize: 11, color: '#888' }}>to</span>
+                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                  style={{ padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+              </div>
+              {(dateFrom || dateTo) && (
+                <button onClick={() => { setDateFrom(''); setDateTo('') }}
+                  style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✕ Clear</button>
+              )}
+              {(dateFrom || dateTo) && (
+                <span style={{ fontSize: 11, color: '#0f4c81', fontWeight: 600, marginLeft: 'auto' }}>
+                  {filteredLedger.length} transactions
+                </span>
+              )}
             </div>
           </div>
 
@@ -556,24 +609,24 @@ function CustomerLedger({ tenantId }) {
                       <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>★ Opening Balance</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right', fontSize: '13px', fontWeight: '700', color: openingBal > 0 ? '#f44336' : '#1a7a4a' }}>{openingBal.toLocaleString()}</td>
+                      <td style={{ padding: '5px 10px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: openingBalForFilter > 0 ? '#f44336' : '#1a7a4a' }}>{openingBalForFilter.toLocaleString()}</td>
                     </tr>
-                    {ledger.length === 0 ? (
-                      <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: '13px' }}>No transactions found</td></tr>
-                    ) : ledger.map((e, idx) => (
+                    {filteredLedger.length === 0 ? (
+                      <tr><td colSpan={6} style={{ padding: '24px', textAlign: 'center', color: '#888', fontSize: '13px' }}>No transactions found for selected period</td></tr>
+                    ) : filteredLedger.map((e, idx) => (
                       <tr key={idx} style={{ background: idx % 2 === 0 ? 'white' : '#fafbff', borderBottom: '1px solid #eef0f5' }}>
-                        <td style={{ padding: '8px 12px', fontSize: '11px', color: '#aaa', fontWeight: '600' }}>{idx + 1}</td>
-                        <td style={{ padding: '8px 12px', fontSize: '11px', color: '#555', whiteSpace: 'nowrap' }}>
+                        <td style={{ padding: '5px 10px', fontSize: '10px', color: '#aaa', fontWeight: '600' }}>{idx + 1}</td>
+                        <td style={{ padding: '5px 10px', fontSize: '11px', color: '#555', whiteSpace: 'nowrap' }}>
                           {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
                         </td>
-                        <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>
+                        <td style={{ padding: '5px 10px', fontSize: '11px', color: '#333' }}>
                           <span style={{ fontWeight: '600' }}>{e.description}</span>
-                          {e.credit_amount > 0 && <span style={{ fontSize: '10px', color: '#f44336', display: 'block', marginTop: '2px' }}>↳ Credit portion: Rs. {e.credit_amount.toLocaleString()}</span>}
-                          {e.pendingAmount > 0 && <span style={{ fontSize: '10px', color: '#e65100', display: 'block', marginTop: '2px' }}>↳ Pending confirmation: Rs. {e.pendingAmount.toLocaleString()}</span>}
+                          {e.credit_amount > 0 && <span style={{ fontSize: '9px', color: '#f44336', display: 'block' }}>↳ Credit: Rs. {e.credit_amount.toLocaleString()}</span>}
+                          {e.pendingAmount > 0 && <span style={{ fontSize: '9px', color: '#e65100', display: 'block' }}>↳ Pending: Rs. {e.pendingAmount.toLocaleString()}</span>}
                         </td>
-                        <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.debit > 0 ? '#f44336' : '#ddd', textAlign: 'right' }}>{e.debit > 0 ? e.debit.toLocaleString() : '—'}</td>
-                        <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: e.credit > 0 ? '#1a7a4a' : '#ddd', textAlign: 'right' }}>{e.credit > 0 ? e.credit.toLocaleString() : '—'}</td>
-                        <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right', color: e.runningBalance > 0 ? '#f44336' : '#1a7a4a' }}>
+                        <td style={{ padding: '5px 10px', fontSize: '11px', fontWeight: '700', color: e.debit > 0 ? '#f44336' : '#ddd', textAlign: 'right' }}>{e.debit > 0 ? e.debit.toLocaleString() : '—'}</td>
+                        <td style={{ padding: '5px 10px', fontSize: '11px', fontWeight: '700', color: e.credit > 0 ? '#1a7a4a' : '#ddd', textAlign: 'right' }}>{e.credit > 0 ? e.credit.toLocaleString() : '—'}</td>
+                        <td style={{ padding: '5px 10px', fontSize: '12px', fontWeight: '700', textAlign: 'right', color: e.runningBalance > 0 ? '#f44336' : '#1a7a4a' }}>
                           {e.runningBalance.toLocaleString()}
                           {e.runningBalance < 0 && <span style={{ fontSize: '9px', marginLeft: '2px' }}>CR</span>}
                         </td>
