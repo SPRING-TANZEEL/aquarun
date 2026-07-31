@@ -1329,255 +1329,336 @@ function SalesSummary({ tenantId }) {
 }
 
 // ─── PROFIT & LOSS ─────────────────────────────────────────────────
-// Replace the entire ProfitLoss function in Reports.jsx with this
 function ProfitLoss({ tenantId }) {
   const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [drillDown, setDrillDown] = useState(null) // { label, entries }
+  const [drillDown, setDrillDown] = useState(null)
   const [drillLoading, setDrillLoading] = useState(false)
 
   useEffect(() => { if (tenantId) fetchPL() }, [dateFrom, dateTo, tenantId])
 
   async function fetchPL() {
     setLoading(true)
+    try {
+      // ── Single query: all journal lines for the period ──
+      // This is the ONLY source of truth — every transaction posts here
+      const { data: lines } = await supabase
+        .from('journal_entry_lines')
+        .select('account_code, account_name, debit, credit, je:journal_entry_id!inner(entry_date, narration, reference_type)')
+        .eq('tenant_id', tenantId)
+        .gte('je.entry_date', dateFrom)
+        .lte('je.entry_date', dateTo)
 
-    // ── REVENUE — from deliveries (pre-tax subtotal) ──
-    const { data: deliveries } = await supabase.from('deliveries')
-      .select('total_amount').eq('tenant_id', tenantId).eq('is_voided', false)
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
-    const totalRevenue = deliveries?.reduce((s, d) => s + Number(d.total_amount), 0) || 0
+      if (!lines) { setLoading(false); return }
 
-    // ── COGS — from journal entry lines account 5003 ──
-    const { data: cogsLines } = await supabase.from('journal_entry_lines')
-      .select('debit, je:journal_entry_id!inner(entry_date)')
-      .eq('tenant_id', tenantId).eq('account_code', '5003')
-      .gte('je.entry_date', dateFrom).lte('je.entry_date', dateTo)
-    const totalCOGS = cogsLines?.reduce((s, l) => s + Number(l.debit || 0), 0) || 0
+      // ── Group by account code ──
+      const accounts = {}
+      lines.forEach(l => {
+        const code = l.account_code
+        if (!accounts[code]) {
+          accounts[code] = {
+            code,
+            name: l.account_name,
+            debit: 0,
+            credit: 0,
+            lines: []
+          }
+        }
+        accounts[code].debit += Number(l.debit || 0)
+        accounts[code].credit += Number(l.credit || 0)
+        accounts[code].lines.push({
+          date: l.je?.entry_date,
+          narration: l.je?.narration,
+          reference_type: l.je?.reference_type,
+          debit: Number(l.debit || 0),
+          credit: Number(l.credit || 0),
+        })
+      })
 
-    // ── RAW MATERIAL PURCHASES ──
-    const { data: purchases } = await supabase.from('stock_purchases')
-      .select('total_cost').eq('tenant_id', tenantId)
-      .gte('purchase_date', dateFrom).lte('purchase_date', dateTo)
-    const totalPurchaseCost = purchases?.reduce((s, p) => s + Number(p.total_cost), 0) || 0
+      // ── REVENUE (4xxx) — credit side ──
+      const revenueAccounts = {}
+      Object.values(accounts).filter(a => a.code.startsWith('4')).forEach(a => {
+        revenueAccounts[a.name] = a.credit - a.debit // net credit = revenue
+      })
+      const totalRevenue = Object.values(revenueAccounts).reduce((s, v) => s + v, 0)
 
-    // ── PRODUCTION OVERHEAD ──
-    const { data: productions } = await supabase.from('production_entries')
-      .select('total_overhead').eq('tenant_id', tenantId)
-      .gte('production_date', dateFrom).lte('production_date', dateTo)
-    const totalProductionOverhead = productions?.reduce((s, p) => s + Number(p.total_overhead), 0) || 0
+      // ── COGS (5xxx) — debit side ──
+      const cogsAccounts = {}
+      Object.values(accounts).filter(a => a.code.startsWith('5')).forEach(a => {
+        const net = a.debit - a.credit
+        if (net > 0) cogsAccounts[a.name] = net
+      })
+      const totalCogs = Object.values(cogsAccounts).reduce((s, v) => s + v, 0)
+      const grossProfit = totalRevenue - totalCogs
 
-    const totalCogs = totalCOGS + totalPurchaseCost + totalProductionOverhead
-    const grossProfit = totalRevenue - totalCogs
+      // ── EXPENSES (6xxx) — debit side ──
+      const expenseAccounts = {}
+      Object.values(accounts).filter(a => a.code.startsWith('6')).forEach(a => {
+        const net = a.debit - a.credit
+        if (net > 0) expenseAccounts[a.name] = { amount: net, code: a.code, lines: a.lines }
+      })
+      const totalExpenses = Object.values(expenseAccounts).reduce((s, v) => s + v.amount, 0)
+      const netProfit = grossProfit - totalExpenses
 
-    // ── RIDER FIELD EXPENSES by type ──
-    const { data: riderExpenses } = await supabase.from('expenses')
-      .select('expense_type, amount').eq('tenant_id', tenantId).eq('is_voided', false)
-      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-    const riderByCategory = {}
-    riderExpenses?.forEach(e => {
-      const key = e.expense_type || 'other'
-      riderByCategory[key] = (riderByCategory[key] || 0) + Number(e.amount)
-    })
+      // ── Also get raw material purchases not yet journalized ──
+      // (stock purchases that hit inventory account 1200/1201/1202 not 5xxx)
+      // These show as inventory not expense unless consumed in production
+      // So we skip them here — only 5xxx hits P&L ✅
 
-    // ── OFFICE EXPENSES — grouped by COA account name ──
-    const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('category, coa_account_name, amount').eq('tenant_id', tenantId).eq('is_voided', false)
-      .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-    const officeByAccount = {}
-    officeExpenses?.forEach(e => {
-      const key = e.coa_account_name || e.category || 'other'
-      officeByAccount[key] = (officeByAccount[key] || 0) + Number(e.amount)
-    })
-
-    // ── SALARY — read from journal lines account 6001 for accuracy ──
-    const { data: salaryLines } = await supabase.from('journal_entry_lines')
-      .select('debit, je:journal_entry_id!inner(entry_date, narration)')
-      .eq('tenant_id', tenantId).eq('account_code', '6001')
-      .gte('je.entry_date', dateFrom.split('T')[0]).lte('je.entry_date', dateTo.split('T')[0])
-    const salaryByRider = {}
-    salaryLines?.forEach(l => {
-      const narration = l.je?.narration || 'Rider Salary'
-      const name = narration.includes('—') ? narration.split('—')[1]?.trim() || 'Rider' : 'Rider'
-      salaryByRider[name] = (salaryByRider[name] || 0) + Number(l.debit || 0)
-    })
-    const totalSalaries = Object.values(salaryByRider).reduce((s, v) => s + v, 0)
-
-    const totalRiderExpenses = Object.values(riderByCategory).reduce((s, v) => s + v, 0)
-    const totalOfficeExpenses = Object.values(officeByAccount).reduce((s, v) => s + v, 0)
-    const totalOperatingExpenses = totalRiderExpenses + totalOfficeExpenses + totalSalaries
-    const netProfit = grossProfit - totalOperatingExpenses
-
-    setData({
-      totalRevenue, totalCOGS, totalPurchaseCost, totalProductionOverhead,
-      totalCogs, grossProfit, riderByCategory, officeByAccount, salaryByRider,
-      totalRiderExpenses, totalOfficeExpenses, totalSalaries,
-      totalOperatingExpenses, netProfit
-    })
+      setData({
+        revenueAccounts, totalRevenue,
+        cogsAccounts, totalCogs,
+        grossProfit,
+        expenseAccounts, totalExpenses,
+        netProfit,
+        accounts // full account map for drill down
+      })
+    } catch (err) {
+      console.error('P&L fetch error:', err)
+    }
     setLoading(false)
   }
 
-  async function openDrillDown(type, key) {
+  async function openDrillDown(accountName, accountCode) {
     setDrillLoading(true)
-    setDrillDown({ label: key, entries: [] })
-    let entries = []
+    setDrillDown({ label: accountName, entries: [] })
 
-    if (type === 'rider_expense') {
-      const { data } = await supabase.from('expenses')
-        .select('*, riders(full_name)').eq('tenant_id', tenantId).eq('is_voided', false)
-        .eq('expense_type', key).gte('expense_date', dateFrom).lte('expense_date', dateTo)
-        .order('expense_date', { ascending: false })
-      entries = (data || []).map(e => ({
-        date: e.expense_date, description: e.description || e.expense_type,
-        party: e.riders?.full_name || '—', amount: Number(e.amount)
-      }))
-    } else if (type === 'office_expense') {
-      const { data } = await supabase.from('office_expenses')
-        .select('*').eq('tenant_id', tenantId).eq('is_voided', false)
-        .or(`coa_account_name.eq.${key},category.eq.${key}`)
-        .gte('expense_date', dateFrom).lte('expense_date', dateTo)
-        .order('expense_date', { ascending: false })
-      entries = (data || []).map(e => ({
-        date: e.expense_date, description: e.description || e.category,
-        party: '—', amount: Number(e.amount)
-      }))
-    } else if (type === 'salary') {
-      const { data } = await supabase.from('salary_payments')
-        .select('*, riders(full_name)').eq('tenant_id', tenantId)
-        .gte('payment_date', dateFrom).lte('payment_date', dateTo)
-        .order('payment_date', { ascending: false })
-      entries = (data || []).filter(p => (p.riders?.full_name || 'Rider') === key).map(p => ({
-        date: p.payment_date, description: p.notes || p.month_year,
-        party: p.riders?.full_name || '—', amount: Number(p.amount_paid)
-      }))
+    try {
+      const { data: lines } = await supabase
+        .from('journal_entry_lines')
+        .select('debit, credit, je:journal_entry_id!inner(entry_date, narration, reference_type, reference_id)')
+        .eq('tenant_id', tenantId)
+        .eq('account_code', accountCode)
+        .gte('je.entry_date', dateFrom)
+        .lte('je.entry_date', dateTo)
+        .order('je.entry_date', { ascending: false })
+
+      const entries = (lines || []).map(l => ({
+        date: l.je?.entry_date,
+        description: l.je?.narration || '—',
+        type: l.je?.reference_type || '—',
+        amount: Number(l.debit || 0) - Number(l.credit || 0)
+      })).filter(e => e.amount !== 0)
+
+      setDrillDown({ label: accountName, entries })
+    } catch (err) {
+      console.error('Drill down error:', err)
     }
-
-    setDrillDown({ label: key, entries })
     setDrillLoading(false)
   }
 
-  function PLRow({ label, value, color, bold, indent, separator, onClick }) {
-    return (
-      <div onClick={onClick}
-        style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: separator ? '2px solid #eee' : '1px solid #f0f0f0', marginTop: separator ? '4px' : '0', cursor: onClick ? 'pointer' : 'default', borderRadius: '4px' }}
-        onMouseEnter={e => { if (onClick) e.currentTarget.style.background = '#f0f7ff' }}
-        onMouseLeave={e => { if (onClick) e.currentTarget.style.background = 'transparent' }}>
-        <span style={{ fontSize: '13px', color: color || '#555', fontWeight: bold ? '700' : '400', paddingLeft: indent ? '16px' : '0' }}>
-          {label}{onClick && <span style={{ fontSize: '10px', color: '#0f4c81', marginLeft: '6px' }}>🔍</span>}
-        </span>
-        <span style={{ fontSize: bold ? '15px' : '13px', fontWeight: '700', color: color || (value < 0 ? '#f44336' : '#333') }}>
-          {value < 0 ? '− ' : ''}Rs. {Math.abs(value).toLocaleString()}
-        </span>
-      </div>
-    )
-  }
+  const today = new Date().toISOString().split('T')[0]
+  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  const firstOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split('T')[0]
+  const lastOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0]
+  const firstOfYear = new Date().getFullYear() + '-01-01'
+
+  const Row = ({ label, value, bold, indent, color, clickable, onClick }) => (
+    <div onClick={clickable ? onClick : undefined}
+      style={{
+        display: 'flex', justifyContent: 'space-between', padding: bold ? '9px 16px' : '7px 16px',
+        background: bold ? '#f8f9fa' : 'white',
+        borderBottom: '1px solid #f0f0f0',
+        cursor: clickable ? 'pointer' : 'default',
+      }}
+      onMouseEnter={e => { if (clickable) e.currentTarget.style.background = '#f0f7ff' }}
+      onMouseLeave={e => { if (clickable) e.currentTarget.style.background = bold ? '#f8f9fa' : 'white' }}>
+      <span style={{ fontSize: 13, fontWeight: bold ? 700 : 400, color: '#333', paddingLeft: indent ? 20 : 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        {label}
+        {clickable && <span style={{ fontSize: 10, color: '#93c5fd' }}>🔍</span>}
+      </span>
+      <span style={{ fontSize: bold ? 14 : 13, fontWeight: bold ? 700 : 500, color: color || '#333' }}>
+        Rs. {Math.abs(value || 0).toLocaleString('en-PK', { minimumFractionDigits: 0 })}
+      </span>
+    </div>
+  )
+
+  const SectionHeader = ({ label, color }) => (
+    <div style={{ padding: '8px 16px', background: color || '#f0f4f8', borderBottom: '1px solid #e0e0e0' }}>
+      <span style={{ fontSize: 11, fontWeight: 800, color: '#555', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</span>
+    </div>
+  )
+
+  const SubtotalRow = ({ label, value, positive }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '11px 16px', background: positive ? '#e8f5e9' : '#ffebee', borderBottom: '2px solid #e0e0e0' }}>
+      <span style={{ fontSize: 13, fontWeight: 800, color: positive ? '#1a7a4a' : '#c62828' }}>{label}</span>
+      <span style={{ fontSize: 14, fontWeight: 800, color: positive ? '#1a7a4a' : '#c62828' }}>Rs. {Math.abs(value || 0).toLocaleString()}</span>
+    </div>
+  )
 
   return (
     <div>
-      <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📈 Profit & Loss Statement</h3>
+      {/* Date filter */}
+      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#555', flexShrink: 0 }}>📅 Period:</span>
+        {[
+          { label: 'This Month', from: firstOfMonth, to: today },
+          { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
+          { label: 'This Year', from: firstOfYear, to: today },
+        ].map(p => (
+          <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+            style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0,
+              background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
+              color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
+            {p.label}
+          </button>
+        ))}
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
+        <span style={{ fontSize: 12, color: '#888' }}>to</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
+        <span style={{ fontSize: 11, color: '#888', marginLeft: 'auto', fontStyle: 'italic' }}>🔍 Click any line item to see details</span>
+      </div>
 
-      {/* Drill Down Modal */}
-      {drillDown && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', maxWidth: '700px', width: '100%', maxHeight: '80vh', overflow: 'auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, fontSize: '15px', fontWeight: '700', color: '#e65100' }}>🔍 {drillDown.label}</h3>
-              <button onClick={() => setDrillDown(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#888' }}>✕</button>
+      {loading ? (
+        <div style={{ padding: 60, textAlign: 'center', color: '#888', background: 'white', borderRadius: 12 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>📊</div>
+          <p style={{ fontSize: 14 }}>Calculating Profit & Loss...</p>
+        </div>
+      ) : !data ? null : (
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+
+          {/* Header */}
+          <div style={{ background: 'linear-gradient(135deg, #0f4c81, #1a6bad)', padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <div>
+              <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, margin: 0 }}>📊 Profit & Loss Statement</p>
+              <p style={{ color: '#93c5fd', fontSize: 12, margin: '3px 0 0' }}>
+                {new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })} — {new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}
+              </p>
+              <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 10, margin: '3px 0 0', fontStyle: 'italic' }}>All figures read from Chart of Accounts journal entries</p>
             </div>
-            {drillLoading ? <p style={{ textAlign: 'center', color: '#888', padding: '20px' }}>Loading...</p> : drillDown.entries.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#888', padding: '20px' }}>No entries found</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ background: '#f8f9fa' }}>
-                    {['Date', 'Description', 'Party/Rider', 'Amount'].map(h => (
-                      <th key={h} style={{ padding: '10px 12px', textAlign: 'left', fontSize: '11px', color: '#666', fontWeight: '600', borderBottom: '1px solid #eee' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {drillDown.entries.map((e, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#555', whiteSpace: 'nowrap' }}>
-                        {e.date ? new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
-                      </td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#333' }}>{e.description || '—'}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', color: '#888' }}>{e.party}</td>
-                      <td style={{ padding: '8px 12px', fontSize: '13px', fontWeight: '700', color: '#e65100', textAlign: 'right' }}>Rs. {e.amount.toLocaleString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr style={{ background: '#e65100', color: 'white' }}>
-                    <td colSpan={3} style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700' }}>Total</td>
-                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', textAlign: 'right' }}>
-                      Rs. {drillDown.entries.reduce((s, e) => s + e.amount, 0).toLocaleString()}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            )}
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ color: '#93c5fd', fontSize: 11, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: 1 }}>Net {data.netProfit >= 0 ? 'Profit' : 'Loss'}</p>
+              <p style={{ color: data.netProfit >= 0 ? '#6ee7b7' : '#fca5a5', fontWeight: 900, fontSize: 26, margin: 0, letterSpacing: -0.5 }}>
+                Rs. {Math.abs(data.netProfit).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          {/* REVENUE */}
+          <SectionHeader label="📈 Revenue" color="#e8f5e9" />
+          {Object.entries(data.revenueAccounts)
+            .filter(([, v]) => v > 0)
+            .sort((a, b) => b[1] - a[1])
+            .map(([name, val]) => {
+              const acc = Object.values(data.accounts).find(a => a.name === name)
+              return <Row key={name} label={name} value={val} indent color="#1a7a4a"
+                clickable onClick={() => openDrillDown(name, acc?.code)} />
+            })}
+          <Row label="Total Revenue" value={data.totalRevenue} bold color="#1a7a4a" />
+
+          {/* COST OF GOODS */}
+          {data.totalCogs > 0 && <>
+            <SectionHeader label="📦 Cost of Goods Sold" color="#fff3e0" />
+            {Object.entries(data.cogsAccounts)
+              .filter(([, v]) => v > 0)
+              .map(([name, val]) => {
+                const acc = Object.values(data.accounts).find(a => a.name === name)
+                return <Row key={name} label={name} value={val} indent color="#e65100"
+                  clickable onClick={() => openDrillDown(name, acc?.code)} />
+              })}
+            <Row label="Total Cost of Goods" value={data.totalCogs} bold color="#e65100" />
+          </>}
+
+          {/* GROSS PROFIT */}
+          <SubtotalRow label="GROSS PROFIT" value={data.grossProfit} positive={data.grossProfit >= 0} />
+
+          {/* OPERATING EXPENSES */}
+          <SectionHeader label="💸 Operating Expenses" color="#ffebee" />
+          {Object.entries(data.expenseAccounts)
+            .filter(([, v]) => v.amount > 0)
+            .sort((a, b) => b[1].amount - a[1].amount)
+            .map(([name, v]) => (
+              <Row key={name} label={name} value={v.amount} indent color="#c62828"
+                clickable onClick={() => openDrillDown(name, v.code)} />
+            ))}
+          <Row label="Total Operating Expenses" value={data.totalExpenses} bold color="#c62828" />
+
+          {/* NET PROFIT */}
+          <SubtotalRow label={`NET ${data.netProfit >= 0 ? 'PROFIT' : 'LOSS'}`} value={data.netProfit} positive={data.netProfit >= 0} />
+
+          {/* Summary cards */}
+          <div style={{ padding: '16px', background: '#f8fafc', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+            {[
+              { label: 'Total Revenue', value: data.totalRevenue, color: '#1a7a4a', bg: '#e8f5e9' },
+              { label: 'Total Expenses', value: data.totalExpenses + data.totalCogs, color: '#c62828', bg: '#ffebee' },
+              { label: data.netProfit >= 0 ? 'Net Profit' : 'Net Loss', value: data.netProfit, color: data.netProfit >= 0 ? '#1a7a4a' : '#c62828', bg: data.netProfit >= 0 ? '#e8f5e9' : '#ffebee' },
+              { label: 'Profit Margin', value: data.totalRevenue > 0 ? ((data.netProfit / data.totalRevenue) * 100).toFixed(1) + '%' : '0%', color: data.netProfit >= 0 ? '#0f4c81' : '#c62828', bg: '#e3f0ff', isPercent: true },
+            ].map(c => (
+              <div key={c.label} style={{ background: c.bg, borderRadius: 8, padding: '10px 14px', textAlign: 'center' }}>
+                <p style={{ fontSize: 10, color: '#666', margin: '0 0 4px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{c.label}</p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: c.color, margin: 0 }}>
+                  {c.isPercent ? c.value : `Rs. ${Math.abs(c.value).toLocaleString()}`}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <button onClick={fetchPL} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
-      </div>
-
-      <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
-        <p style={{ fontSize: '12px', color: '#0f4c81', margin: 0 }}>🔍 Click any expense line to see individual transactions that make up that total.</p>
-      </div>
-
-      {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : data && (
-        <div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: '16px' }}>
-            <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', marginBottom: '12px', paddingBottom: '8px', borderBottom: '2px solid #e3f0ff' }}>REVENUE</p>
-            <PLRow label="Sales Revenue" value={data.totalRevenue} color="#1a7a4a" indent />
-            <PLRow label="Total Revenue" value={data.totalRevenue} color="#1a7a4a" bold separator />
-
-            <p style={{ fontSize: '14px', fontWeight: '700', color: '#f44336', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #ffebee' }}>COST OF GOODS</p>
-            {data.totalCOGS > 0 && <PLRow label="Cost of Goods Sold" value={data.totalCOGS} color="#f44336" indent />}
-            {data.totalPurchaseCost > 0 && <PLRow label="Raw Material Purchases" value={data.totalPurchaseCost} color="#f44336" indent />}
-            {data.totalProductionOverhead > 0 && <PLRow label="Production Overhead" value={data.totalProductionOverhead} color="#f44336" indent />}
-            <PLRow label="Total Cost of Goods" value={data.totalCogs} color="#f44336" bold separator />
-            <PLRow label="GROSS PROFIT" value={data.grossProfit} color={data.grossProfit >= 0 ? '#1a7a4a' : '#f44336'} bold separator />
-
-            <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '16px 0 12px', paddingBottom: '8px', borderBottom: '2px solid #fff3e0' }}>OPERATING EXPENSES</p>
-
-            {Object.entries(data.riderByCategory || {}).map(([cat, amt]) => (
-              <PLRow key={'r-' + cat}
-                label={`🚴 ${cat.charAt(0).toUpperCase() + cat.slice(1)}`}
-                value={amt} color="#e65100" indent
-                onClick={() => openDrillDown('rider_expense', cat)} />
-            ))}
-
-            {Object.entries(data.officeByAccount || {}).map(([acc, amt]) => (
-              <PLRow key={'o-' + acc}
-                label={`🏢 ${acc.charAt(0).toUpperCase() + acc.slice(1)}`}
-                value={amt} color="#e65100" indent
-                onClick={() => openDrillDown('office_expense', acc)} />
-            ))}
-
-            {Object.entries(data.salaryByRider || {}).map(([name, amt]) => (
-              <PLRow key={'s-' + name}
-                label={`💼 Salary — ${name}`}
-                value={amt} color="#e65100" indent
-                onClick={() => openDrillDown('salary', name)} />
-            ))}
-
-            <PLRow label="Total Operating Expenses" value={data.totalOperatingExpenses} color="#e65100" bold separator />
-          </div>
-
-          <div style={{ background: data.netProfit >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '24px', textAlign: 'center' }}>
-            <p style={{ fontSize: '14px', opacity: 0.8, margin: '0 0 8px' }}>NET PROFIT / (LOSS)</p>
-            <p style={{ fontSize: '44px', fontWeight: '700', margin: '0 0 6px' }}>{data.netProfit < 0 ? '−' : ''} Rs. {Math.abs(data.netProfit).toLocaleString()}</p>
-            <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>Revenue Rs. {data.totalRevenue.toLocaleString()} − COGS Rs. {(data.totalCogs || 0).toLocaleString()} − Expenses Rs. {data.totalOperatingExpenses.toLocaleString()}</p>
+      {/* Drill Down Modal */}
+      {drillDown && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'white', borderRadius: 14, width: '100%', maxWidth: 660, maxHeight: '82vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ padding: '16px 20px', background: '#0f4c81', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ color: '#fff', fontWeight: 700, fontSize: 15, margin: 0 }}>🔍 {drillDown.label}</p>
+                <p style={{ color: '#93c5fd', fontSize: 11, margin: '2px 0 0' }}>
+                  {new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} — {new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                  {drillDown.entries.length > 0 && ` · ${drillDown.entries.length} transactions`}
+                </p>
+              </div>
+              <button onClick={() => setDrillDown(null)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', borderRadius: 8, padding: '7px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>✕ Close</button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {drillLoading ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Loading transactions...</div>
+              ) : drillDown.entries.length === 0 ? (
+                <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>
+                  <p style={{ fontSize: 28, marginBottom: 8 }}>📭</p>
+                  <p>No transactions found for this account in the selected period</p>
+                </div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9fa' }}>
+                      {['Date', 'Description', 'Type', 'Amount'].map((h, i) => (
+                        <th key={h} style={{ padding: '10px 14px', textAlign: i === 3 ? 'right' : 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {drillDown.entries.map((e, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
+                        <td style={{ padding: '9px 14px', fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>
+                          {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td style={{ padding: '9px 14px', fontSize: 12, color: '#333', maxWidth: 280 }}>{e.description}</td>
+                        <td style={{ padding: '9px 14px', fontSize: 11 }}>
+                          <span style={{ background: '#f0f4f8', color: '#555', padding: '2px 7px', borderRadius: 4, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                            {e.type?.replace(/_/g, ' ')}
+                          </span>
+                        </td>
+                        <td style={{ padding: '9px 14px', fontSize: 13, fontWeight: 700, color: '#c62828', textAlign: 'right' }}>
+                          Rs. {Math.abs(e.amount).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background: '#0f4c81' }}>
+                      <td colSpan={3} style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#fff' }}>Total — {drillDown.label}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 800, color: '#fff', textAlign: 'right' }}>
+                        Rs. {Math.abs(drillDown.entries.reduce((s, e) => s + e.amount, 0)).toLocaleString()}
+                      </td>
+                    </tr>
+                  </tfoot>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       )}
