@@ -580,7 +580,7 @@ function CustomerLedger({ tenantId }) {
               {[
                 { label: dateFrom || dateTo ? 'Period Sales (Dr)' : 'Total Sales (Dr)', value: totalDebit, color: '#f44336', bg: '#ffebee' },
                 { label: dateFrom || dateTo ? 'Period Payments (Cr)' : 'Total Payments (Cr)', value: totalCredit, color: '#1a7a4a', bg: '#e8f5e9' },
-                { label: 'Outstanding Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' :
+                { label: 'Outstanding Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' : '#1a7a4a', bg: closingBalance > 0 ? '#ffebee' : '#e8f5e9' },
               ].map(card => (
                 <div key={card.label} style={{ background: card.bg, borderRadius: '8px', padding: '10px 12px', textAlign: 'center' }}>
                   <p style={{ fontSize: '10px', color: '#666', margin: '0 0 4px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{card.label}</p>
