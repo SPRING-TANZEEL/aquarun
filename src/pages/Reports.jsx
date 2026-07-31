@@ -578,9 +578,10 @@ function CustomerLedger({ tenantId }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
               {[
-                { label: 'Total Sales (Dr)', value: totalDebit, color: '#f44336', bg: '#ffebee' },
-                { label: 'Total Payments (Cr)', value: totalCredit, color: '#1a7a4a', bg: '#e8f5e9' },
-                { label: 'Closing Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' : '#1a7a4a', bg: closingBalance > 0 ? '#ffebee' : '#e8f5e9' },
+                { label: dateFrom || dateTo ? 'Period Sales (Dr)' : 'Total Sales (Dr)', value: totalDebit, color: '#f44336', bg: '#ffebee' },
+                { label: dateFrom || dateTo ? 'Period Payments (Cr)' : 'Total Payments (Cr)', value: totalCredit, color: '#1a7a4a', bg: '#e8f5e9' },
+                ...(dateFrom || dateTo ? [{ label: 'Opening (Brought Fwd)', value: openingBalForFilter, color: openingBalForFilter > 0 ? '#f44336' : '#1a7a4a', bg: openingBalForFilter > 0 ? '#ffebee' : '#e8f5e9' }] : []),
+                { label: 'Outstanding Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' :
               ].map(card => (
                 <div key={card.label} style={{ background: card.bg, borderRadius: '8px', padding: '10px 12px', textAlign: 'center' }}>
                   <p style={{ fontSize: '10px', color: '#666', margin: '0 0 4px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{card.label}</p>
@@ -605,7 +606,9 @@ function CustomerLedger({ tenantId }) {
                     <tr style={{ background: '#e3f0ff', borderBottom: '1px solid #c8d8ff' }}>
                       <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
                       <td style={{ padding: '8px 12px', fontSize: '11px', color: '#888' }}>—</td>
-                      <td style={{ padding: '8px 12px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>★ Opening Balance</td>
+                      <td style={{ padding: '5px 10px', fontSize: '12px', fontWeight: '700', color: '#0f4c81' }}>
+                        {dateFrom ? `★ Balance Brought Forward (before ${new Date(dateFrom).toLocaleDateString('en-PK', {day:'2-digit', month:'short', year:'numeric'})})` : '★ Opening Balance'}
+                      </td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', color: '#aaa' }}>—</td>
                       <td style={{ padding: '5px 10px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: openingBalForFilter > 0 ? '#f44336' : '#1a7a4a' }}>{openingBalForFilter.toLocaleString()}</td>
@@ -1171,6 +1174,7 @@ function SalesTaxReport({ tenantId }) {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
         {[
+          
           { label: 'Total Sales (excl. tax)', value: totalSales, color: '#0f4c81' },
           { label: 'Output Tax Collected', value: totalTax, color: '#f57f17' },
           { label: 'Total with Tax', value: totalWithTax, color: '#1a7a4a' },
