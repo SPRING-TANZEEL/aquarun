@@ -1362,12 +1362,18 @@ function ProfitLoss({ tenantId }) {
       const jeMap = {}
       journalEntries.forEach(je => { jeMap[je.id] = je })
 
-      // Step 2: Get all lines for those entries
-      const { data: lines } = await supabase
-        .from('journal_entry_lines')
-        .select('account_code, account_name, debit, credit, journal_entry_id')
-        .eq('tenant_id', tenantId)
-        .in('journal_entry_id', jeIds)
+      // Step 2: Get all lines in batches of 100
+      let lines = []
+      const chunkSize = 100
+      for (let i = 0; i < jeIds.length; i += chunkSize) {
+        const chunk = jeIds.slice(i, i + chunkSize)
+        const { data: batch } = await supabase
+          .from('journal_entry_lines')
+          .select('account_code, account_name, debit, credit, journal_entry_id')
+          .eq('tenant_id', tenantId)
+          .in('journal_entry_id', chunk)
+        if (batch) lines = lines.concat(batch)
+      }
 
       if (!lines) { setLoading(false); return }
 
@@ -1450,13 +1456,20 @@ function ProfitLoss({ tenantId }) {
       ;(jeForDrill || []).forEach(je => { jeDrillMap[je.id] = je })
       const jeDrillIds = (jeForDrill || []).map(je => je.id)
 
-      const { data: lines } = jeDrillIds.length > 0
-        ? await supabase.from('journal_entry_lines')
+      let lines = []
+      if (jeDrillIds.length > 0) {
+        const chunkSize = 100
+        for (let i = 0; i < jeDrillIds.length; i += chunkSize) {
+          const chunk = jeDrillIds.slice(i, i + chunkSize)
+          const { data: batch } = await supabase
+            .from('journal_entry_lines')
             .select('debit, credit, journal_entry_id')
             .eq('tenant_id', tenantId)
             .eq('account_code', accountCode)
-            .in('journal_entry_id', jeDrillIds)
-        : { data: [] }
+            .in('journal_entry_id', chunk)
+          if (batch) lines = lines.concat(batch)
+        }
+      }
 
       const entries = (lines || []).map(l => {
         const je = jeDrillMap[l.journal_entry_id] || {}
