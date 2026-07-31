@@ -1344,12 +1344,30 @@ function ProfitLoss({ tenantId }) {
     try {
       // ── Single query: all journal lines for the period ──
       // This is the ONLY source of truth — every transaction posts here
+      // Step 1: Get journal entry IDs for the period
+      const { data: journalEntries } = await supabase
+        .from('journal_entries')
+        .select('id, entry_date, narration, reference_type')
+        .eq('tenant_id', tenantId)
+        .gte('entry_date', dateFrom)
+        .lte('entry_date', dateTo)
+
+      if (!journalEntries || journalEntries.length === 0) {
+        setData({ revenueAccounts: {}, totalRevenue: 0, cogsAccounts: {}, totalCogs: 0, grossProfit: 0, expenseAccounts: {}, totalExpenses: 0, netProfit: 0, accounts: {} })
+        setLoading(false)
+        return
+      }
+
+      const jeIds = journalEntries.map(je => je.id)
+      const jeMap = {}
+      journalEntries.forEach(je => { jeMap[je.id] = je })
+
+      // Step 2: Get all lines for those entries
       const { data: lines } = await supabase
         .from('journal_entry_lines')
-        .select('account_code, account_name, debit, credit, je:journal_entry_id!inner(entry_date, narration, reference_type)')
+        .select('account_code, account_name, debit, credit, journal_entry_id')
         .eq('tenant_id', tenantId)
-        .gte('je.entry_date', dateFrom)
-        .lte('je.entry_date', dateTo)
+        .in('journal_entry_id', jeIds)
 
       if (!lines) { setLoading(false); return }
 
@@ -1357,21 +1375,16 @@ function ProfitLoss({ tenantId }) {
       const accounts = {}
       lines.forEach(l => {
         const code = l.account_code
+        const je = jeMap[l.journal_entry_id] || {}
         if (!accounts[code]) {
-          accounts[code] = {
-            code,
-            name: l.account_name,
-            debit: 0,
-            credit: 0,
-            lines: []
-          }
+          accounts[code] = { code, name: l.account_name, debit: 0, credit: 0, lines: [] }
         }
         accounts[code].debit += Number(l.debit || 0)
         accounts[code].credit += Number(l.credit || 0)
         accounts[code].lines.push({
-          date: l.je?.entry_date,
-          narration: l.je?.narration,
-          reference_type: l.je?.reference_type,
+          date: je.entry_date,
+          narration: je.narration,
+          reference_type: je.reference_type,
           debit: Number(l.debit || 0),
           credit: Number(l.credit || 0),
         })
@@ -1426,21 +1439,35 @@ function ProfitLoss({ tenantId }) {
     setDrillDown({ label: accountName, entries: [] })
 
     try {
-      const { data: lines } = await supabase
-        .from('journal_entry_lines')
-        .select('debit, credit, je:journal_entry_id!inner(entry_date, narration, reference_type, reference_id)')
+      const { data: jeForDrill } = await supabase
+        .from('journal_entries')
+        .select('id, entry_date, narration, reference_type')
         .eq('tenant_id', tenantId)
-        .eq('account_code', accountCode)
-        .gte('je.entry_date', dateFrom)
-        .lte('je.entry_date', dateTo)
-        .order('je.entry_date', { ascending: false })
+        .gte('entry_date', dateFrom)
+        .lte('entry_date', dateTo)
 
-      const entries = (lines || []).map(l => ({
-        date: l.je?.entry_date,
-        description: l.je?.narration || '—',
-        type: l.je?.reference_type || '—',
-        amount: Number(l.debit || 0) - Number(l.credit || 0)
-      })).filter(e => e.amount !== 0)
+      const jeDrillMap = {}
+      ;(jeForDrill || []).forEach(je => { jeDrillMap[je.id] = je })
+      const jeDrillIds = (jeForDrill || []).map(je => je.id)
+
+      const { data: lines } = jeDrillIds.length > 0
+        ? await supabase.from('journal_entry_lines')
+            .select('debit, credit, journal_entry_id')
+            .eq('tenant_id', tenantId)
+            .eq('account_code', accountCode)
+            .in('journal_entry_id', jeDrillIds)
+        : { data: [] }
+
+      const entries = (lines || []).map(l => {
+        const je = jeDrillMap[l.journal_entry_id] || {}
+        return {
+          date: je.entry_date,
+          description: je.narration || '—',
+          type: je.reference_type || '—',
+          amount: Number(l.debit || 0) - Number(l.credit || 0)
+        }
+      }).filter(e => e.amount !== 0)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
 
       setDrillDown({ label: accountName, entries })
     } catch (err) {
