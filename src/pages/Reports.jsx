@@ -577,6 +577,12 @@ function CustomerLedger({ tenantId }) {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+              {(dateFrom || dateTo) && (
+                <div style={{ background: openingBalForFilter > 0 ? '#ffebee' : '#e8f5e9', borderRadius: '8px', padding: '10px 12px', textAlign: 'center' }}>
+                  <p style={{ fontSize: '10px', color: '#666', margin: '0 0 4px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening (Brought Fwd)</p>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: openingBalForFilter > 0 ? '#f44336' : '#1a7a4a', margin: 0 }}>Rs. {Math.abs(openingBalForFilter).toLocaleString()}</p>
+                </div>
+              )}
               {[
                 { label: dateFrom || dateTo ? 'Period Sales (Dr)' : 'Total Sales (Dr)', value: totalDebit, color: '#f44336', bg: '#ffebee' },
                 { label: dateFrom || dateTo ? 'Period Payments (Cr)' : 'Total Payments (Cr)', value: totalCredit, color: '#1a7a4a', bg: '#e8f5e9' },
@@ -587,11 +593,6 @@ function CustomerLedger({ tenantId }) {
                   <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {Math.abs(Number(card.value)).toLocaleString()}</p>
                 </div>
               ))}
-              {(dateFrom || dateTo) && (
-                <div style={{ background: openingBalForFilter > 0 ? '#ffebee' : '#e8f5e9', borderRadius: '8px', padding: '10px 12px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '10px', color: '#666', margin: '0 0 4px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening (Brought Fwd)</p>
-                  <p style={{ fontSize: '15px', fontWeight: '700', color: openingBalForFilter > 0 ? '#f44336' : '#1a7a4a', margin: 0 }}>Rs. {Math.abs(openingBalForFilter).toLocaleString()}</p>
-                </div>
               )}
             </div>
 
