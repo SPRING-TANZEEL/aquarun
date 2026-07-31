@@ -1345,12 +1345,23 @@ function ProfitLoss({ tenantId }) {
       // ── Single query: all journal lines for the period ──
       // This is the ONLY source of truth — every transaction posts here
       // Step 1: Get journal entry IDs for the period
-      const { data: journalEntries } = await supabase
-        .from('journal_entries')
-        .select('id, entry_date, narration, reference_type')
-        .eq('tenant_id', tenantId)
-        .gte('entry_date', dateFrom)
-        .lte('entry_date', dateTo)
+      // Fetch all journal entries with pagination (Supabase default limit is 1000)
+      let journalEntries = []
+      let from = 0
+      const pageSize = 1000
+      while (true) {
+        const { data: page } = await supabase
+          .from('journal_entries')
+          .select('id, entry_date, narration, reference_type')
+          .eq('tenant_id', tenantId)
+          .gte('entry_date', dateFrom)
+          .lte('entry_date', dateTo)
+          .range(from, from + pageSize - 1)
+        if (!page || page.length === 0) break
+        journalEntries = journalEntries.concat(page)
+        if (page.length < pageSize) break
+        from += pageSize
+      }
 
       if (!journalEntries || journalEntries.length === 0) {
         setData({ revenueAccounts: {}, totalRevenue: 0, cogsAccounts: {}, totalCogs: 0, grossProfit: 0, expenseAccounts: {}, totalExpenses: 0, netProfit: 0, accounts: {} })
@@ -1445,12 +1456,21 @@ function ProfitLoss({ tenantId }) {
     setDrillDown({ label: accountName, entries: [] })
 
     try {
-      const { data: jeForDrill } = await supabase
-        .from('journal_entries')
-        .select('id, entry_date, narration, reference_type')
-        .eq('tenant_id', tenantId)
-        .gte('entry_date', dateFrom)
-        .lte('entry_date', dateTo)
+      let jeForDrill = []
+      let drillFrom = 0
+      while (true) {
+        const { data: page } = await supabase
+          .from('journal_entries')
+          .select('id, entry_date, narration, reference_type')
+          .eq('tenant_id', tenantId)
+          .gte('entry_date', dateFrom)
+          .lte('entry_date', dateTo)
+          .range(drillFrom, drillFrom + 999)
+        if (!page || page.length === 0) break
+        jeForDrill = jeForDrill.concat(page)
+        if (page.length < 1000) break
+        drillFrom += 1000
+      }
 
       const jeDrillMap = {}
       ;(jeForDrill || []).forEach(je => { jeDrillMap[je.id] = je })
