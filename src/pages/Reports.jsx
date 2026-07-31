@@ -578,7 +578,6 @@ function CustomerLedger({ tenantId }) {
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '8px', marginBottom: '12px' }}>
               {[
-                { label: 'Opening Balance', value: openingBal, color: '#0f4c81', bg: '#e3f0ff' },
                 { label: 'Total Sales (Dr)', value: totalDebit, color: '#f44336', bg: '#ffebee' },
                 { label: 'Total Payments (Cr)', value: totalCredit, color: '#1a7a4a', bg: '#e8f5e9' },
                 { label: 'Closing Balance', value: closingBalance, color: closingBalance > 0 ? '#f44336' : '#1a7a4a', bg: closingBalance > 0 ? '#ffebee' : '#e8f5e9' },
