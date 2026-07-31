@@ -593,7 +593,6 @@ function CustomerLedger({ tenantId }) {
                   <p style={{ fontSize: '15px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {Math.abs(Number(card.value)).toLocaleString()}</p>
                 </div>
               ))}
-              )}
             </div>
 
             {loading ? (
