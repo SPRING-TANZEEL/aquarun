@@ -1391,14 +1391,16 @@ function ProfitLoss({ tenantId }) {
       officeByAccount[key] = (officeByAccount[key] || 0) + Number(e.amount)
     })
 
-    // ── SALARY PAYMENTS (from salary_payments table only) ──
-    const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('amount_paid, riders(full_name)').eq('tenant_id', tenantId)
-      .gte('payment_date', dateFrom).lte('payment_date', dateTo)
+    // ── SALARY — read from journal lines account 6001 for accuracy ──
+    const { data: salaryLines } = await supabase.from('journal_entry_lines')
+      .select('debit, je:journal_entry_id!inner(entry_date, narration)')
+      .eq('tenant_id', tenantId).eq('account_code', '6001')
+      .gte('je.entry_date', dateFrom.split('T')[0]).lte('je.entry_date', dateTo.split('T')[0])
     const salaryByRider = {}
-    salaryPayments?.forEach(p => {
-      const name = p.riders?.full_name || 'Rider'
-      salaryByRider[name] = (salaryByRider[name] || 0) + Number(p.amount_paid)
+    salaryLines?.forEach(l => {
+      const narration = l.je?.narration || 'Rider Salary'
+      const name = narration.includes('—') ? narration.split('—')[1]?.trim() || 'Rider' : 'Rider'
+      salaryByRider[name] = (salaryByRider[name] || 0) + Number(l.debit || 0)
     })
     const totalSalaries = Object.values(salaryByRider).reduce((s, v) => s + v, 0)
 
