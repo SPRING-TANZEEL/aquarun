@@ -17,6 +17,16 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [qty15l, setQty15l] = useState(0)
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('business_settings').select('*').eq('tenant_id', tenantId).then(({ data }) => {
+      const map = {}
+      data?.forEach(s => { map[s.setting_key] = s.setting_value })
+      setBizSettings(map)
+    })
+  }, [tenantId])
+
+  async function syncOfflinePayments() {
   const [cashReceived, setCashReceived] = useState('')
   const [bottlesReturned, setBottlesReturned] = useState(0)
   const [saving, setSaving] = useState(false)
@@ -523,6 +533,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               {[
                 { key: 'cash', label: 'نقد', sublabel: 'Cash', color: '#1a7a4a' },
                 { key: 'jazzcash', label: 'جیز کیش', sublabel: 'JazzCash', color: '#9c27b0' },
+                ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'ایزی پیسہ', sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
+                ...(bizSettings?.bank_name ? [{ key: 'bank', label: 'بینک', sublabel: 'Bank', color: '#0f4c81' }] : []),
                 { key: 'credit', label: 'ادھار', sublabel: 'Credit', color: '#f44336' },
               ].map(pm => (
                 <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); setCashReceived('') }}
