@@ -49,7 +49,7 @@ export default function Transactions({ tenantId }) {
     setInvoiceData({ delivery: tx.raw, customer, settings: businessSettings })
   }
 
-  async function fetchTransactions(limit = 100) {
+  async function fetchTransactions(limit = 100, fromDate = dateFrom, toDate = dateTo) {
     setLoading(true)
     if (limit === 100) setDisplayLimit(100)
     const all = []
@@ -59,8 +59,8 @@ export default function Transactions({ tenantId }) {
       const { data } = await supabase.from('deliveries')
         .select('*, customers(full_name, customer_code), riders(full_name)')
         .eq('tenant_id', tenantId)
-        .gte('delivered_at', dateFrom + 'T00:00:00')
-        .lte('delivered_at', dateTo + 'T23:59:59')
+        .gte('delivered_at', fromDate + 'T00:00:00')
+        .lte('delivered_at', toDate + 'T23:59:59')
         .eq('is_voided', showVoided)
         .order('delivered_at', { ascending: false })
       data?.forEach(d => all.push({
@@ -409,13 +409,13 @@ export default function Transactions({ tenantId }) {
               { label: 'This Month', from: new Date().toISOString().slice(0,7) + '-01', to: new Date().toISOString().split('T')[0] },
               { label: 'Last Month', from: new Date(new Date().getFullYear(), new Date().getMonth()-1, 1).toISOString().split('T')[0], to: new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0] },
             ].map(p => (
-              <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+              <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to); fetchTransactions(100, p.from, p.to) }}
                 style={{ padding: '8px 12px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
                 {p.label}
               </button>
             ))}
           </div>
-          <button onClick={fetchTransactions}
+          <button onClick={() => fetchTransactions(100, dateFrom, dateTo)}
             style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
             🔍 Search
           </button>
