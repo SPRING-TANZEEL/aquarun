@@ -1338,6 +1338,15 @@ function ProfitLoss({ tenantId }) {
   const [drillLoading, setDrillLoading] = useState(false)
 
   useEffect(() => { if (tenantId) fetchPL() }, [tenantId])
+  useEffect(() => {
+    const style = document.getElementById('pl-print-style')
+    if (!style) {
+      const s = document.createElement('style')
+      s.id = 'pl-print-style'
+      s.textContent = `@media print { nav, aside, .no-print, button { display: none !important; } body { margin: 0; } }`
+      document.head.appendChild(s)
+    }
+  }, [])
 
   async function fetchPL() {
     setLoading(true)
@@ -1571,6 +1580,7 @@ function ProfitLoss({ tenantId }) {
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
         <button onClick={fetchPL} style={{ padding: '8px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>🔍 Search</button>
+        <button onClick={() => window.print()} style={{ padding: '8px 16px', background: '#f0f4f8', color: '#555', border: '1px solid #e0e0e0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>🖨️ Print</button>
         <span style={{ fontSize: 11, color: '#888', marginLeft: 'auto', fontStyle: 'italic' }}>Click any line item to see details</span>
       </div>
 
