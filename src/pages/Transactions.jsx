@@ -33,10 +33,7 @@ export default function Transactions({ tenantId }) {
   const [totalCount, setTotalCount] = useState(0)
 
   useEffect(() => {
-    if (tenantId) {
-      const timer = setTimeout(() => fetchTransactions(), 100)
-      return () => clearTimeout(timer)
-    }
+    if (tenantId) fetchTransactions()
   }, [activeType, showVoided, tenantId])
   useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
 
