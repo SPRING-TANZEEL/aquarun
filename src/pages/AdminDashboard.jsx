@@ -25,7 +25,7 @@ const menuItems = [
   { key: 'tracking', icon: '📡', label: 'Live Tracking' },
   { key: 'riders', icon: '🚴', label: 'Riders' },
   { key: 'cashtransfer', icon: '💸', label: 'Cash Transfers' },
-  { key: 'jazzcash', icon: '📱', label: 'JazzCash' },
+  { key: 'jazzcash', icon: '💳', label: 'Digital Payments' },
   { key: 'salary', icon: '💼', label: 'Salary & Expenses' },
   { key: 'cashposition', icon: '🏦', label: 'CEO Cash Position' },
   { key: 'inventory', icon: '🏭', label: 'Inventory' },

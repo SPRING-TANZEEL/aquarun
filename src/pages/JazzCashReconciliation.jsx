@@ -2,747 +2,304 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import * as AccountingEngine from '../accountingEngine'
 
+const METHOD_CONFIG = {
+  jazzcash:  { label: 'JazzCash',  icon: '📱', color: '#9c27b0', bg: '#f3e5f5', clearingCode: '1102', clearingName: 'JazzCash Clearing - Pending',  actualCode: '1002', actualName: 'JazzCash Account' },
+  easypaisa: { label: 'EasyPaisa', icon: '💚', color: '#4caf50', bg: '#e8f5e9', clearingCode: '1103', clearingName: 'EasyPaisa Clearing - Pending', actualCode: '1003', actualName: 'EasyPaisa Account' },
+  bank:      { label: 'Bank',      icon: '🏦', color: '#0f4c81', bg: '#e3f0ff', clearingCode: '1104', clearingName: 'Bank Clearing - Pending',       actualCode: '1004', actualName: 'Bank Account' },
+}
+
 export default function JazzCashReconciliation({ tenantId, onUpdate }) {
-  const [activeTab, setActiveTab] = useState('statement')
-  const [deliveries, setDeliveries] = useState([])
-  const [payments, setPayments] = useState([])
+  const [methodFilter, setMethodFilter] = useState('all')
+  const [entries, setEntries] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('pending')
   const [confirming, setConfirming] = useState(null)
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().split('T')[0])
+  const [search, setSearch] = useState('')
+  const [dateFrom, setDateFrom] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
-  const [rejectReason, setRejectReason] = useState('')
-  const [rejectingId, setRejectingId] = useState(null)
-  const [rejectType, setRejectType] = useState(null)
-  const [jazzSummary, setJazzSummary] = useState({ in: 0, out: 0, pending: 0 })
 
-  // Statement state
-  const [stmtFrom, setStmtFrom] = useState('2024-01-01')
-  const [stmtTo, setStmtTo] = useState(new Date().toISOString().split('T')[0])
-  const [stmtEntries, setStmtEntries] = useState([])
-  const [stmtLoading, setStmtLoading] = useState(false)
-  const [stmtSummary, setStmtSummary] = useState({ totalIn: 0, totalOut: 0, closing: 0 })
+  useEffect(() => { if (tenantId) fetchPending() }, [tenantId])
 
-  useEffect(() => { if (tenantId) fetchEntries() }, [filter, dateFrom, dateTo, tenantId])
-  useEffect(() => { if (tenantId && activeTab === 'statement') fetchStatement() }, [stmtFrom, stmtTo, tenantId, activeTab])
-
-  async function fetchStatement() {
-    setStmtLoading(true)
-    const entries = []
-
-    // Opening balance from settings
-    const { data: settingsData } = await supabase.from('business_settings')
-      .select('setting_value')
-      .eq('tenant_id', tenantId)
-      .eq('setting_key', 'jazzcash_opening_balance')
-      .maybeSingle()
-    const openingBalance = Number(settingsData?.setting_value || 0)
-
-    // ── MONEY IN ──
-    // 1. Confirmed JazzCash deliveries (sales)
-    const { data: confDeliveries } = await supabase.from('deliveries')
-      .select('*, customers(full_name, customer_code)')
-      .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash')
-      .eq('jazzcash_confirmed', true)
-      .eq('is_voided', false)
-      .gte('delivered_at', stmtFrom + 'T00:00:00')
-      .lte('delivered_at', stmtTo + 'T23:59:59')
-
-    confDeliveries?.forEach(d => {
-      entries.push({
-        date: d.delivered_at,
-        type: 'in',
-        category: 'sale',
-        label: d.customers?.full_name || 'Walk-in',
-        sublabel: `Sale — ${[d.qty_19l > 0 ? `19L×${d.qty_19l}` : '', d.qty_half_litre > 0 ? `Half×${d.qty_half_litre}` : '', d.qty_1_5l > 0 ? `1.5L×${d.qty_1_5l}` : ''].filter(Boolean).join(' ')}${d.tax_amount > 0 ? ` (incl. GST Rs.${Number(d.tax_amount).toLocaleString()})` : ''}`,
-        amount: Number(d.total_with_tax || d.total_amount),
-        id: 'd-' + d.id
-      })
-    })
-
-    // Confirmed JazzCash payments (balance collections)
-    const { data: confPayments } = await supabase.from('payments')
-      .select('*, customers(full_name, customer_code)')
-      .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash')
-      .eq('jazzcash_confirmed', true)
-      .eq('is_voided', false)
-      .not('notes', 'ilike', '%JazzCash confirmed — delivery%')
-      .gte('created_at', stmtFrom + 'T00:00:00')
-      .lte('created_at', stmtTo + 'T23:59:59')
-
-    confPayments?.forEach(p => {
-      entries.push({
-        date: p.created_at,
-        type: 'in',
-        category: 'collection',
-        label: p.customers?.full_name || '—',
-        sublabel: 'Payment Received — JazzCash',
-        amount: Number(p.amount),
-        id: 'p-' + p.id
-      })
-    })
-
-    // 3. Rider Jazz Transfers to Office — money coming IN to your jazz account
-    const { data: jazzTransfersIn } = await supabase.from('cash_transfers')
-      .select('*, riders:from_rider_id(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('transfer_type', 'jazzcash')
-      .eq('status', 'confirmed')
-      .eq('to_office', true)
-      .gte('transfer_date', stmtFrom)
-      .lte('transfer_date', stmtTo)
-
-    jazzTransfersIn?.forEach(t => {
-      entries.push({
-        date: t.confirmed_at || t.transfer_date + 'T12:00:00',
-        type: 'in',
-        category: 'rider_transfer',
-        label: `Rider Transfer — ${t.riders?.full_name || '—'}`,
-        sublabel: 'Rider forwarded jazz to office account',
-        amount: Number(t.amount),
-        id: 'ct-' + t.id
-      })
-    })
-
-    // ── MONEY OUT ──
-    // 4. Office expenses paid from JazzCash
-    const { data: officeExp } = await supabase.from('office_expenses')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash')
-      .eq('is_voided', false)
-      .gte('expense_date', stmtFrom)
-      .lte('expense_date', stmtTo)
-
-    officeExp?.forEach(e => {
-      entries.push({
-        date: e.expense_date + 'T12:00:00',
-        type: 'out',
-        category: 'expense',
-        label: e.category ? e.category.charAt(0).toUpperCase() + e.category.slice(1) : 'Office Expense',
-        sublabel: e.description || 'Office Expense',
-        amount: Number(e.amount),
-        id: 'oe-' + e.id
-      })
-    })
-
-    // Rider expenses paid from JazzCash
-    const { data: riderExp } = await supabase.from('expenses')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('is_voided', false)
-      .gte('expense_date', stmtFrom)
-      .lte('expense_date', stmtTo)
-
-    riderExp?.forEach(e => {
-      entries.push({
-        date: e.expense_date + 'T12:00:00',
-        type: 'out',
-        category: 'expense',
-        label: e.expense_type ? e.expense_type.charAt(0).toUpperCase() + e.expense_type.slice(1) : 'Rider Expense',
-        sublabel: (e.description || '') + (e.riders?.full_name ? ` — ${e.riders.full_name}` : ''),
-        amount: Number(e.amount),
-        id: 're-' + e.id
-      })
-    })
-
-    // Salary payments from JazzCash
-    const { data: salaryPay } = await supabase.from('salary_payments')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('payment_method', 'jazzcash')
-      .gte('payment_date', stmtFrom)
-      .lte('payment_date', stmtTo)
-
-    salaryPay?.forEach(s => {
-      entries.push({
-        date: s.payment_date + 'T12:00:00',
-        type: 'out',
-        category: 'salary',
-        label: `Salary — ${s.riders?.full_name || '—'}`,
-        sublabel: s.notes || 'Salary Payment',
-        amount: Number(s.amount_paid),
-        id: 'sp-' + s.id
-      })
-    })
-
-    // Sort by date ascending
-    entries.sort((a, b) => new Date(a.date) - new Date(b.date))
-
-    // Running balance starting from opening balance
-    let balance = openingBalance
-    const withBalance = entries.map(e => {
-      if (e.type === 'in') balance += e.amount
-      else balance -= e.amount
-      return { ...e, balance }
-    })
-
-    const totalIn = entries.filter(e => e.type === 'in').reduce((s, e) => s + e.amount, 0)
-    const totalOut = entries.filter(e => e.type === 'out').reduce((s, e) => s + e.amount, 0)
-
-    setStmtEntries(withBalance)
-    setStmtSummary({ totalIn, totalOut, closing: openingBalance + totalIn - totalOut, openingBalance })
-    setStmtLoading(false)
-  }
-
-  async function fetchEntries() {
+  async function fetchPending() {
     setLoading(true)
+    const methods = ['jazzcash', 'easypaisa', 'bank']
+    const all = []
 
-    let dQuery = supabase.from('deliveries')
-      .select('*, customers(full_name, mobile, customer_code), riders(full_name), total_with_tax')
-      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
-      .order('delivered_at', { ascending: false })
-    if (filter === 'pending') dQuery = dQuery.eq('jazzcash_confirmed', false).eq('is_voided', false)
-    if (filter === 'confirmed') dQuery = dQuery.eq('jazzcash_confirmed', true)
-    const { data: dData } = await dQuery
-    setDeliveries(dData || [])
-
-    let pQuery = supabase.from('payments')
+    // Pending deliveries
+    const { data: deliveries } = await supabase.from('deliveries')
       .select('*, customers(full_name, mobile, customer_code), riders(full_name)')
-      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
+      .eq('tenant_id', tenantId)
+      .in('payment_method', methods)
+      .eq('jazzcash_confirmed', false)
+      .eq('is_voided', false)
+      .order('delivered_at', { ascending: false })
+
+    deliveries?.forEach(d => all.push({
+      id: d.id, type: 'delivery', table: 'deliveries',
+      method: d.payment_method,
+      customer: d.customers?.full_name || 'Walk-in',
+      mobile: d.customers?.mobile || '',
+      rider: d.riders?.full_name || '—',
+      amount: Number(d.total_with_tax || d.total_amount),
+      date: d.delivered_at,
+      detail: [d.qty_19l > 0 && `19L×${d.qty_19l}`, d.qty_half_litre > 0 && `½L×${d.qty_half_litre}`, d.qty_1_5l > 0 && `1.5L×${d.qty_1_5l}`].filter(Boolean).join(' '),
+      raw: d
+    }))
+
+    // Pending payments
+    const { data: payments } = await supabase.from('payments')
+      .select('*, customers(full_name, mobile, customer_code), riders(full_name)')
+      .eq('tenant_id', tenantId)
+      .in('payment_method', methods)
+      .eq('jazzcash_confirmed', false)
+      .eq('is_voided', false)
       .order('created_at', { ascending: false })
-    if (filter === 'pending') pQuery = pQuery.eq('jazzcash_confirmed', false).eq('is_voided', false)
-    if (filter === 'confirmed') pQuery = pQuery.eq('jazzcash_confirmed', true)
-    const { data: pData } = await pQuery
-    setPayments(pData || [])
 
-    const { data: allDeliveries } = await supabase.from('deliveries')
-      .select('total_amount, total_with_tax, jazzcash_confirmed, is_voided')
-      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
-      .gte('delivered_at', dateFrom + 'T00:00:00').lte('delivered_at', dateTo + 'T23:59:59')
-    const { data: allPayments } = await supabase.from('payments')
-      .select('amount, jazzcash_confirmed, is_voided')
-      .eq('tenant_id', tenantId).eq('payment_method', 'jazzcash')
-      .gte('created_at', dateFrom + 'T00:00:00').lte('created_at', dateTo + 'T23:59:59')
-    const { data: jazzTransfers } = await supabase.from('cash_transfers')
-      .select('amount').eq('tenant_id', tenantId).eq('transfer_type', 'jazzcash')
-      .eq('status', 'confirmed').gte('transfer_date', dateFrom).lte('transfer_date', dateTo)
+    payments?.forEach(p => all.push({
+      id: p.id, type: 'payment', table: 'payments',
+      method: p.payment_method,
+      customer: p.customers?.full_name || '—',
+      mobile: p.customers?.mobile || '',
+      rider: p.riders?.full_name || '—',
+      amount: Number(p.amount),
+      date: p.created_at || p.payment_date,
+      detail: p.notes || 'Payment received',
+      raw: p
+    }))
 
-    let jazzIn = 0, jazzPending = 0
-    allDeliveries?.forEach(d => {
-      if (d.is_voided) return
-      const amt = Number(d.total_with_tax || d.total_amount)
-      if (d.jazzcash_confirmed) jazzIn += amt
-      else jazzPending += amt
-    })
-    allPayments?.forEach(p => {
-      if (p.is_voided) return
-      if (p.jazzcash_confirmed) jazzIn += Number(p.amount)
-      else jazzPending += Number(p.amount)
-    })
-    const jazzOut = jazzTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    setJazzSummary({ in: jazzIn, out: jazzOut, pending: jazzPending })
+    // Sort by date descending
+    all.sort((a, b) => new Date(b.date) - new Date(a.date))
+    setEntries(all)
     setLoading(false)
   }
 
-  async function confirmDelivery(entry) {
-    setConfirming('d-' + entry.id)
-    const { data: confirmed, error } = await supabase.from('deliveries').update({
-      jazzcash_confirmed: true, jazzcash_confirmed_at: new Date().toISOString(),
-      jazzcash_confirmed_by: 'Admin', amount_received: entry.total_with_tax || entry.total_amount
-    }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
-    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
+  async function confirmEntry(entry) {
+    setConfirming(entry.id)
     try {
-      const { postJazzCashConfirmationJournal } = AccountingEngine
-      const entryId = await postJazzCashConfirmationJournal(confirmed, 'delivery', tenantId)
-      console.log('Confirmation journal entryId:', entryId)
+      const cfg = METHOD_CONFIG[entry.method]
+      if (!cfg) { alert('Unknown payment method'); setConfirming(null); return }
 
-      // Update customer balance on JazzCash delivery confirmation
-      if (confirmed.customer_id) {
-        const { data: customer } = await supabase.from('customers')
-          .select('balance').eq('id', confirmed.customer_id).eq('tenant_id', tenantId).single()
-        if (customer) {
-          const amount = Number(confirmed.total_with_tax) || Number(confirmed.total_amount)
-          await supabase.from('customers')
-            .update({ balance: Number(customer.balance) - amount })
-            .eq('id', confirmed.customer_id).eq('tenant_id', tenantId)
+      if (entry.type === 'delivery') {
+        // Update delivery
+        const { data: confirmed, error } = await supabase.from('deliveries').update({
+          jazzcash_confirmed: true,
+          jazzcash_confirmed_at: new Date().toISOString(),
+          jazzcash_confirmed_by: 'Admin',
+          amount_received: entry.amount
+        }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
+        if (error) { alert('Error: ' + error.message); setConfirming(null); return }
+
+        // Post confirmation journal: DR actual account, CR clearing
+        const je = await supabase.from('journal_entries').insert([{
+          tenant_id: tenantId,
+          entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'payment_confirmation',
+          reference_id: entry.id,
+          narration: `${cfg.label} confirmed — ${entry.customer} — ${entry.detail} — Rs.${entry.amount.toLocaleString()}`,
+          total_amount: entry.amount,
+          created_by: 'admin'
+        }]).select().single()
+
+        if (je.data) {
+          await supabase.from('journal_entry_lines').insert([
+            { tenant_id: tenantId, journal_entry_id: je.data.id, account_code: cfg.actualCode, account_name: cfg.actualName, debit: entry.amount, credit: 0 },
+            { tenant_id: tenantId, journal_entry_id: je.data.id, account_code: cfg.clearingCode, account_name: cfg.clearingName, debit: 0, credit: entry.amount },
+          ])
+        }
+
+        // Update customer balance for delivery
+        if (confirmed?.customer_id) {
+          const { data: cust } = await supabase.from('customers').select('balance').eq('id', confirmed.customer_id).eq('tenant_id', tenantId).single()
+          if (cust) {
+            await supabase.from('customers').update({ balance: Number(cust.balance) - entry.amount }).eq('id', confirmed.customer_id).eq('tenant_id', tenantId)
+          }
+        }
+
+      } else {
+        // Payment confirmation
+        const { error } = await supabase.from('payments').update({
+          jazzcash_confirmed: true,
+        }).eq('id', entry.id).eq('tenant_id', tenantId)
+        if (error) { alert('Error: ' + error.message); setConfirming(null); return }
+
+        // Post journal
+        const je = await supabase.from('journal_entries').insert([{
+          tenant_id: tenantId,
+          entry_date: new Date().toISOString().split('T')[0],
+          reference_type: 'payment_confirmation',
+          reference_id: entry.id,
+          narration: `${cfg.label} confirmed — ${entry.customer} — payment — Rs.${entry.amount.toLocaleString()}`,
+          total_amount: entry.amount,
+          created_by: 'admin'
+        }]).select().single()
+
+        if (je.data) {
+          await supabase.from('journal_entry_lines').insert([
+            { tenant_id: tenantId, journal_entry_id: je.data.id, account_code: cfg.actualCode, account_name: cfg.actualName, debit: entry.amount, credit: 0 },
+            { tenant_id: tenantId, journal_entry_id: je.data.id, account_code: cfg.clearingCode, account_name: cfg.clearingName, debit: 0, credit: entry.amount },
+          ])
         }
       }
 
-      // No payment record inserted — delivery confirmation is tracked via journal entry only
-    } catch (err) { console.error('Journal post error:', err) }
-    fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
-  }
-
-  async function unconfirmDelivery(entry) {
-    setConfirming('d-' + entry.id)
-    const { error } = await supabase.from('deliveries').update({
-      jazzcash_confirmed: false, jazzcash_confirmed_at: null, jazzcash_confirmed_by: null, amount_received: 0
-    }).eq('id', entry.id).eq('tenant_id', tenantId)
-    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    // Reverse customer balance
-    if (entry.customer_id) {
-      const { data: customer } = await supabase.from('customers')
-        .select('balance').eq('id', entry.customer_id).eq('tenant_id', tenantId).single()
-      if (customer) {
-        const amount = Number(entry.total_with_tax || entry.total_amount)
-        await supabase.from('customers')
-          .update({ balance: Number(customer.balance) + amount })
-          .eq('id', entry.customer_id).eq('tenant_id', tenantId)
-      }
+      setEntries(prev => prev.filter(e => e.id !== entry.id))
+      if (onUpdate) onUpdate()
+    } catch (err) {
+      alert('Error: ' + err.message)
     }
-    fetchEntries(); if (onUpdate) onUpdate()
     setConfirming(null)
   }
 
-  async function rejectDelivery(entry) {
-    if (!rejectReason.trim()) return alert('Please enter a reason for rejection')
-    setConfirming('d-' + entry.id)
-    const { error } = await supabase.from('deliveries').update({
-      is_voided: true, voided_at: new Date().toISOString(),
-      voided_by: 'Admin', void_reason: 'JazzCash rejected — ' + rejectReason
-    }).eq('id', entry.id).eq('tenant_id', tenantId)
-    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    setRejectingId(null); setRejectReason(''); setRejectType(null)
-    fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
-    alert('❌ JazzCash delivery rejected and voided.')
+  // Filter entries
+  const filtered = entries.filter(e => {
+    if (methodFilter !== 'all' && e.method !== methodFilter) return false
+    if (search && !e.customer.toLowerCase().includes(search.toLowerCase()) && !e.mobile.includes(search)) return false
+    const eDate = new Date(e.date).toISOString().split('T')[0]
+    if (dateFrom && eDate < dateFrom) return false
+    if (dateTo && eDate > dateTo) return false
+    return true
+  })
+
+  const totalPending = filtered.reduce((s, e) => s + e.amount, 0)
+  const countByMethod = {
+    jazzcash: entries.filter(e => e.method === 'jazzcash').length,
+    easypaisa: entries.filter(e => e.method === 'easypaisa').length,
+    bank: entries.filter(e => e.method === 'bank').length,
   }
-
-  async function confirmPayment(entry) {
-    setConfirming('p-' + entry.id)
-    const { data: confirmed, error } = await supabase.from('payments').update({ jazzcash_confirmed: true })
-      .eq('id', entry.id).eq('tenant_id', tenantId).select().single()
-    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).eq('tenant_id', tenantId).single()
-    if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) - Number(entry.amount) }).eq('id', entry.customer_id).eq('tenant_id', tenantId)
-    try {
-      const { postJazzCashConfirmationJournal } = AccountingEngine
-      const entryId = await postJazzCashConfirmationJournal(confirmed, 'payment', tenantId)
-      if (entryId) {
-        await supabase.from('payments')
-          .update({ journal_entry_id: entryId })
-          .eq('id', confirmed.id)
-          .eq('tenant_id', tenantId)
-      }
-    } catch (err) { console.error('Journal post error:', err) }
-    fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
-  }
-
-  async function unconfirmPayment(entry) {
-    setConfirming('p-' + entry.id)
-    const { error } = await supabase.from('payments').update({ jazzcash_confirmed: false }).eq('id', entry.id).eq('tenant_id', tenantId)
-    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    const { data: customer } = await supabase.from('customers').select('balance').eq('id', entry.customer_id).eq('tenant_id', tenantId).single()
-    if (customer) await supabase.from('customers').update({ balance: Number(customer.balance) + Number(entry.amount) }).eq('id', entry.customer_id).eq('tenant_id', tenantId)
-    fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
-  }
-
-  async function rejectPayment(entry) {
-    if (!rejectReason.trim()) return alert('Please enter a reason for rejection')
-    setConfirming('p-' + entry.id)
-    const { error } = await supabase.from('payments').update({
-      is_voided: true, voided_at: new Date().toISOString(), voided_by: 'Admin', void_reason: 'JazzCash rejected — ' + rejectReason
-    }).eq('id', entry.id).eq('tenant_id', tenantId)
-    if (error) { alert('Error: ' + error.message); setConfirming(null); return }
-    setRejectingId(null); setRejectReason(''); setRejectType(null)
-    fetchEntries(); if (onUpdate) onUpdate(); setConfirming(null)
-    alert('❌ JazzCash payment rejected and voided.')
-  }
-
-  const totalDeliveryPending = deliveries.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.total_with_tax || e.total_amount), 0)
-  const totalPaymentPending = payments.filter(e => !e.jazzcash_confirmed && !e.is_voided).reduce((s, e) => s + Number(e.amount), 0)
-  const totalConfirmed = jazzSummary.in
-
-  function sectionHead(title, count) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '20px 0 10px' }}>
-        <h3 style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: 0 }}>{title}</h3>
-        {count > 0 && <span style={{ background: '#e65100', color: 'white', fontSize: '11px', padding: '2px 8px', borderRadius: '10px', fontWeight: '700' }}>{count}</span>}
-      </div>
-    )
-  }
-
-  function statusBadge(entry) {
-    if (entry.is_voided) return (
-      <div>
-        <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', background: '#ffebee', color: '#c62828' }}>❌ Rejected</span>
-        {entry.void_reason && <p style={{ fontSize: '10px', color: '#aaa', margin: '3px 0 0' }}>{entry.void_reason}</p>}
-      </div>
-    )
-    if (entry.jazzcash_confirmed) return (
-      <div>
-        <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', background: '#f3e5f5', color: '#7b1fa2' }}>✅ Confirmed</span>
-        {entry.jazzcash_confirmed_at && <p style={{ fontSize: '10px', color: '#aaa', margin: '3px 0 0' }}>{new Date(entry.jazzcash_confirmed_at).toLocaleString('en-PK', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' })}</p>}
-      </div>
-    )
-    return <span style={{ padding: '3px 8px', borderRadius: '20px', fontSize: '11px', fontWeight: '600', background: '#fff3e0', color: '#e65100' }}>⏳ Pending</span>
-  }
-
-  function ActionButtons({ entry, type }) {
-    const id = type + '-' + entry.id
-    const isDelivery = type === 'd'
-    const isRejecting = rejectingId === entry.id && rejectType === type
-    if (entry.is_voided) return <span style={{ fontSize: '11px', color: '#aaa' }}>Voided</span>
-    if (entry.jazzcash_confirmed) return (
-      <button onClick={() => isDelivery ? unconfirmDelivery(entry) : unconfirmPayment(entry)} disabled={confirming === id}
-        style={{ padding: '7px 14px', background: '#f5f5f5', color: '#888', border: '1px solid #ddd', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-        {confirming === id ? '...' : '↩ Undo'}
-      </button>
-    )
-    if (isRejecting) return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: '200px' }}>
-        <input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Reason for rejection..."
-          style={{ padding: '8px 10px', border: '2px solid #f44336', borderRadius: '6px', fontSize: '12px', outline: 'none' }} />
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button onClick={() => { setRejectingId(null); setRejectReason(''); setRejectType(null) }}
-            style={{ flex: 1, padding: '6px', background: '#f5f5f5', color: '#888', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px' }}>Cancel</button>
-          <button onClick={() => isDelivery ? rejectDelivery(entry) : rejectPayment(entry)} disabled={confirming === id}
-            style={{ flex: 2, padding: '6px', background: '#f44336', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>
-            {confirming === id ? '...' : '❌ Confirm Reject'}
-          </button>
-        </div>
-      </div>
-    )
-    return (
-      <div style={{ display: 'flex', gap: '6px' }}>
-        <button onClick={() => isDelivery ? confirmDelivery(entry) : confirmPayment(entry)} disabled={confirming === id}
-          style={{ padding: '7px 14px', background: '#9c27b0', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-          {confirming === id ? '...' : '✓ Confirm'}
-        </button>
-        <button onClick={() => { setRejectingId(entry.id); setRejectType(type); setRejectReason('') }}
-          style={{ padding: '7px 12px', background: '#ffebee', color: '#c62828', border: '1px solid #ffcdd2', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
-          ❌ Reject
-        </button>
-      </div>
-    )
-  }
-
-  const categoryIcon = { sale: '🍶', collection: '💰', rider_transfer: '🚴', transfer: '🏢', expense: '🧾', salary: '💼' }
-  const categoryLabel = { sale: 'Sale', collection: 'Payment', rider_transfer: 'Rider Transfer', transfer: 'Office Transfer', expense: 'Expense', salary: 'Salary' }
 
   return (
-    <div>
-      <div style={{ marginBottom: '16px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>📱 JazzCash</h2>
-        <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Statement and reconciliation of all JazzCash transactions.</p>
+    <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif', maxWidth: 900, margin: '0 auto' }}>
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '20px 24px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: 0 }}>💳 Digital Payment Confirmation</p>
+          <p style={{ color: '#93c5fd', fontSize: 12, margin: '4px 0 0' }}>Confirm pending JazzCash, EasyPaisa & Bank payments</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ color: '#fde68a', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Total Pending</p>
+          <p style={{ color: '#fff', fontWeight: 900, fontSize: 22, margin: 0 }}>Rs. {totalPending.toLocaleString()}</p>
+          <p style={{ color: '#93c5fd', fontSize: 11, margin: '2px 0 0' }}>{filtered.length} transactions</p>
+        </div>
       </div>
 
-      {/* Tab switcher */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', background: 'white', padding: '6px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+      {/* Method filter tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
         {[
-          { key: 'statement', label: '📊 Statement' },
-          { key: 'reconcile', label: '✅ Reconcile' },
-        ].map(tab => (
-          <button key={tab.key} onClick={() => setActiveTab(tab.key)}
-            style={{ flex: 1, padding: '10px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: activeTab === tab.key ? '700' : '400', background: activeTab === tab.key ? '#9c27b0' : '#f0f0f0', color: activeTab === tab.key ? 'white' : '#555' }}>
-            {tab.label}
+          { key: 'all', label: 'All', icon: '💳', count: entries.length },
+          { key: 'jazzcash', label: 'JazzCash', icon: '📱', count: countByMethod.jazzcash, color: '#9c27b0' },
+          { key: 'easypaisa', label: 'EasyPaisa', icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
+          { key: 'bank', label: 'Bank', icon: '🏦', count: countByMethod.bank, color: '#0f4c81' },
+        ].map(m => (
+          <button key={m.key} onClick={() => setMethodFilter(m.key)} style={{
+            padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
+            background: methodFilter === m.key ? (m.color || '#1a1a2e') : 'white',
+            color: methodFilter === m.key ? '#fff' : '#555',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+            display: 'flex', alignItems: 'center', gap: 6,
+          }}>
+            {m.icon} {m.label}
+            <span style={{ background: methodFilter === m.key ? 'rgba(255,255,255,0.25)' : '#f0f4f8', color: methodFilter === m.key ? '#fff' : '#555', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>{m.count}</span>
           </button>
         ))}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none' }} />
+          <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>to</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none' }} />
+        </div>
       </div>
 
-      {/* ── STATEMENT TAB ── */}
-      {activeTab === 'statement' && (
-        <div>
-          {/* Date filter */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1, minWidth: '120px' }}>
-                <label style={{ fontSize: '11px', color: '#888', display: 'block', marginBottom: '4px' }}>From</label>
-                <input type="date" value={stmtFrom} onChange={e => setStmtFrom(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-              <div style={{ flex: 1, minWidth: '120px' }}>
-                <label style={{ fontSize: '11px', color: '#888', display: 'block', marginBottom: '4px' }}>To</label>
-                <input type="date" value={stmtTo} onChange={e => setStmtTo(e.target.value)}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {[
-                  { label: 'Today', fn: () => { const t = new Date().toISOString().split('T')[0]; setStmtFrom(t); setStmtTo(t) } },
-                  { label: 'This Month', fn: () => { const d = new Date(); setStmtFrom(new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0]); setStmtTo(d.toISOString().split('T')[0]) } },
-                  { label: 'Last 30', fn: () => { const d = new Date(); const f = new Date(d); f.setDate(f.getDate() - 30); setStmtFrom(f.toISOString().split('T')[0]); setStmtTo(d.toISOString().split('T')[0]) } },
-                ].map(q => (
-                  <button key={q.label} onClick={q.fn}
-                    style={{ padding: '8px 12px', background: '#f0f0f0', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
-                    {q.label}
-                  </button>
+      {/* Search */}
+      <div style={{ marginBottom: 14 }}>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 Search by customer name or mobile..."
+          style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box' }} />
+      </div>
+
+      {/* Entries */}
+      {loading ? (
+        <div style={{ padding: 60, textAlign: 'center', background: 'white', borderRadius: 12 }}>
+          <p style={{ fontSize: 32, margin: '0 0 12px' }}>💳</p>
+          <p style={{ color: '#888' }}>Loading pending payments...</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div style={{ padding: 60, textAlign: 'center', background: 'white', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <p style={{ fontSize: 48, margin: '0 0 12px' }}>✅</p>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#1a7a4a', margin: '0 0 6px' }}>All Caught Up!</p>
+          <p style={{ color: '#888', fontSize: 13 }}>No pending {methodFilter === 'all' ? 'digital' : METHOD_CONFIG[methodFilter]?.label} payments to confirm</p>
+        </div>
+      ) : (
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8f9fa' }}>
+                {['Date', 'Customer', 'Method', 'Type', 'Details', 'Rider', 'Amount', 'Action'].map(h => (
+                  <th key={h} style={{ padding: '11px 14px', textAlign: h === 'Amount' ? 'right' : 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
-              </div>
-            </div>
-          </div>
-
-          {stmtLoading ? (
-            <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading statement...</p>
-          ) : (
-            <>
-              {/* Summary cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '10px', marginBottom: '14px' }}>
-                <div style={{ background: 'linear-gradient(135deg, #0f4c81, #1565c0)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>🏦 Opening</p>
-                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {(stmtSummary.openingBalance || 0).toLocaleString()}</p>
-                </div>
-                <div style={{ background: 'linear-gradient(135deg, #1a7a4a, #2e7d32)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>📥 Total In</p>
-                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.totalIn.toLocaleString()}</p>
-                </div>
-                <div style={{ background: 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>📤 Total Out</p>
-                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {stmtSummary.totalOut.toLocaleString()}</p>
-                </div>
-                <div style={{ background: stmtSummary.closing >= 0 ? 'linear-gradient(135deg, #7b1fa2, #9c27b0)' : 'linear-gradient(135deg, #c62828, #7b1fa2)', color: 'white', borderRadius: '12px', padding: '14px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '11px', opacity: 0.8, margin: '0 0 4px' }}>💰 Balance</p>
-                  <p style={{ fontSize: '18px', fontWeight: '700', margin: 0 }}>Rs. {(stmtSummary.closing || 0).toLocaleString()}</p>
-                </div>
-              </div>
-
-              {/* Statement */}
-              <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden', marginBottom: '14px' }}>
-                {/* Header */}
-                <div style={{ background: '#9c27b0', padding: '14px 16px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: '700', color: 'white', margin: '0 0 2px' }}>📱 JazzCash Account Statement</p>
-                  <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', margin: 0 }}>
-                    {new Date(stmtFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })} — {new Date(stmtTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-
-                {stmtEntries.length === 0 ? (
-                  <div style={{ padding: '40px', textAlign: 'center' }}>
-                    <p style={{ fontSize: '32px', margin: '0 0 8px' }}>📭</p>
-                    <p style={{ color: '#888', fontSize: '13px' }}>No JazzCash transactions in this period</p>
-                  </div>
-                ) : (
-                  <>
-                    {/* Opening */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8f9fa', borderBottom: '2px solid #e0e0e0' }}>
-                      <div>
-                        <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: 0 }}>Opening Balance</p>
-                        <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>Before {new Date(stmtFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</p>
-                      </div>
-                      <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {(stmtSummary.openingBalance || 0).toLocaleString()}</p>
-                    </div>
-
-                    {/* Entries */}
-                    {stmtEntries.map((e, idx) => (
-                      <div key={e.id} style={{
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                        padding: '12px 16px', borderBottom: '1px solid #f5f5f5',
-                        background: idx % 2 === 0 ? 'white' : '#fafafa'
-                      }}>
-                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flex: 1, minWidth: 0 }}>
-                          <div style={{
-                            width: '36px', height: '36px', borderRadius: '50%', flexShrink: 0,
-                            background: e.type === 'in' ? '#e8f5e9' : '#ffebee',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px'
-                          }}>
-                            {categoryIcon[e.category] || '📋'}
-                          </div>
-                          <div style={{ minWidth: 0 }}>
-                            <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {e.label}
-                            </p>
-                            <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {e.sublabel}
-                            </p>
-                            <p style={{ fontSize: '10px', color: '#bbb', margin: 0 }}>
-                              {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                              {' · '}<span style={{ background: e.type === 'in' ? '#e8f5e9' : '#ffebee', color: e.type === 'in' ? '#1a7a4a' : '#c62828', padding: '1px 5px', borderRadius: '4px', fontWeight: '600', fontSize: '10px' }}>
-                                {categoryLabel[e.category]}
-                              </span>
-                            </p>
-                          </div>
-                        </div>
-                        <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
-                          <p style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 2px', color: e.type === 'in' ? '#1a7a4a' : '#c62828' }}>
-                            {e.type === 'in' ? '+' : '−'} Rs. {e.amount.toLocaleString()}
-                          </p>
-                          <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>
-                            Bal: Rs. {e.balance.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-
-                    {/* Closing */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: '#f3e5f5', borderTop: '2px solid #9c27b0' }}>
-                      <div>
-                        <p style={{ fontSize: '14px', fontWeight: '700', color: '#7b1fa2', margin: '0 0 2px' }}>Closing Balance</p>
-                        <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                          In Rs. {stmtSummary.totalIn.toLocaleString()} − Out Rs. {stmtSummary.totalOut.toLocaleString()}
-                        </p>
-                      </div>
-                      <p style={{ fontSize: '22px', fontWeight: '700', color: stmtSummary.closing >= 0 ? '#7b1fa2' : '#c62828', margin: 0 }}>
-                        Rs. {stmtSummary.closing.toLocaleString()}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((e, idx) => {
+                const cfg = METHOD_CONFIG[e.method] || METHOD_CONFIG.jazzcash
+                const isConfirming = confirming === e.id
+                return (
+                  <tr key={e.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>
+                      {new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      <p style={{ fontSize: 10, color: '#aaa', margin: '2px 0 0' }}>
+                        {new Date(e.date).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
                       </p>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* IN/OUT breakdown */}
-              {stmtEntries.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                  {/* Money In breakdown */}
-                  <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                    <p style={{ fontSize: '12px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 10px' }}>📥 Money In</p>
-                    {['sale', 'collection', 'rider_transfer'].map(cat => {
-                      const total = stmtEntries.filter(e => e.type === 'in' && e.category === cat).reduce((s, e) => s + e.amount, 0)
-                      if (total === 0) return null
-                      return (
-                        <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0' }}>
-                          <span style={{ fontSize: '12px', color: '#555' }}>{categoryIcon[cat]} {categoryLabel[cat]}</span>
-                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {total.toLocaleString()}</span>
-                        </div>
-                      )
-                    })}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>Total</span>
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a' }}>Rs. {stmtSummary.totalIn.toLocaleString()}</span>
-                    </div>
-                  </div>
-                  {/* Money Out breakdown */}
-                  <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                    <p style={{ fontSize: '12px', fontWeight: '700', color: '#c62828', margin: '0 0 10px' }}>📤 Money Out</p>
-                    {['transfer', 'expense', 'salary'].map(cat => {
-                      const total = stmtEntries.filter(e => e.type === 'out' && e.category === cat).reduce((s, e) => s + e.amount, 0)
-                      if (total === 0) return null
-                      return (
-                        <div key={cat} style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f0f0f0' }}>
-                          <span style={{ fontSize: '12px', color: '#555' }}>{categoryIcon[cat]} {categoryLabel[cat]}</span>
-                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#c62828' }}>Rs. {total.toLocaleString()}</span>
-                        </div>
-                      )
-                    })}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0 0' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>Total</span>
-                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#c62828' }}>Rs. {stmtSummary.totalOut.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, margin: '0 0 2px', color: '#1a1a2e' }}>{e.customer}</p>
+                      {e.mobile && <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{e.mobile}</p>}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ background: cfg.bg, color: cfg.color, padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {cfg.icon} {cfg.label}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <span style={{ background: e.type === 'delivery' ? '#e3f0ff' : '#e8f5e9', color: e.type === 'delivery' ? '#0f4c81' : '#1a7a4a', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                        {e.type === 'delivery' ? '📦 Sale' : '💵 Payment'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#555', maxWidth: 180 }}>{e.detail}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 12, color: '#888' }}>{e.rider}</td>
+                    <td style={{ padding: '12px 14px', fontSize: 14, fontWeight: 800, color: '#1a7a4a', textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      Rs. {e.amount.toLocaleString()}
+                    </td>
+                    <td style={{ padding: '12px 14px' }}>
+                      <button onClick={() => confirmEntry(e)} disabled={!!confirming}
+                        style={{ padding: '8px 16px', background: isConfirming ? '#e0e0e0' : cfg.color, color: 'white', border: 'none', borderRadius: 8, cursor: isConfirming ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {isConfirming ? '⏳...' : '✅ Confirm'}
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#f8f9fa', borderTop: '2px solid #e0e0e0' }}>
+                <td colSpan={6} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#333' }}>
+                  Total Pending — {filtered.length} transactions
+                </td>
+                <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: 900, color: '#1a7a4a', textAlign: 'right' }}>
+                  Rs. {totalPending.toLocaleString()}
+                </td>
+                <td />
+              </tr>
+            </tfoot>
+          </table>
         </div>
       )}
 
-      {/* ── RECONCILE TAB ── */}
-      {activeTab === 'reconcile' && (
-        <div>
-          {/* Filters */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From Date</label>
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To Date</label>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {[{ key: 'pending', label: '⏳ Pending' }, { key: 'confirmed', label: '✅ Confirmed' }, { key: 'all', label: '📋 All' }].map(f => (
-                  <button key={f.key} onClick={() => setFilter(f.key)}
-                    style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: filter === f.key ? '#0f4c81' : '#f0f0f0', color: filter === f.key ? 'white' : '#555', fontWeight: filter === f.key ? '700' : '400', fontSize: '13px' }}>
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Summary */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 12px', textTransform: 'uppercase' }}>
-              📱 JazzCash Position — {new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} to {new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '10px' }}>
-              {[
-                { label: '📥 Confirmed In', value: jazzSummary.in, color: '#1a7a4a', bg: '#e8f5e9' },
-                { label: '📤 Transferred Out', value: jazzSummary.out, color: '#0f4c81', bg: '#e3f0ff' },
-                { label: '⏳ Still Pending', value: jazzSummary.pending, color: '#e65100', bg: '#fff3e0' },
-                { label: '💰 Net in Hand', value: jazzSummary.in - jazzSummary.out, color: jazzSummary.in - jazzSummary.out >= 0 ? '#9c27b0' : '#c62828', bg: '#f3e5f5' },
-              ].map(card => (
-                <div key={card.label} style={{ background: card.bg, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-                  <p style={{ fontSize: '11px', color: '#666', margin: '0 0 4px', fontWeight: '600' }}>{card.label}</p>
-                  <p style={{ fontSize: '18px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {Math.abs(card.value).toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-              {[
-                { label: 'Sales Pending', value: totalDeliveryPending, color: '#e65100' },
-                { label: 'Payments Pending', value: totalPaymentPending, color: '#f44336' },
-                { label: 'Total Confirmed', value: totalConfirmed, color: '#9c27b0' },
-              ].map(card => (
-                <div key={card.label} style={{ background: '#f8f9fa', borderRadius: '8px', padding: '10px', borderLeft: `3px solid ${card.color}` }}>
-                  <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{card.label}</p>
-                  <p style={{ fontSize: '14px', fontWeight: '700', color: card.color, margin: 0 }}>Rs. {card.value.toLocaleString()}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : (
-            <div>
-              {/* JazzCash Sales — mobile cards */}
-              {sectionHead('🍶 JazzCash Sales', deliveries.filter(e => !e.jazzcash_confirmed && !e.is_voided).length)}
-              {deliveries.length === 0 ? (
-                <div style={{ background: 'white', borderRadius: '12px', padding: '24px', textAlign: 'center', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>No JazzCash sales for this period.</p>
-                </div>
-              ) : deliveries.map(e => (
-                <div key={e.id} style={{ background: e.is_voided ? '#fff5f5' : e.jazzcash_confirmed ? '#fafffe' : '#fffbf5', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid ' + (e.is_voided ? '#ffcdd2' : e.jazzcash_confirmed ? '#e1bee7' : '#ffe082') }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div>
-                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: '0 0 2px' }}>{e.customers?.full_name || 'Walk-in'}</p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{e.customers?.mobile || ''}</p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                        🚴 {e.riders?.full_name || '—'} · {new Date(e.delivered_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(e.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                      {e.jazzcash_confirmed && e.jazzcash_confirmed_at && (
-                        <p style={{ fontSize: '11px', color: '#7b1fa2', margin: '2px 0 0', fontWeight: '600' }}>
-                          ✅ Confirmed: {new Date(e.jazzcash_confirmed_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(e.jazzcash_confirmed_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      )}
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '18px', fontWeight: '700', color: '#9c27b0', margin: '0 0 4px' }}>Rs. {Number(e.total_with_tax || e.total_amount).toLocaleString()}</p>
-                      {e.tax_amount > 0 && <p style={{ fontSize: '10px', color: '#aaa', margin: '0 0 4px' }}>Rs. {Number(e.total_amount).toLocaleString()} + Rs. {Number(e.tax_amount).toLocaleString()} GST</p>}
-                      {statusBadge(e)}
-                    </div>
-                  </div>
-                  <p style={{ fontSize: '12px', color: '#555', margin: '0 0 10px' }}>
-                    {e.qty_19l > 0 ? `19L×${e.qty_19l} ` : ''}{e.qty_half_litre > 0 ? `Half×${e.qty_half_litre} ` : ''}{e.qty_1_5l > 0 ? `1.5L×${e.qty_1_5l}` : ''}
-                  </p>
-                  <ActionButtons entry={e} type="d" />
-                </div>
-              ))}
-
-              {/* JazzCash Payments — mobile cards */}
-              {sectionHead('💵 JazzCash Payments', payments.filter(e => !e.jazzcash_confirmed && !e.is_voided).length)}
-              {payments.length === 0 ? (
-                <div style={{ background: 'white', borderRadius: '12px', padding: '24px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <p style={{ color: '#888', fontSize: '13px', margin: 0 }}>No JazzCash payments for this period.</p>
-                </div>
-              ) : payments.map(e => (
-                <div key={e.id} style={{ background: e.is_voided ? '#fff5f5' : e.jazzcash_confirmed ? '#fafffe' : '#fffbf5', borderRadius: '12px', padding: '14px 16px', marginBottom: '10px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid ' + (e.is_voided ? '#ffcdd2' : e.jazzcash_confirmed ? '#e1bee7' : '#ffe082') }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div>
-                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: '0 0 2px' }}>{e.customers?.full_name || '—'}</p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>{e.customers?.mobile || ''}</p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                        🚴 {e.riders?.full_name || '—'} · {new Date(e.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} {new Date(e.created_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '18px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>Rs. {Number(e.amount).toLocaleString()}</p>
-                      {statusBadge(e)}
-                    </div>
-                  </div>
-                  {e.notes && <p style={{ fontSize: '12px', color: '#888', margin: '0 0 10px', fontStyle: 'italic' }}>{e.notes}</p>}
-                  <ActionButtons entry={e} type="p" />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Refresh button */}
+      <div style={{ textAlign: 'center', marginTop: 16 }}>
+        <button onClick={fetchPending} style={{ padding: '9px 24px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+          🔄 Refresh
+        </button>
+      </div>
     </div>
   )
 }
-

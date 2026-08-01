@@ -41,9 +41,9 @@ async function postJournalEntry({ date, referenceType, referenceId, narration, l
 // For CEO/admin direct accounts
 function getCashAccount(paymentMethod) {
   switch (paymentMethod) {
-    case 'jazzcash':   return { code: '1002', name: 'JazzCash Account' }
-    case 'easypaisa':  return { code: '1004', name: 'EasyPaisa Account' }
-    case 'bank':       return { code: '1003', name: 'Bank Account' }
+    case 'jazzcash':   return { code: '1102', name: 'JazzCash Clearing - Pending' }
+    case 'easypaisa':  return { code: '1103', name: 'EasyPaisa Clearing - Pending' }
+    case 'bank':       return { code: '1104', name: 'Bank Transfer Clearing - Pending' }
     default:           return { code: '1001', name: 'Cash in Hand' }
   }
 }
