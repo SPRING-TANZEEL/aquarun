@@ -20,7 +20,7 @@ export default function Transactions({ tenantId }) {
   const [transactions, setTransactions] = useState([])
   const [loading, setLoading] = useState(true)
   const [showVoided, setShowVoided] = useState(false)
-  const [dateFrom, setDateFrom] = useState(new Date().toISOString().slice(0, 7) + '-01')
+  const [dateFrom, setDateFrom] = useState(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [search, setSearch] = useState('')
   const [selectedTx, setSelectedTx] = useState(null)
@@ -402,6 +402,18 @@ export default function Transactions({ tenantId }) {
                 🗑️ Voided
               </button>
             </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Last 30d', from: new Date(Date.now() - 30*24*60*60*1000).toISOString().split('T')[0], to: new Date().toISOString().split('T')[0] },
+              { label: 'This Month', from: new Date().toISOString().slice(0,7) + '-01', to: new Date().toISOString().split('T')[0] },
+              { label: 'Last Month', from: new Date(new Date().getFullYear(), new Date().getMonth()-1, 1).toISOString().split('T')[0], to: new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0] },
+            ].map(p => (
+              <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+                style={{ padding: '8px 12px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
+                {p.label}
+              </button>
+            ))}
           </div>
           <button onClick={fetchTransactions}
             style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
