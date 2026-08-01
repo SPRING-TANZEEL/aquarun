@@ -1255,7 +1255,7 @@ function SalesSummary({ tenantId }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
 
-  useEffect(() => { if (tenantId) fetchSales() }, [dateFrom, dateTo, tenantId])
+  useEffect(() => { if (tenantId) fetchSales() }, [tenantId])
 
   async function fetchSales() {
     setLoading(true)
@@ -1281,7 +1281,7 @@ function SalesSummary({ tenantId }) {
       <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
         <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <button onClick={fetchSales} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
+        <button onClick={fetchSales} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔍 Search</button>
       </div>
       {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : data && (
         <div>
@@ -1337,7 +1337,7 @@ function ProfitLoss({ tenantId }) {
   const [drillDown, setDrillDown] = useState(null)
   const [drillLoading, setDrillLoading] = useState(false)
 
-  useEffect(() => { if (tenantId) fetchPL() }, [dateFrom, dateTo, tenantId])
+  useEffect(() => { if (tenantId) fetchPL() }, [tenantId])
 
   async function fetchPL() {
     setLoading(true)
@@ -1570,7 +1570,8 @@ function ProfitLoss({ tenantId }) {
         <span style={{ fontSize: 12, color: '#888' }}>to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
-        <span style={{ fontSize: 11, color: '#888', marginLeft: 'auto', fontStyle: 'italic' }}>🔍 Click any line item to see details</span>
+        <button onClick={fetchPL} style={{ padding: '8px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>🔍 Search</button>
+        <span style={{ fontSize: 11, color: '#888', marginLeft: 'auto', fontStyle: 'italic' }}>Click any line item to see details</span>
       </div>
 
       {loading ? (

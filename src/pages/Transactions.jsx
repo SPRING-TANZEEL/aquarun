@@ -30,7 +30,7 @@ export default function Transactions({ tenantId }) {
   const [invoiceData, setInvoiceData] = useState(null)
   const [businessSettings, setBusinessSettings] = useState({})
 
-  useEffect(() => { if (tenantId) fetchTransactions() }, [activeType, dateFrom, dateTo, showVoided, tenantId])
+  useEffect(() => { if (tenantId) fetchTransactions() }, [activeType, showVoided, tenantId])
   useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
 
   async function fetchSettings() {
@@ -399,7 +399,7 @@ export default function Transactions({ tenantId }) {
           </div>
           <button onClick={fetchTransactions}
             style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-            🔄 Refresh
+            🔍 Search
           </button>
         </div>
       </div>
