@@ -125,6 +125,7 @@ export default function AdminQuickSale({ tenantId }) {
 
     const amount = Number(paymentAmount)
     const isJazz = paymentMethodReceipt === 'jazzcash'
+    const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethodReceipt)
 
     const { data: savedPayment, error } = await supabase.from('payments').insert([{
       tenant_id: tenantId,
@@ -132,7 +133,7 @@ export default function AdminQuickSale({ tenantId }) {
       amount,
       payment_method: paymentMethodReceipt,
       payment_date: new Date().toISOString().split('T')[0],
-      jazzcash_confirmed: !isJazz,
+      jazzcash_confirmed: !isPending,
       notes: paymentNotes || `Payment received from ${paymentCustomer.full_name}`,
       is_voided: false,
       rider_id: null
@@ -140,7 +141,7 @@ export default function AdminQuickSale({ tenantId }) {
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-    if (!isJazz) {
+    if (!isPending) {
       const newBalance = Number(paymentCustomer.balance || 0) - amount
       await supabase.from('customers').update({ balance: newBalance })
         .eq('id', paymentCustomer.id).eq('tenant_id', tenantId)
@@ -154,8 +155,8 @@ export default function AdminQuickSale({ tenantId }) {
     setSuccess({
       type: 'payment', name: paymentCustomer.full_name, amount,
       method: paymentMethodReceipt,
-      newBalance: !isJazz ? Number(paymentCustomer.balance || 0) - amount : paymentCustomer.balance,
-      jazzPending: isJazz
+      newBalance: !isPending ? Number(paymentCustomer.balance || 0) - amount : paymentCustomer.balance,
+      jazzPending: isPending
     })
     setPaymentCustomer(null); setPaymentSearch(''); setPaymentAmount(''); setPaymentNotes('')
     setSaving(false)
