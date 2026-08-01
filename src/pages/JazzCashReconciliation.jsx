@@ -4,8 +4,8 @@ import * as AccountingEngine from '../accountingEngine'
 
 const METHOD_CONFIG = {
   jazzcash:  { label: 'JazzCash',  icon: '📱', color: '#9c27b0', bg: '#f3e5f5', clearingCode: '1102', clearingName: 'JazzCash Clearing - Pending',  actualCode: '1002', actualName: 'JazzCash Account' },
-  easypaisa: { label: 'EasyPaisa', icon: '💚', color: '#4caf50', bg: '#e8f5e9', clearingCode: '1103', clearingName: 'EasyPaisa Clearing - Pending', actualCode: '1003', actualName: 'EasyPaisa Account' },
-  bank:      { label: 'Bank',      icon: '🏦', color: '#0f4c81', bg: '#e3f0ff', clearingCode: '1104', clearingName: 'Bank Clearing - Pending',       actualCode: '1004', actualName: 'Bank Account' },
+  easypaisa: { label: 'EasyPaisa', icon: '💚', color: '#4caf50', bg: '#e8f5e9', clearingCode: '1103', clearingName: 'EasyPaisa Clearing - Pending', actualCode: '1004', actualName: 'EasyPaisa Account' },
+  bank:      { label: 'Bank',      icon: '🏦', color: '#0f4c81', bg: '#e3f0ff', clearingCode: '1105', clearingName: 'Bank Transfer Clearing - Pending', actualCode: '1003', actualName: 'Bank Account' },
 }
 
 export default function JazzCashReconciliation({ tenantId, onUpdate }) {
