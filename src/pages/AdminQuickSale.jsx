@@ -5,17 +5,7 @@ import InvoiceModal from '../components/InvoiceModal'
 
 const RATES_19L = [90, 100, 110, 120, 150, 160, 170, 180]
 
-export default function AdminQuickSale({ tenantId, settings: parentSettings = {} }) {
-  const [settings, setSettings] = useState(parentSettings)
-
-  useEffect(() => {
-    if (!tenantId) return
-    supabase.from('business_settings').select('*').eq('tenant_id', tenantId).then(({ data }) => {
-      const map = {}
-      data?.forEach(s => { map[s.setting_key] = s.setting_value })
-      setSettings(map)
-    })
-  }, [tenantId])
+export default function AdminQuickSale({ tenantId }) {
   const [mode, setMode] = useState('sale')
   const [products, setProducts] = useState([])
   const [quantities, setQuantities] = useState({})
