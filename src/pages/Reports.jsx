@@ -1460,15 +1460,21 @@ function ProfitLoss({ tenantId }) {
     setLoading(false)
   }
 
-  function printPL() {
+  async function printPL() {
     const el = document.getElementById('pl-print-section')
     if (!el) return
+
+    // Fetch business name
+    const { data: settings } = await supabase.from('business_settings')
+      .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'business_name').single()
+    const businessName = settings?.setting_value || 'Business'
+
     const win = window.open('', '_blank')
     win.document.write(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Profit & Loss Statement</title>
+        <title>${businessName} — Profit & Loss Statement</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: Arial, sans-serif; font-size: 13px; color: #333; padding: 20px; }
@@ -1497,6 +1503,10 @@ function ProfitLoss({ tenantId }) {
         </style>
       </head>
       <body>
+        <div style="text-align:center; margin-bottom:16px; padding-bottom:12px; border-bottom:2px solid #0f4c81;">
+          <h1 style="font-size:18px; color:#0f4c81; margin:0 0 4px; font-weight:900;">${businessName}</h1>
+          <p style="font-size:12px; color:#888; margin:0;">Profit & Loss Statement</p>
+        </div>
         ${el.innerHTML}
       </body>
       </html>
