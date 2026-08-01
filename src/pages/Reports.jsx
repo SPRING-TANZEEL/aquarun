@@ -150,36 +150,90 @@ function DailyCashReport({ tenantId }) {
     const period = dateFrom === dateTo
       ? new Date(dateFrom).toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
       : `${new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })} — ${new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    // Build clean print HTML from data directly — no screen DOM
+    const d = data
+    const period2 = dateFrom === dateTo
+      ? new Date(dateFrom).toLocaleDateString('en-PK', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })
+      : `${new Date(dateFrom).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})} — ${new Date(dateTo).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})}`
+
+    const row = (label, value, bold=false, indent=false) =>
+      `<tr style="border-bottom:1px solid #eee">
+        <td style="padding:3px ${indent?'8px':'4px'} 3px ${indent?'20px':'4px'};font-size:11px;font-weight:${bold?700:400};color:#333">${label}</td>
+        <td style="padding:3px 4px;font-size:${bold?12:11}px;font-weight:${bold?700:600};text-align:right;color:#333">Rs. ${Math.abs(Number(value||0)).toLocaleString()}</td>
+      </tr>`
+
+    const secHead = (label) =>
+      `<tr><td colspan="2" style="padding:5px 4px 3px;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#444;border-top:1px solid #ccc;border-bottom:1px solid #ccc;background:#f5f5f5">${label}</td></tr>`
+
     win.document.write(`<!DOCTYPE html><html><head><title>${bizName} — Cash Flow</title><style>
       *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#000;padding:12px;line-height:1.4}
-      .hd{text-align:center;padding-bottom:8px;border-bottom:2px solid #000;margin-bottom:10px}
-      .hd h1{font-size:15px;font-weight:700;margin:0 0 2px;letter-spacing:-0.3px}
-      .hd p{font-size:10px;color:#555;margin:1px 0}
-      div[style*="background:linear-gradient"]{background:#1a3a5c!important;color:white!important;padding:10px 12px!important;margin-bottom:8px!important;border-radius:4px!important}
-      div[style*="border-bottom: 2px"]{border-bottom:1px solid #ddd!important}
-      div[style*="border-left: 4px"]{border-left:3px solid currentColor!important;padding:6px 10px!important}
-      div[style*="padding: '14px'"]{padding:8px 12px!important}
-      div[style*="padding: '9px'"]{padding:5px 12px!important}
-      div[style*="padding: '7px'"]{padding:4px 12px!important}
-      div[style*="padding:'6px 14px 6px 28px'"]{padding:3px 12px 3px 24px!important}
-      span[style*="font-size:22px"]{font-size:16px!important}
-      span[style*="font-size:16px"]{font-size:13px!important}
-      span[style*="font-size:14px"]{font-size:12px!important}
-      span[style*="font-size:13px"]{font-size:11px!important}
-      span[style*="font-size:12px"]{font-size:10px!important}
-      .footer{margin-top:10px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888}
-      @media print{body{padding:6px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+      body{font-family:Arial,sans-serif;font-size:11px;color:#000;padding:10px}
+      table{width:100%;border-collapse:collapse}
+      @media print{body{padding:6px}@page{margin:8mm}}
     </style></head><body>
-      <div class="hd">
-        <h1>${bizName}</h1>
-        <p>Daily Cash Flow Statement</p>
-        <p>${period}</p>
+      <div style="text-align:center;padding-bottom:8px;border-bottom:2px solid #000;margin-bottom:8px">
+        <div style="font-size:16px;font-weight:700;margin:0 0 2px">${bizName}</div>
+        <div style="font-size:12px;font-weight:600;margin:0 0 1px">Cash Flow Statement</div>
+        <div style="font-size:10px;color:#555">${period2}</div>
       </div>
-      ${el.innerHTML.replace(/🔍/g,'').replace(/📥/g,'').replace(/📤/g,'').replace(/📱/g,'').replace(/💚/g,'').replace(/🏦/g,'').replace(/📋/g,'').replace(/🚴/g,'').replace(/💵/g,'')}
-      <div class="footer">
+
+      <table>
+        ${secHead('Cash Inflows')}
+        ${row('Cash from Deliveries / Sales', d.cashFromSales, false, true)}
+        ${row('Cash from Balance Collections', d.cashFromPayments, false, true)}
+        ${row('Total Cash In', d.totalCashIn, true)}
+
+        ${secHead('Cash Outflows')}
+        ${row('Rider Field Expenses', d.riderExpTotal, false, true)}
+        ${row('Office Expenses', d.officeExpTotal, false, true)}
+        ${row('Salary Advances Paid', d.advancesTotal, false, true)}
+        ${row('Salary Payments', d.salariesTotal, false, true)}
+        ${row('Total Cash Out', d.totalCashOut, true)}
+
+        <tr><td colspan="2" style="padding:5px 4px;font-size:12px;font-weight:900;border-top:2px solid #000;border-bottom:2px solid #000">
+          <div style="display:flex;justify-content:space-between">
+            <span>NET CASH POSITION</span>
+            <span>Rs. ${Math.abs(d.netCash).toLocaleString()}${d.netCash<0?' (Deficit)':''}</span>
+          </div>
+        </td></tr>
+
+        ${(d.jazzConfirmed>0||d.jazzPending>0||d.epConfirmed>0||d.epPending>0||d.bankConfirmed>0||d.bankPending>0) ? `
+          ${secHead('Digital Payments (not included in cash)')}
+          ${d.jazzConfirmed>0 ? row('JazzCash — Confirmed', d.jazzConfirmed, false, true) : ''}
+          ${d.jazzPending>0  ? row('JazzCash — Pending', d.jazzPending, false, true) : ''}
+          ${d.epConfirmed>0  ? row('EasyPaisa — Confirmed', d.epConfirmed, false, true) : ''}
+          ${d.epPending>0    ? row('EasyPaisa — Pending', d.epPending, false, true) : ''}
+          ${d.bankConfirmed>0 ? row('Bank — Confirmed', d.bankConfirmed, false, true) : ''}
+          ${d.bankPending>0  ? row('Bank — Pending', d.bankPending, false, true) : ''}
+          ${row('Total Digital', d.jazzConfirmed+d.jazzPending+d.epConfirmed+d.epPending+d.bankConfirmed+d.bankPending, true)}
+        ` : ''}
+
+        ${secHead('Sales Summary')}
+        ${row('Cash Sales', d.cashFromSales, false, true)}
+        ${row('Digital Sales (confirmed)', d.jazzConfirmed+d.epConfirmed+d.bankConfirmed, false, true)}
+        ${d.creditSales>0 ? row('Credit Sales', d.creditSales, false, true) : ''}
+        ${row('Total Sales Value', d.totalSalesValue, true)}
+
+        ${Object.keys(d.riderCash).length>0 ? `
+          ${secHead('Cash by Rider')}
+          ${Object.entries(d.riderCash).map(([name,amt]) => row(name, amt, false, true)).join('')}
+        ` : ''}
+
+        ${d.officeExpenses?.length>0 ? `
+          ${secHead('Office Expense Detail')}
+          ${d.officeExpenses.map(e => row(`${e.coa_account_name||e.category} — ${e.description||''}`, e.amount, false, true)).join('')}
+        ` : ''}
+
+        ${(d.salaryPayments?.length>0||d.advances?.length>0) ? `
+          ${secHead('Salary & Advances Detail')}
+          ${d.salaryPayments?.map(p => row(`Salary — ${p.riders?.full_name||'Rider'} (${p.month_year})`, p.amount_paid, false, true)).join('')||''}
+          ${d.advances?.map(a => row(`Advance — ${a.riders?.full_name||'Rider'}`, a.amount, false, true)).join('')||''}
+        ` : ''}
+      </table>
+
+      <div style="margin-top:10px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888">
         <span>Generated by AquaRun • ${bizName}</span>
-        <span>Printed: ${new Date().toLocaleDateString('en-PK', { day:'2-digit', month:'long', year:'numeric' })}</span>
+        <span>Printed: ${new Date().toLocaleDateString('en-PK',{day:'2-digit',month:'long',year:'numeric'})}</span>
       </div>
     </body></html>`)
     win.document.close()
