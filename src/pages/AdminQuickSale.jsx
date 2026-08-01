@@ -5,7 +5,7 @@ import InvoiceModal from '../components/InvoiceModal'
 
 const RATES_19L = [90, 100, 110, 120, 150, 160, 170, 180]
 
-export default function AdminQuickSale({ tenantId }) {
+export default function AdminQuickSale({ tenantId, settings = {} }) {
   const [mode, setMode] = useState('sale')
   const [products, setProducts] = useState([])
   const [quantities, setQuantities] = useState({})
@@ -190,7 +190,7 @@ export default function AdminQuickSale({ tenantId }) {
       rate_applied: rate19l || 0,
       total_amount: subTotal,
       payment_method: paymentMethod,
-      amount_received: paymentMethod === 'credit' ? 0 : paymentMethod === 'jazzcash' ? 0 : total,
+      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : total,
       credit_amount: paymentMethod === 'credit' ? total : 0,
       jazzcash_confirmed: false,
       delivered_at: new Date(saleDate).toISOString(),
@@ -445,7 +445,12 @@ export default function AdminQuickSale({ tenantId }) {
           <div style={card}>
             <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              {[{ key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' }, { key: 'jazzcash', label: 'JazzCash', urdu: 'جیز کیش', icon: '📱', color: '#9c27b0' }].map(pm => (
+              {[
+                { key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' },
+                { key: 'jazzcash', label: 'JazzCash', urdu: 'جیز کیش', icon: '📱', color: '#9c27b0' },
+                ...(settings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'EasyPaisa', urdu: 'ایزی پیسہ', icon: '💚', color: '#4caf50' }] : []),
+                ...(settings?.bank_name ? [{ key: 'bank', label: 'Bank', urdu: 'بینک', icon: '🏦', color: '#0f4c81' }] : []),
+              ].map(pm => (
                 <button key={pm.key} onClick={() => setPaymentMethodReceipt(pm.key)}
                   style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: paymentMethodReceipt === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethodReceipt === pm.key ? pm.color : 'white', color: paymentMethodReceipt === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
                   <span style={{ fontSize: '24px' }}>{pm.icon}</span>
@@ -454,6 +459,8 @@ export default function AdminQuickSale({ tenantId }) {
               ))}
             </div>
             {paymentMethodReceipt === 'jazzcash' && <p style={{ fontSize: '12px', color: '#9c27b0', margin: '10px 0 0', background: '#f3e5f5', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>📱 JazzCash payment will be pending until confirmed in JazzCash Reconciliation</p>}
+            {paymentMethodReceipt === 'easypaisa' && <p style={{ fontSize: '12px', color: '#4caf50', margin: '10px 0 0', background: '#e8f5e9', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>💚 EasyPaisa: {settings?.jazzcash_number_2} — {settings?.jazzcash_name_2} — pending until confirmed</p>}
+            {paymentMethodReceipt === 'bank' && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '10px 0 0', background: '#e3f0ff', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>🏦 {settings?.bank_name} — {settings?.bank_account_title} — {settings?.bank_account_number} — pending until confirmed</p>}
             {paymentMethodReceipt === 'cash' && <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '10px 0 0', background: '#e8f5e9', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>💵 Cash goes directly to CEO Cash in Hand — balance updated immediately</p>}
           </div>
 
@@ -496,7 +503,13 @@ export default function AdminQuickSale({ tenantId }) {
             <div style={card}>
               <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Payment Method</p>
               <div style={{ display: 'flex', gap: '8px' }}>
-                {[{ key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' }, { key: 'jazzcash', label: 'JazzCash', urdu: 'JZC', icon: '📱', color: '#9c27b0' }, { key: 'credit', label: 'Credit', urdu: 'ادھار', icon: '📋', color: '#f44336' }].map(pm => (
+                {[
+                  { key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' },
+                  { key: 'jazzcash', label: 'JazzCash', urdu: 'JZC', icon: '📱', color: '#9c27b0' },
+                  ...(settings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'EasyPaisa', urdu: 'EP', icon: '💚', color: '#4caf50' }] : []),
+                  ...(settings?.bank_name ? [{ key: 'bank', label: 'Bank', urdu: 'بینک', icon: '🏦', color: '#0f4c81' }] : []),
+                  { key: 'credit', label: 'Credit', urdu: 'ادھار', icon: '📋', color: '#f44336' },
+                ].map(pm => (
                   <button key={pm.key} onClick={() => { setPaymentMethod(pm.key) }}
                     style={{ flex: 1, padding: '12px 4px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
                     <span style={{ fontSize: '20px' }}>{pm.icon}</span>
@@ -505,9 +518,11 @@ export default function AdminQuickSale({ tenantId }) {
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: '11px', fontWeight: '600', margin: '10px 0 0', padding: '6px 10px', borderRadius: '6px', background: paymentMethod === 'cash' ? '#e8f5e9' : paymentMethod === 'jazzcash' ? '#f3e5f5' : '#ffebee', color: paymentMethod === 'cash' ? '#1a7a4a' : paymentMethod === 'jazzcash' ? '#9c27b0' : '#f44336' }}>
+              <p style={{ fontSize: '11px', fontWeight: '600', margin: '10px 0 0', padding: '6px 10px', borderRadius: '6px', background: paymentMethod === 'cash' ? '#e8f5e9' : paymentMethod === 'jazzcash' ? '#f3e5f5' : paymentMethod === 'easypaisa' ? '#e8f5e9' : paymentMethod === 'bank' ? '#e3f0ff' : '#ffebee', color: paymentMethod === 'cash' ? '#1a7a4a' : paymentMethod === 'jazzcash' ? '#9c27b0' : paymentMethod === 'easypaisa' ? '#4caf50' : paymentMethod === 'bank' ? '#0f4c81' : '#f44336' }}>
                 {paymentMethod === 'cash' && '💵 Goes to CEO Cash in Hand'}
                 {paymentMethod === 'jazzcash' && '📱 Goes to CEO JazzCash — confirm in reconciliation'}
+                {paymentMethod === 'easypaisa' && '💚 EasyPaisa — pending until confirmed'}
+                {paymentMethod === 'bank' && '🏦 Bank Transfer — pending until confirmed'}
                 {paymentMethod === 'credit' && '📋 Select customer — added to their balance'}
               </p>
             </div>

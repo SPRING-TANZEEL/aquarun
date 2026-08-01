@@ -101,6 +101,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
   const [businessName, setBusinessName] = useState('AquaRun')
   const [showSetupWizard, setShowSetupWizard] = useState(false)
   const [businessLogo, setBusinessLogo] = useState(null)
+  const [businessSettings, setBusinessSettings] = useState({})
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
   const [scheduleNotif, setScheduleNotif] = useState(null)
@@ -184,6 +185,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     if (map.business_name) setBusinessName(map.business_name)
     if (map.business_logo) setBusinessLogo(map.business_logo)
+    setBusinessSettings(map)
     // Auto-generate recurring orders on login
     autoGenerateSchedule()
     if (map.setup_completed !== 'true') setShowSetupWizard(true)
@@ -774,7 +776,7 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
           {activePage === 'cashposition' && <CEOCashPosition tenantId={tenantId} />}
           {activePage === 'inventory' && <Inventory tenantId={tenantId} />}
           {activePage === 'reports' && <Reports tenantId={tenantId} />}
-          {activePage === 'quicksale' && <AdminQuickSale tenantId={tenantId} />}
+          {activePage === 'quicksale' && <AdminQuickSale tenantId={tenantId} settings={businessSettings} />}
           {activePage === 'transactions' && <Transactions tenantId={tenantId} />}
           {activePage === 'accounts' && <Accounts tenantId={tenantId} />}
           {activePage === 'settings' && <BusinessSettings tenantId={tenantId} />}
