@@ -45,6 +45,14 @@ export async function downloadRiderData(rider) {
     if (customers) await saveCustomersOffline(customers)
     await saveRiderProfile(rider)
 
+    // Sync stored customer balances with view for accurate offline/online balance display
+    try {
+      await supabase.rpc('sync_customer_balances', { p_tenant_id: rider.tenant_id })
+      console.log('Customer balances synced')
+    } catch (e) {
+      console.log('Balance sync skipped:', e.message)
+    }
+
     console.log('Downloaded orders:', orders?.length, 'customers:', customers?.length)
     return { success: true, ordersCount: orders?.length || 0, customersCount: customers?.length || 0 }
   } catch (error) {
