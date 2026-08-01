@@ -17,6 +17,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [qty15l, setQty15l] = useState(0)
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
+  const [bizSettings, setBizSettings] = useState({})
   useEffect(() => {
     if (!tenantId) return
     supabase.from('business_settings').select('*').eq('tenant_id', tenantId).then(({ data }) => {
