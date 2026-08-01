@@ -1469,6 +1469,15 @@ function ProfitLoss({ tenantId }) {
       .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'business_name').single()
     const businessName = settings?.setting_value || 'Business'
 
+    // Remove drill-down icons from print content
+    const printContent = el.innerHTML
+      .replace(/🔍/g, '')
+      .replace(/📊/g, '')
+      .replace(/📈/g, '')
+      .replace(/📦/g, '')
+      .replace(/💸/g, '')
+      .replace(/💰/g, '')
+
     const win = window.open('', '_blank')
     win.document.write(`
       <!DOCTYPE html>
@@ -1499,7 +1508,9 @@ function ProfitLoss({ tenantId }) {
           .card { background: #f8f9fa; border-radius: 6px; padding: 10px; text-align: center; }
           .card p { font-size: 10px; color: #666; margin: 0 0 4px; text-transform: uppercase; }
           .card h3 { font-size: 15px; font-weight: 800; margin: 0; }
-          @media print { body { padding: 10px; } }
+          @media print { body { padding: 8px; } }
+          .no-print-icon { display: none !important; }
+          span[style*="cursor: pointer"] { display: none !important; }
         </style>
       </head>
       <body>
@@ -1507,7 +1518,7 @@ function ProfitLoss({ tenantId }) {
           <h1 style="font-size:18px; color:#0f4c81; margin:0 0 4px; font-weight:900;">${businessName}</h1>
           <p style="font-size:12px; color:#888; margin:0;">Profit & Loss Statement</p>
         </div>
-        ${el.innerHTML}
+        ${el.innerHTML.replace(/🔍/g, '').replace(/📊/g, '').replace(/📈/g, '').replace(/📦/g, '').replace(/💸/g, '').replace(/💰/g, '')}
       </body>
       </html>
     `)
