@@ -340,9 +340,14 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 narration: `COGS — ${p.name} × ${qtySold}`, total_amount: cogsCost, created_by: 'system'
               }]).select().single()
               if (je) {
+                const saleAmount = Number(p.selling_price || p.unit_cost || 0) * qtySold
                 await supabase.from('journal_entry_lines').insert([
+                  // COGS entry
                   { tenant_id: tenantId, journal_entry_id: je.id, account_code: '5003', account_name: 'Cost of Goods Sold', debit: cogsCost, credit: 0 },
-                  { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost }
+                  { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost },
+                  // Revenue entry
+                  { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1001', account_name: 'Cash in Hand', debit: saleAmount, credit: 0 },
+                  { tenant_id: tenantId, journal_entry_id: je.id, account_code: '4004', account_name: 'Other Product Sales', debit: 0, credit: saleAmount },
                 ])
               }
             } catch (err) { console.error('COGS error:', err) }

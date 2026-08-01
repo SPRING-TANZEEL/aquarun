@@ -263,9 +263,16 @@ export default function AdminQuickSale({ tenantId }) {
             created_by: 'admin'
           }]).select().single()
           if (je) {
+            const saleAmount = Number(p.selling_price || p.unit_cost || 0) * qtySold
+            const drAccount = paymentMethod === 'cash' ? '1001' : paymentMethod === 'jazzcash' ? '1002' : '1100'
+            const drName = paymentMethod === 'cash' ? 'Cash in Hand' : paymentMethod === 'jazzcash' ? 'JazzCash Account' : 'Accounts Receivable'
             await supabase.from('journal_entry_lines').insert([
+              // COGS entry
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: '5003', account_name: 'Cost of Goods Sold', debit: cogsCost, credit: 0 },
-              { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost }
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost },
+              // Revenue entry
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: drAccount, account_name: drName, debit: saleAmount, credit: 0 },
+              { tenant_id: tenantId, journal_entry_id: je.id, account_code: '4004', account_name: 'Other Product Sales', debit: 0, credit: saleAmount },
             ])
           }
         } catch (err) { console.error('COGS journal error:', err) }
