@@ -152,19 +152,24 @@ function DailyCashReport({ tenantId }) {
       : `${new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })} — ${new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}`
     win.document.write(`<!DOCTYPE html><html><head><title>${bizName} — Cash Flow</title><style>
       *{margin:0;padding:0;box-sizing:border-box}
-      body{font-family:Arial,sans-serif;font-size:12px;color:#000;padding:16px}
-      .hd{text-align:center;padding-bottom:10px;border-bottom:2px solid #000;margin-bottom:12px}
-      .hd h1{font-size:17px;font-weight:900;margin:0 0 2px}
-      .hd p{font-size:11px;color:#555;margin:2px 0}
-      .sec{margin-bottom:10px}
-      .sec-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:4px 8px;background:#f0f0f0;border-left:3px solid #000;margin-bottom:4px}
-      .row{display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}
-      .row.indent{padding-left:20px}
-      .row.bold{font-weight:700;font-size:12px}
-      .row.total{font-weight:900;font-size:13px;border-top:2px solid #000;border-bottom:2px solid #000;padding:6px 8px}
-      .green{color:#1a7a4a} .red{color:#c62828} .purple{color:#7c3aed} .blue{color:#0f4c81}
-      .footer{margin-top:14px;padding-top:8px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888}
-      @media print{body{padding:8px}}
+      body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#000;padding:12px;line-height:1.4}
+      .hd{text-align:center;padding-bottom:8px;border-bottom:2px solid #000;margin-bottom:10px}
+      .hd h1{font-size:15px;font-weight:700;margin:0 0 2px;letter-spacing:-0.3px}
+      .hd p{font-size:10px;color:#555;margin:1px 0}
+      div[style*="background:linear-gradient"]{background:#1a3a5c!important;color:white!important;padding:10px 12px!important;margin-bottom:8px!important;border-radius:4px!important}
+      div[style*="border-bottom: 2px"]{border-bottom:1px solid #ddd!important}
+      div[style*="border-left: 4px"]{border-left:3px solid currentColor!important;padding:6px 10px!important}
+      div[style*="padding: '14px'"]{padding:8px 12px!important}
+      div[style*="padding: '9px'"]{padding:5px 12px!important}
+      div[style*="padding: '7px'"]{padding:4px 12px!important}
+      div[style*="padding:'6px 14px 6px 28px'"]{padding:3px 12px 3px 24px!important}
+      span[style*="font-size:22px"]{font-size:16px!important}
+      span[style*="font-size:16px"]{font-size:13px!important}
+      span[style*="font-size:14px"]{font-size:12px!important}
+      span[style*="font-size:13px"]{font-size:11px!important}
+      span[style*="font-size:12px"]{font-size:10px!important}
+      .footer{margin-top:10px;padding-top:6px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888}
+      @media print{body{padding:6px}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
     </style></head><body>
       <div class="hd">
         <h1>${bizName}</h1>
