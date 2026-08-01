@@ -29,6 +29,8 @@ export default function Transactions({ tenantId }) {
   const [processing, setProcessing] = useState(false)
   const [invoiceData, setInvoiceData] = useState(null)
   const [businessSettings, setBusinessSettings] = useState({})
+  const [displayLimit, setDisplayLimit] = useState(100)
+  const [totalCount, setTotalCount] = useState(0)
 
   useEffect(() => { if (tenantId) fetchTransactions() }, [activeType, showVoided, tenantId])
   useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
@@ -45,8 +47,9 @@ export default function Transactions({ tenantId }) {
     setInvoiceData({ delivery: tx.raw, customer, settings: businessSettings })
   }
 
-  async function fetchTransactions() {
+  async function fetchTransactions(limit = 100) {
     setLoading(true)
+    if (limit === 100) setDisplayLimit(100)
     const all = []
 
     // ── DELIVERIES ──────────────────────────────────────────────────
@@ -241,7 +244,8 @@ export default function Transactions({ tenantId }) {
     }
 
     all.sort((a, b) => new Date(b.date) - new Date(a.date))
-    setTransactions(all)
+    setTotalCount(all.length)
+    setTransactions(all.slice(0, limit))
     setLoading(false)
   }
 
@@ -549,7 +553,7 @@ export default function Transactions({ tenantId }) {
             <tfoot>
               <tr style={{ background: '#f8f9fa', borderTop: '2px solid #eee' }}>
                 <td colSpan={4} style={{ padding: '12px 14px', fontSize: '13px', fontWeight: '700', color: '#333' }}>
-                  Total — {filtered.length} transactions
+                  Total — {filtered.length} shown {totalCount > filtered.length ? `(${totalCount} in period)` : ''}
                 </td>
                 <td style={{ padding: '12px 14px', fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>
                   Rs. {totalAmount.toLocaleString()}
@@ -560,6 +564,27 @@ export default function Transactions({ tenantId }) {
           </table>
         )}
       </div>
+
+      {/* Load More */}
+      {!loading && transactions.length > 0 && totalCount > transactions.length && (
+        <div style={{ textAlign: 'center', padding: '20px' }}>
+          <p style={{ fontSize: 12, color: '#888', marginBottom: 10 }}>
+            Showing {transactions.length} of {totalCount} transactions
+          </p>
+          <button onClick={() => {
+            const newLimit = displayLimit + 100
+            setDisplayLimit(newLimit)
+            fetchTransactions(newLimit)
+          }} style={{ padding: '10px 28px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+            Load 100 More
+          </button>
+        </div>
+      )}
+      {!loading && totalCount > 0 && totalCount <= transactions.length && totalCount > 100 && (
+        <p style={{ textAlign: 'center', fontSize: 12, color: '#888', padding: '16px' }}>
+          ✅ All {totalCount} transactions loaded
+        </p>
+      )}
     </div>
   )
 }
