@@ -1486,7 +1486,7 @@ function ProfitLoss({ tenantId }) {
         <title>${businessName} — Profit & Loss Statement</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: Arial, sans-serif; font-size: 13px; color: #333; padding: 20px; }
+          body { font-family: Arial, sans-serif; font-size: 11px; color: #000; padding: 12px; line-height: 1.3; }
           .header { background: #0f4c81; color: white; padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
           .header h1 { font-size: 16px; margin: 0; }
           .header p { font-size: 11px; margin: 3px 0 0; opacity: 0.8; }
@@ -1494,11 +1494,18 @@ function ProfitLoss({ tenantId }) {
           .net p { font-size: 11px; margin: 0; opacity: 0.8; }
           .net h2 { font-size: 22px; font-weight: 900; margin: 0; }
           .section-header { padding: 7px 12px; background: #f0f4f8; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #555; margin-top: 8px; }
-          .row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #f0f0f0; }
-          .row.indent { padding-left: 24px; }
-          .row.bold { background: #f8f9fa; font-weight: 700; }
-          .row.subtotal { background: #e8f5e9; font-weight: 800; padding: 10px 12px; }
-          .row.subtotal.loss { background: #ffebee; }
+          .row { display: flex; justify-content: space-between; padding: 4px 10px; border-bottom: 1px solid #eee; }
+          .row.indent { padding: 3px 10px 3px 22px; font-size: 11px; }
+          .row.bold { font-weight: 700; background: #f8f8f8; }
+          .row.subtotal { font-weight: 900; font-size: 12px; padding: 6px 10px; border-top: 2px solid #000; border-bottom: 2px solid #000; }
+          .section-header { padding: 4px 10px; background: #f0f0f0; font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; border-left: 3px solid #000; margin-top: 6px; }
+          .business-header { text-align: center; padding-bottom: 8px; border-bottom: 2px solid #000; margin-bottom: 10px; }
+          .business-header h1 { font-size: 16px; font-weight: 900; margin: 0 0 2px; }
+          .business-header p { font-size: 10px; color: #555; margin: 1px 0; }
+          .net-box { text-align: right; border: 2px solid #000; padding: 6px 12px; border-radius: 4px; }
+          .net-box p { font-size: 9px; color: #555; margin: 0 0 2px; }
+          .net-box h3 { font-size: 14px; font-weight: 900; margin: 0; }
+          .footer { margin-top: 12px; padding-top: 8px; border-top: 1px solid #ccc; display: flex; justify-content: space-between; font-size: 9px; color: #888; }
           .label { color: #333; }
           .value { font-weight: 600; }
           .green { color: #1a7a4a; }
@@ -1508,7 +1515,16 @@ function ProfitLoss({ tenantId }) {
           .card { background: #f8f9fa; border-radius: 6px; padding: 10px; text-align: center; }
           .card p { font-size: 10px; color: #666; margin: 0 0 4px; text-transform: uppercase; }
           .card h3 { font-size: 15px; font-weight: 800; margin: 0; }
-          @media print { body { padding: 8px; } }
+          @media print {
+            body { padding: 6px; font-size: 11px; }
+            .pl-header { padding: 6px 0; margin-bottom: 6px; }
+            .section-header { padding: 3px 8px; margin-top: 4px; font-size: 9px; }
+            .row { padding: 3px 8px; }
+            .row.indent { padding: 3px 8px 3px 18px; font-size: 10px; }
+            .row.subtotal { padding: 5px 8px; }
+            .footer { margin-top: 10px; padding-top: 6px; }
+          }
+          * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .no-print-icon { display: none !important; }
           span[style*="cursor: pointer"] { display: none !important; }
         </style>
