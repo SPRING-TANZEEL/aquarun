@@ -16,6 +16,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
   const [cashReceived, setCashReceived] = useState('')
+  const [bizSettings, setBizSettings] = useState({})
   const [bottlesReturned, setBottlesReturned] = useState(0)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
@@ -32,6 +33,15 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [payCustomer, setPayCustomer] = useState(null)
   const [payAmount, setPayAmount] = useState('')
   const [payMethod, setPayMethod] = useState('cash')
+
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('business_settings').select('*').eq('tenant_id', tenantId).then(({ data }) => {
+      const map = {}
+      data?.forEach(s => { map[s.setting_key] = s.setting_value })
+      setBizSettings(map)
+    })
+  }, [tenantId])
   const [payNotes, setPayNotes] = useState('')
   const [paySuccess, setPaySuccess] = useState(null)
   const [paySaving, setPaySaving] = useState(false)
@@ -195,7 +205,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         amount,
         payment_method: payMethod,
         payment_date: new Date().toISOString().split('T')[0],
-        jazzcash_confirmed: payMethod !== 'jazzcash',
+        jazzcash_confirmed: !['jazzcash', 'easypaisa', 'bank'].includes(payMethod),
         notes: payNotes || `Payment received by rider ${rider.full_name}`,
         is_voided: false,
         _offlineId: 'offline-' + Date.now(),
@@ -224,7 +234,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       amount,
       payment_method: payMethod,
       payment_date: new Date().toISOString().split('T')[0],
-      jazzcash_confirmed: !isJazz, // cash confirmed immediately, jazz pending
+      jazzcash_confirmed: !isJazz && payMethod !== 'easypaisa' && payMethod !== 'bank',
       notes: payNotes || `Payment received by rider ${rider.full_name}`,
       is_voided: false
     }]).select().single()
@@ -560,6 +570,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               {[
                 { key: 'cash', label: t('نقد Cash', 'نقد'), sublabel: t('Cash — goes to rider', 'نقد — رائیڈر کے پاس'), color: '#1a7a4a' },
                 { key: 'jazzcash', label: t('جیز کیش', 'جیز کیش'), sublabel: t('JazzCash — goes to admin', 'جیز کیش — ایڈمن کو'), color: '#9c27b0' },
+                ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: t('ایزی پیسہ', 'ایزی پیسہ'), sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
+                ...(bizSettings?.bank_name ? [{ key: 'bank', label: t('بینک', 'بینک'), sublabel: 'Bank Transfer', color: '#0f4c81' }] : []),
               ].map(pm => (
                 <button key={pm.key} onClick={() => setPayMethod(pm.key)}
                   style={{ flex: 1, padding: '14px 8px', border: '2px solid', borderColor: payMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: payMethod === pm.key ? pm.color : 'white', color: payMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
@@ -769,6 +781,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   {[
                     { key: 'cash', label: t('نقد', 'نقد'), sublabel: t('Cash', 'Cash'), color: '#1a7a4a' },
                     { key: 'jazzcash', label: t('جیز کیش', 'جیز کیش'), sublabel: 'JazzCash', color: '#9c27b0' },
+                    ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: t('ایزی پیسہ', 'ایزی پیسہ'), sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
+                    ...(bizSettings?.bank_name ? [{ key: 'bank', label: t('بینک', 'بینک'), sublabel: 'Bank', color: '#0f4c81' }] : []),
                     { key: 'credit', label: t('ادھار', 'ادھار'), sublabel: t('Credit', 'Credit'), color: '#f44336' },
                   ].map(pm => (
                     <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); setCashReceived('') }}
