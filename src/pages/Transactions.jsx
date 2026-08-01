@@ -31,6 +31,8 @@ export default function Transactions({ tenantId }) {
   const [businessSettings, setBusinessSettings] = useState({})
   const [displayLimit, setDisplayLimit] = useState(100)
   const [totalCount, setTotalCount] = useState(0)
+  const [allTransactions, setAllTransactions] = useState([])
+  const [loadingMore, setLoadingMore] = useState(false)
 
   useEffect(() => {
     if (tenantId) fetchTransactions()
@@ -247,8 +249,10 @@ export default function Transactions({ tenantId }) {
 
     all.sort((a, b) => new Date(b.date) - new Date(a.date))
     setTotalCount(all.length)
+    setAllTransactions(all)
     setTransactions(all.slice(0, limit))
     setLoading(false)
+    setLoadingMore(false)
   }
 
   async function voidTransaction() {
@@ -588,7 +592,7 @@ export default function Transactions({ tenantId }) {
           <button onClick={() => {
             const newLimit = displayLimit + 100
             setDisplayLimit(newLimit)
-            fetchTransactions(newLimit)
+            setTransactions(allTransactions.slice(0, newLimit))
           }} style={{ padding: '10px 28px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
             Load 100 More
           </button>
