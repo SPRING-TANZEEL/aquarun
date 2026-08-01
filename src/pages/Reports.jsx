@@ -5,7 +5,7 @@ import InvoiceModal from '../components/InvoiceModal'
 export default function Reports({ tenantId }) {
   const [activeTab, setActiveTab] = useState('daily')
   const tabs = [
-    { key: 'daily', label: '💵 Daily Cash' },
+    { key: 'daily', label: '💵 Cash Flow' },
     { key: 'ledger', label: '📒 Customer Ledger' },
     { key: 'ageing', label: '⏳ Receivables' },
     { key: 'sales', label: '📊 Sales Summary' },
@@ -38,142 +38,360 @@ export default function Reports({ tenantId }) {
   )
 }
 
-// ─── DAILY CASH REPORT ─────────────────────────────────────────────
+// ─── DAILY CASH FLOW REPORT ─────────────────────────────────────────────
 function DailyCashReport({ tenantId }) {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const today = new Date().toISOString().split('T')[0]
+  const firstOfMonth = new Date().toISOString().slice(0, 7) + '-01'
 
-  useEffect(() => { if (tenantId) fetchReport() }, [date, tenantId])
+  const [dateFrom, setDateFrom] = useState(today)
+  const [dateTo, setDateTo]     = useState(today)
+  const [data, setData]         = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const [bizName, setBizName]   = useState('')
 
-  async function fetchReport() {
+  useEffect(() => { if (tenantId) { fetchBizName(); fetchReport() } }, [tenantId])
+
+  async function fetchBizName() {
+    const { data: s } = await supabase.from('business_settings').select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'business_name').maybeSingle()
+    setBizName(s?.setting_value || '')
+  }
+
+  async function fetchReport(from = dateFrom, to = dateTo) {
     setLoading(true)
-    const from = date + 'T00:00:00'
-    const to = date + 'T23:59:59'
-    const { data: deliveries } = await supabase.from('deliveries')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .gte('delivered_at', from).lte('delivered_at', to).eq('is_voided', false)
-    const { data: payments } = await supabase.from('payments')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('payment_date', date).eq('is_voided', false)
-    const { data: expenses } = await supabase.from('expenses')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('expense_date', date).eq('is_voided', false)
-    const { data: officeExpenses } = await supabase.from('office_expenses')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('expense_date', date).eq('is_voided', false)
-    const { data: advances } = await supabase.from('salary_advances')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .eq('status', 'approved').eq('is_voided', false).gte('approved_at', from).lte('approved_at', to)
-    const { data: salaryPayments } = await supabase.from('salary_payments')
-      .select('*, riders(full_name)')
-      .eq('tenant_id', tenantId)
-      .gte('created_at', from).lte('created_at', to)
+    const fromDT = from + 'T00:00:00'
+    const toDT   = to   + 'T23:59:59'
 
-    let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0, totalSalesValue = 0
+    const [
+      { data: deliveries },
+      { data: payments },
+      { data: expenses },
+      { data: officeExpenses },
+      { data: advances },
+      { data: salaryPayments },
+    ] = await Promise.all([
+      supabase.from('deliveries').select('*, riders(full_name)').eq('tenant_id', tenantId).gte('delivered_at', fromDT).lte('delivered_at', toDT).eq('is_voided', false),
+      supabase.from('payments').select('*, riders(full_name)').eq('tenant_id', tenantId).gte('payment_date', from).lte('payment_date', to).eq('is_voided', false),
+      supabase.from('expenses').select('*, riders(full_name)').eq('tenant_id', tenantId).gte('expense_date', from).lte('expense_date', to).eq('is_voided', false),
+      supabase.from('office_expenses').select('*').eq('tenant_id', tenantId).gte('expense_date', from).lte('expense_date', to).eq('is_voided', false),
+      supabase.from('salary_advances').select('*, riders(full_name)').eq('tenant_id', tenantId).eq('status', 'approved').eq('is_voided', false).gte('approved_at', fromDT).lte('approved_at', toDT),
+      supabase.from('salary_payments').select('*, riders(full_name)').eq('tenant_id', tenantId).gte('created_at', fromDT).lte('created_at', toDT),
+    ])
+
+    let cashFromSales = 0, cashFromPayments = 0
+    let jazzConfirmed = 0, jazzPending = 0
+    let epConfirmed = 0, epPending = 0
+    let bankConfirmed = 0, bankPending = 0
+    let creditSales = 0, totalSalesValue = 0
     const riderCash = {}
+
     deliveries?.forEach(d => {
-      totalSalesValue += Number(d.total_amount)
-      if (d.payment_method === 'cash') { cashFromSales += Number(d.amount_received); const name = d.riders?.full_name || 'Unknown'; riderCash[name] = (riderCash[name] || 0) + Number(d.amount_received) }
-      if (d.payment_method === 'jazzcash') { if (d.jazzcash_confirmed) jazzFromSales += Number(d.total_amount); else jazzFromSalesPending += Number(d.total_amount) }
-      if (d.payment_method === 'credit') creditSales += Number(d.total_amount)
+      const amt = Number(d.total_with_tax || d.total_amount)
+      totalSalesValue += amt
+      const pm = d.payment_method
+      if (pm === 'cash') {
+        cashFromSales += Number(d.amount_received || amt)
+        const name = d.riders?.full_name || 'Walk-in / Admin'
+        riderCash[name] = (riderCash[name] || 0) + Number(d.amount_received || amt)
+      }
+      if (pm === 'jazzcash')  { d.jazzcash_confirmed ? jazzConfirmed += amt : jazzPending += amt }
+      if (pm === 'easypaisa') { d.jazzcash_confirmed ? epConfirmed   += amt : epPending   += amt }
+      if (pm === 'bank')      { d.jazzcash_confirmed ? bankConfirmed += amt : bankPending  += amt }
+      if (pm === 'credit')    { creditSales += amt }
     })
 
-    let cashFromPayments = 0, jazzFromPayments = 0, jazzFromPaymentsPending = 0
     payments?.forEach(p => {
-      if (p.payment_method === 'cash') { cashFromPayments += Number(p.amount); const name = p.riders?.full_name || 'Unknown'; riderCash[name] = (riderCash[name] || 0) + Number(p.amount) }
-      if (p.payment_method === 'jazzcash') { if (p.jazzcash_confirmed) jazzFromPayments += Number(p.amount); else jazzFromPaymentsPending += Number(p.amount) }
+      const amt = Number(p.amount)
+      const pm = p.payment_method
+      if (pm === 'cash') {
+        cashFromPayments += amt
+        const name = p.riders?.full_name || 'Admin'
+        riderCash[name] = (riderCash[name] || 0) + amt
+      }
+      if (pm === 'jazzcash')  { p.jazzcash_confirmed ? jazzConfirmed += amt : jazzPending += amt }
+      if (pm === 'easypaisa') { p.jazzcash_confirmed ? epConfirmed   += amt : epPending   += amt }
+      if (pm === 'bank')      { p.jazzcash_confirmed ? bankConfirmed += amt : bankPending  += amt }
     })
 
-    const totalExpenses = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const totalOfficeExp = officeExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const totalAdvances = advances?.reduce((s, a) => s + Number(a.amount), 0) || 0
-    const totalSalaryPayments = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
-    const totalCashIn = cashFromSales + cashFromPayments
-    const totalCashOut = totalExpenses + totalOfficeExp + totalAdvances + totalSalaryPayments
-    const closingCash = totalCashIn - totalCashOut
+    const totalCashIn    = cashFromSales + cashFromPayments
+    const riderExpTotal  = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
+    const officeExpTotal = officeExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
+    const advancesTotal  = advances?.reduce((s, a) => s + Number(a.amount), 0) || 0
+    const salariesTotal  = salaryPayments?.reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+    const totalCashOut   = riderExpTotal + officeExpTotal + advancesTotal + salariesTotal
+    const netCash        = totalCashIn - totalCashOut
 
-    setData({ cashFromSales, cashFromPayments, totalCashIn, jazzFromSales, jazzFromSalesPending, jazzFromPayments, jazzFromPaymentsPending, creditSales, totalSalesValue, totalExpenses, totalOfficeExp, totalAdvances, totalSalaryPayments, totalCashOut, closingCash, riderCash, deliveries, expenses, officeExpenses, advances, salaryPayments })
+    setData({
+      cashFromSales, cashFromPayments, totalCashIn,
+      jazzConfirmed, jazzPending, epConfirmed, epPending, bankConfirmed, bankPending,
+      creditSales, totalSalesValue,
+      riderExpTotal, officeExpTotal, advancesTotal, salariesTotal, totalCashOut,
+      netCash, riderCash,
+      expenses, officeExpenses, advances, salaryPayments, deliveries,
+    })
     setLoading(false)
   }
 
-  function Row({ label, value, color, bold, indent }) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #f0f0f0' }}>
-        <span style={{ fontSize: '13px', color: color || '#555', fontWeight: bold ? '700' : '400', paddingLeft: indent ? '16px' : '0' }}>{label}</span>
-        <span style={{ fontSize: '13px', fontWeight: bold ? '700' : '600', color: color || '#333' }}>Rs. {Number(value || 0).toLocaleString()}</span>
-      </div>
-    )
+  function navigate(dir) {
+    const d = new Date(dateFrom); d.setDate(d.getDate() + dir)
+    const nd = d.toISOString().split('T')[0]
+    setDateFrom(nd); setDateTo(nd)
+    fetchReport(nd, nd)
   }
 
-  return (
-    <div>
-      <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <label style={{ fontSize: '13px', color: '#555', fontWeight: '600' }}>Date:</label>
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none' }} />
-        <button onClick={fetchReport} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
+  function applyQuick(from, to) {
+    setDateFrom(from); setDateTo(to)
+    fetchReport(from, to)
+  }
+
+  function printReport() {
+    const el = document.getElementById('cashflow-print')
+    if (!el) return
+    const win = window.open('', '_blank')
+    const period = dateFrom === dateTo
+      ? new Date(dateFrom).toLocaleDateString('en-PK', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
+      : `${new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })} — ${new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}`
+    win.document.write(`<!DOCTYPE html><html><head><title>${bizName} — Cash Flow</title><style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;font-size:12px;color:#000;padding:16px}
+      .hd{text-align:center;padding-bottom:10px;border-bottom:2px solid #000;margin-bottom:12px}
+      .hd h1{font-size:17px;font-weight:900;margin:0 0 2px}
+      .hd p{font-size:11px;color:#555;margin:2px 0}
+      .sec{margin-bottom:10px}
+      .sec-title{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;padding:4px 8px;background:#f0f0f0;border-left:3px solid #000;margin-bottom:4px}
+      .row{display:flex;justify-content:space-between;padding:4px 8px;border-bottom:1px solid #eee;font-size:11px}
+      .row.indent{padding-left:20px}
+      .row.bold{font-weight:700;font-size:12px}
+      .row.total{font-weight:900;font-size:13px;border-top:2px solid #000;border-bottom:2px solid #000;padding:6px 8px}
+      .green{color:#1a7a4a} .red{color:#c62828} .purple{color:#7c3aed} .blue{color:#0f4c81}
+      .footer{margin-top:14px;padding-top:8px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888}
+      @media print{body{padding:8px}}
+    </style></head><body>
+      <div class="hd">
+        <h1>${bizName}</h1>
+        <p>Daily Cash Flow Statement</p>
+        <p>${period}</p>
       </div>
-      {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : data && (
-        <div>
-          <div style={{ background: '#f0f4ff', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>Opening Cash</span>
-            <span style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81' }}>Rs. 0</span>
+      ${el.innerHTML.replace(/🔍/g,'').replace(/📥/g,'').replace(/📤/g,'').replace(/📱/g,'').replace(/💚/g,'').replace(/🏦/g,'').replace(/📋/g,'').replace(/🚴/g,'').replace(/💵/g,'')}
+      <div class="footer">
+        <span>Generated by AquaRun • ${bizName}</span>
+        <span>Printed: ${new Date().toLocaleDateString('en-PK', { day:'2-digit', month:'long', year:'numeric' })}</span>
+      </div>
+    </body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 500)
+  }
+
+  const lastMonth1 = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split('T')[0]
+  const lastMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0]
+
+  const SRow = ({ label, value, bold, indent, color, border }) => (
+    <div style={{ display:'flex', justifyContent:'space-between', padding: bold ? '9px 14px' : '7px 14px', borderBottom: border ? '2px solid #e0e0e0' : '1px solid #f0f0f0', background: bold ? '#f8f9fa' : 'white' }}>
+      <span style={{ fontSize:13, fontWeight: bold?700:400, color:'#333', paddingLeft: indent?16:0 }}>{label}</span>
+      <span style={{ fontSize: bold?14:13, fontWeight: bold?800:600, color: color||'#333' }}>Rs. {Math.abs(Number(value||0)).toLocaleString()}</span>
+    </div>
+  )
+
+  const SectionHead = ({ label, color }) => (
+    <div style={{ padding:'8px 14px', background: color||'#f0f4f8', borderBottom:'1px solid #e0e0e0' }}>
+      <span style={{ fontSize:11, fontWeight:800, color:'#444', textTransform:'uppercase', letterSpacing:'.08em' }}>{label}</span>
+    </div>
+  )
+
+  return (
+    <div style={{ fontFamily:'system-ui,-apple-system,sans-serif' }}>
+
+      {/* Filter Bar */}
+      <div style={{ background:'white', borderRadius:12, padding:'14px 18px', marginBottom:16, boxShadow:'0 2px 8px rgba(0,0,0,0.06)', display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
+
+        {/* Day navigation — only show when single day selected */}
+        {dateFrom === dateTo && (
+          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <button onClick={() => navigate(-1)} style={{ width:32, height:32, border:'1.5px solid #e0e0e0', borderRadius:6, cursor:'pointer', background:'white', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
+            <button onClick={() => navigate(1)} disabled={dateFrom >= today} style={{ width:32, height:32, border:'1.5px solid #e0e0e0', borderRadius:6, cursor:'pointer', background:'white', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', opacity: dateFrom >= today ? 0.4 : 1 }}>›</button>
           </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', marginBottom: '10px' }}>📥 CASH IN</p>
-            <Row label="Cash from Deliveries / Sales" value={data.cashFromSales} indent />
-            <Row label="Cash from Balance Collections" value={data.cashFromPayments} indent />
-            <Row label="Total Cash In" value={data.totalCashIn} color="#1a7a4a" bold />
-          </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#f44336', marginBottom: '10px' }}>📤 CASH OUT</p>
-            <Row label="Rider Expenses" value={data.totalExpenses} indent />
-            <Row label="Office Expenses" value={data.totalOfficeExp} indent />
-            <Row label="Salary Advances Paid" value={data.totalAdvances} indent />
-            <Row label="Salary Payments Made" value={data.totalSalaryPayments} indent />
-            <Row label="Total Cash Out" value={data.totalCashOut} color="#f44336" bold />
-          </div>
-          <div style={{ background: data.closingCash >= 0 ? 'linear-gradient(135deg, #0f4c81, #1a7a4a)' : 'linear-gradient(135deg, #c62828, #e65100)', color: 'white', borderRadius: '12px', padding: '20px', marginBottom: '12px', textAlign: 'center' }}>
-            <p style={{ fontSize: '13px', opacity: 0.8, margin: '0 0 8px' }}>Closing Cash (End of Day)</p>
-            <p style={{ fontSize: '40px', fontWeight: '700', margin: '0 0 4px' }}>Rs. {data.closingCash.toLocaleString()}</p>
-            <p style={{ fontSize: '12px', opacity: 0.7, margin: 0 }}>Opening Rs. 0 + Cash In Rs. {data.totalCashIn.toLocaleString()} − Cash Out Rs. {data.totalCashOut.toLocaleString()}</p>
-          </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#9c27b0', marginBottom: '10px' }}>📱 JazzCash (Not included in cash)</p>
-            <Row label="JazzCash Sales — Confirmed" value={data.jazzFromSales} indent />
-            <Row label="JazzCash Sales — Pending" value={data.jazzFromSalesPending} indent />
-            <Row label="JazzCash Payments — Confirmed" value={data.jazzFromPayments} indent />
-            <Row label="JazzCash Payments — Pending" value={data.jazzFromPaymentsPending} indent />
-            <Row label="Total JazzCash" value={data.jazzFromSales + data.jazzFromSalesPending + data.jazzFromPayments + data.jazzFromPaymentsPending} color="#9c27b0" bold />
-          </div>
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', marginBottom: '10px' }}>📋 Credit Sales (informational only)</p>
-            <Row label="Credit Sales Today" value={data.creditSales} indent />
-            <Row label="Total Sales Value (Cash + Jazz + Credit)" value={data.totalSalesValue} bold />
-          </div>
-          {Object.keys(data.riderCash).length > 0 && (
-            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>🚴 Cash per Rider</p>
-              {Object.entries(data.riderCash).map(([name, amount]) => <Row key={name} label={name} value={amount} indent />)}
-            </div>
-          )}
-          {data.officeExpenses?.length > 0 && (
-            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Office Expenses Detail</p>
-              {data.officeExpenses.map(e => (
-                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
-                  <span style={{ fontSize: '12px', color: '#555', textTransform: 'capitalize' }}>{e.category} — {e.description || '—'}</span>
-                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#f44336' }}>Rs. {Number(e.amount).toLocaleString()}</span>
-                </div>
-              ))}
-            </div>
-          )}
+        )}
+
+        <span style={{ fontSize:12, fontWeight:700, color:'#555' }}>📅</span>
+
+        {/* Quick filters */}
+        {[
+          { label:'Today',       from:today,          to:today },
+          { label:'Yesterday',   from:new Date(Date.now()-86400000).toISOString().split('T')[0], to:new Date(Date.now()-86400000).toISOString().split('T')[0] },
+          { label:'This Month',  from:firstOfMonth,   to:today },
+          { label:'Last Month',  from:lastMonth1,     to:lastMonthEnd },
+        ].map(p => (
+          <button key={p.label} onClick={() => applyQuick(p.from, p.to)}
+            style={{ padding:'6px 12px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12, fontWeight:600, whiteSpace:'nowrap',
+              background: dateFrom===p.from && dateTo===p.to ? '#0f4c81' : '#f0f4f8',
+              color: dateFrom===p.from && dateTo===p.to ? '#fff' : '#555' }}>
+            {p.label}
+          </button>
+        ))}
+
+        {/* Custom range */}
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ padding:'6px 10px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
+        <span style={{ fontSize:11, color:'#aaa' }}>to</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ padding:'6px 10px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
+
+        <button onClick={() => fetchReport(dateFrom, dateTo)}
+          style={{ padding:'7px 16px', background:'#0f4c81', color:'white', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:700 }}>
+          🔍 Search
+        </button>
+
+        {data && (
+          <button onClick={printReport}
+            style={{ padding:'7px 14px', background:'#f0f4f8', color:'#555', border:'1px solid #e0e0e0', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginLeft:'auto' }}>
+            🖨️ Print / PDF
+          </button>
+        )}
+      </div>
+
+      {loading ? (
+        <div style={{ padding:60, textAlign:'center', background:'white', borderRadius:12 }}>
+          <p style={{ fontSize:32, margin:'0 0 12px' }}>💵</p>
+          <p style={{ color:'#888', fontSize:14 }}>Calculating cash flow...</p>
         </div>
+      ) : data && (
+        <>
+          {/* Summary Cards */}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:12, marginBottom:16 }}>
+            {[
+              { label:'Total Cash In',  value:data.totalCashIn,  color:'#1a7a4a', bg:'#e8f5e9', icon:'📥' },
+              { label:'Total Cash Out', value:data.totalCashOut, color:'#c62828', bg:'#ffebee', icon:'📤' },
+              { label:'Net Cash',       value:data.netCash,      color:data.netCash>=0?'#1a7a4a':'#c62828', bg:data.netCash>=0?'#e8f5e9':'#ffebee', icon:'💵' },
+              { label:'Total Sales',    value:data.totalSalesValue, color:'#0f4c81', bg:'#e3f0ff', icon:'📊' },
+            ].map(c => (
+              <div key={c.label} style={{ background:'white', borderRadius:12, padding:'16px 18px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', borderLeft:`4px solid ${c.color}` }}>
+                <p style={{ fontSize:11, color:'#888', margin:'0 0 6px', fontWeight:600, textTransform:'uppercase', letterSpacing:.5 }}>{c.icon} {c.label}</p>
+                <p style={{ fontSize:22, fontWeight:900, color:c.color, margin:0, letterSpacing:'-0.5px' }}>Rs. {Math.abs(data[Object.keys(data).find(k => data[k]===c.value)||'netCash']||c.value||0).toLocaleString()}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Main Report */}
+          <div id="cashflow-print" style={{ background:'white', borderRadius:12, boxShadow:'0 2px 10px rgba(0,0,0,0.07)', overflow:'hidden' }}>
+
+            {/* Report Header */}
+            <div style={{ background:'linear-gradient(135deg,#0f4c81,#1a6bad)', padding:'18px 20px', display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 }}>
+              <div>
+                <p style={{ color:'#fff', fontWeight:800, fontSize:16, margin:'0 0 3px' }}>{bizName || 'Daily Cash Flow Statement'}</p>
+                <p style={{ color:'#93c5fd', fontSize:12, margin:0 }}>
+                  {dateFrom === dateTo
+                    ? new Date(dateFrom).toLocaleDateString('en-PK', { weekday:'long', day:'2-digit', month:'long', year:'numeric' })
+                    : `${new Date(dateFrom).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})} — ${new Date(dateTo).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})}`}
+                </p>
+              </div>
+              <div style={{ textAlign:'right' }}>
+                <p style={{ color:'#93c5fd', fontSize:11, margin:'0 0 2px', textTransform:'uppercase', letterSpacing:1 }}>Net Cash</p>
+                <p style={{ color:data.netCash>=0?'#6ee7b7':'#fca5a5', fontWeight:900, fontSize:22, margin:0 }}>
+                  Rs. {Math.abs(data.netCash).toLocaleString()}
+                  {data.netCash < 0 && <span style={{ fontSize:12 }}> deficit</span>}
+                </p>
+              </div>
+            </div>
+
+            {/* CASH IN */}
+            <SectionHead label="📥 Cash Inflows" color="#e8f5e9" />
+            <SRow label="Cash from Deliveries / Sales" value={data.cashFromSales} indent />
+            <SRow label="Cash from Balance Collections" value={data.cashFromPayments} indent />
+            <SRow label="Total Cash In" value={data.totalCashIn} bold color="#1a7a4a" border />
+
+            {/* CASH OUT */}
+            <SectionHead label="📤 Cash Outflows" color="#ffebee" />
+            <SRow label="Rider Field Expenses" value={data.riderExpTotal} indent />
+            <SRow label="Office Expenses" value={data.officeExpTotal} indent />
+            <SRow label="Salary Advances Paid" value={data.advancesTotal} indent />
+            <SRow label="Salary Payments" value={data.salariesTotal} indent />
+            <SRow label="Total Cash Out" value={data.totalCashOut} bold color="#c62828" border />
+
+            {/* NET CASH */}
+            <div style={{ display:'flex', justifyContent:'space-between', padding:'14px 14px', background:data.netCash>=0?'#e8f5e9':'#ffebee', borderBottom:'2px solid #e0e0e0' }}>
+              <span style={{ fontSize:14, fontWeight:900, color:data.netCash>=0?'#1a7a4a':'#c62828' }}>NET CASH POSITION</span>
+              <span style={{ fontSize:16, fontWeight:900, color:data.netCash>=0?'#1a7a4a':'#c62828' }}>Rs. {Math.abs(data.netCash).toLocaleString()}{data.netCash<0?' (Deficit)':''}</span>
+            </div>
+
+            {/* DIGITAL PAYMENTS */}
+            {(data.jazzConfirmed > 0 || data.jazzPending > 0 || data.epConfirmed > 0 || data.epPending > 0 || data.bankConfirmed > 0 || data.bankPending > 0) && (
+              <>
+                <SectionHead label="💳 Digital Payments (not included in cash)" color="#f3e8ff" />
+                {(data.jazzConfirmed > 0 || data.jazzPending > 0) && <>
+                  <SRow label="📱 JazzCash — Confirmed" value={data.jazzConfirmed} indent color="#9c27b0" />
+                  {data.jazzPending > 0 && <SRow label="📱 JazzCash — Pending Confirmation" value={data.jazzPending} indent color="#e0a800" />}
+                </>}
+                {(data.epConfirmed > 0 || data.epPending > 0) && <>
+                  <SRow label="💚 EasyPaisa — Confirmed" value={data.epConfirmed} indent color="#2e7d32" />
+                  {data.epPending > 0 && <SRow label="💚 EasyPaisa — Pending Confirmation" value={data.epPending} indent color="#e0a800" />}
+                </>}
+                {(data.bankConfirmed > 0 || data.bankPending > 0) && <>
+                  <SRow label="🏦 Bank — Confirmed" value={data.bankConfirmed} indent color="#0f4c81" />
+                  {data.bankPending > 0 && <SRow label="🏦 Bank — Pending Confirmation" value={data.bankPending} indent color="#e0a800" />}
+                </>}
+                <SRow label="Total Digital Payments" value={data.jazzConfirmed+data.jazzPending+data.epConfirmed+data.epPending+data.bankConfirmed+data.bankPending} bold color="#7c3aed" border />
+              </>
+            )}
+
+            {/* CREDIT SALES */}
+            {data.creditSales > 0 && (
+              <>
+                <SectionHead label="📋 Credit Sales (informational)" color="#fff8e1" />
+                <SRow label="Credit Sales" value={data.creditSales} indent color="#b45309" />
+              </>
+            )}
+
+            {/* TOTAL SALES */}
+            <SectionHead label="📊 Sales Summary" color="#e3f0ff" />
+            <SRow label="Cash Sales" value={data.cashFromSales} indent color="#1a7a4a" />
+            <SRow label="Digital Sales (confirmed)" value={data.jazzConfirmed+data.epConfirmed+data.bankConfirmed} indent color="#7c3aed" />
+            <SRow label="Credit Sales" value={data.creditSales} indent color="#b45309" />
+            <SRow label="Total Sales Value" value={data.totalSalesValue} bold color="#0f4c81" border />
+
+            {/* RIDER CASH BREAKDOWN */}
+            {Object.keys(data.riderCash).length > 0 && (
+              <>
+                <SectionHead label="🚴 Cash Collected — By Rider" color="#f0f4f8" />
+                {Object.entries(data.riderCash).map(([name, amt]) => (
+                  <SRow key={name} label={name} value={amt} indent />
+                ))}
+                <SRow label="Total Cash Collected" value={Object.values(data.riderCash).reduce((s,v)=>s+v,0)} bold border />
+              </>
+            )}
+
+            {/* EXPENSE DETAIL */}
+            {data.officeExpenses?.length > 0 && (
+              <>
+                <SectionHead label="🏢 Office Expense Detail" color="#f0f4f8" />
+                {data.officeExpenses.map(e => (
+                  <div key={e.id} style={{ display:'flex', justifyContent:'space-between', padding:'6px 14px 6px 28px', borderBottom:'1px solid #f0f0f0' }}>
+                    <span style={{ fontSize:12, color:'#555' }}>{e.coa_account_name || e.category} — {e.description||'—'}</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#c62828' }}>Rs. {Number(e.amount).toLocaleString()}</span>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {/* SALARY DETAILS */}
+            {(data.salaryPayments?.length > 0 || data.advances?.length > 0) && (
+              <>
+                <SectionHead label="👤 Salary & Advances Detail" color="#f0f4f8" />
+                {data.salaryPayments?.map(p => (
+                  <div key={p.id} style={{ display:'flex', justifyContent:'space-between', padding:'6px 14px 6px 28px', borderBottom:'1px solid #f0f0f0' }}>
+                    <span style={{ fontSize:12, color:'#555' }}>Salary — {p.riders?.full_name||'Rider'} ({p.month_year})</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#c62828' }}>Rs. {Number(p.amount_paid).toLocaleString()}</span>
+                  </div>
+                ))}
+                {data.advances?.map(a => (
+                  <div key={a.id} style={{ display:'flex', justifyContent:'space-between', padding:'6px 14px 6px 28px', borderBottom:'1px solid #f0f0f0' }}>
+                    <span style={{ fontSize:12, color:'#555' }}>Advance — {a.riders?.full_name||'Rider'}</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:'#c62828' }}>Rs. {Number(a.amount).toLocaleString()}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        </>
       )}
     </div>
   )
