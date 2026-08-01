@@ -1460,6 +1460,52 @@ function ProfitLoss({ tenantId }) {
     setLoading(false)
   }
 
+  function printPL() {
+    const el = document.getElementById('pl-print-section')
+    if (!el) return
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Profit & Loss Statement</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: Arial, sans-serif; font-size: 13px; color: #333; padding: 20px; }
+          .header { background: #0f4c81; color: white; padding: 16px 20px; border-radius: 8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+          .header h1 { font-size: 16px; margin: 0; }
+          .header p { font-size: 11px; margin: 3px 0 0; opacity: 0.8; }
+          .net { text-align: right; }
+          .net p { font-size: 11px; margin: 0; opacity: 0.8; }
+          .net h2 { font-size: 22px; font-weight: 900; margin: 0; }
+          .section-header { padding: 7px 12px; background: #f0f4f8; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: #555; margin-top: 8px; }
+          .row { display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px solid #f0f0f0; }
+          .row.indent { padding-left: 24px; }
+          .row.bold { background: #f8f9fa; font-weight: 700; }
+          .row.subtotal { background: #e8f5e9; font-weight: 800; padding: 10px 12px; }
+          .row.subtotal.loss { background: #ffebee; }
+          .label { color: #333; }
+          .value { font-weight: 600; }
+          .green { color: #1a7a4a; }
+          .red { color: #c62828; }
+          .orange { color: #e65100; }
+          .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 16px; }
+          .card { background: #f8f9fa; border-radius: 6px; padding: 10px; text-align: center; }
+          .card p { font-size: 10px; color: #666; margin: 0 0 4px; text-transform: uppercase; }
+          .card h3 { font-size: 15px; font-weight: 800; margin: 0; }
+          @media print { body { padding: 10px; } }
+        </style>
+      </head>
+      <body>
+        ${el.innerHTML}
+      </body>
+      </html>
+    `)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 500)
+  }
+
   async function openDrillDown(accountName, accountCode) {
     setDrillLoading(true)
     setDrillDown({ label: accountName, entries: [] })
@@ -1580,7 +1626,7 @@ function ProfitLoss({ tenantId }) {
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
           style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
         <button onClick={fetchPL} style={{ padding: '8px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>🔍 Search</button>
-        <button onClick={() => window.print()} style={{ padding: '8px 16px', background: '#f0f4f8', color: '#555', border: '1px solid #e0e0e0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>🖨️ Print</button>
+        <button onClick={printPL} style={{ padding: '8px 16px', background: '#f0f4f8', color: '#555', border: '1px solid #e0e0e0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>🖨️ Print / PDF</button>
         <span style={{ fontSize: 11, color: '#888', marginLeft: 'auto', fontStyle: 'italic' }}>Click any line item to see details</span>
       </div>
 
@@ -1590,7 +1636,7 @@ function ProfitLoss({ tenantId }) {
           <p style={{ fontSize: 14 }}>Calculating Profit & Loss...</p>
         </div>
       ) : !data ? null : (
-        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+        <div id="pl-print-section" style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
 
           {/* Header */}
           <div style={{ background: 'linear-gradient(135deg, #0f4c81, #1a6bad)', padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
