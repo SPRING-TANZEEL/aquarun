@@ -26,7 +26,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     })
   }, [tenantId])
 
-  async function syncOfflinePayments() {
   const [cashReceived, setCashReceived] = useState('')
   const [bottlesReturned, setBottlesReturned] = useState(0)
   const [saving, setSaving] = useState(false)
