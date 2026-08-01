@@ -137,6 +137,7 @@ export default async function handler(req, res) {
         { tenant_id: tid, account_code: '1102', account_name: 'JazzCash Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
         { tenant_id: tid, account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
         { tenant_id: tid, account_code: '1104', account_name: 'Salary Advances to Riders', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1105', account_name: 'Bank Transfer Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
         { tenant_id: tid, account_code: '1200', account_name: 'Inventory - Raw Materials', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
         { tenant_id: tid, account_code: '1201', account_name: 'Inventory - Finished Goods', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
         { tenant_id: tid, account_code: '1202', account_name: 'Inventory - Trading Items', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
