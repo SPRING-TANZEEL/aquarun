@@ -577,8 +577,17 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
     const amount = Number(purchase.total_cost || 0)
     const cashAcc = getCashAccount(purchase.payment_method || 'cash')
 
+    // Determine inventory account based on product type
+    // Raw material → 1200, Trading → 1202, Finished Good → 1201
+    const productType = purchase.product_type || 'raw_material'
+    let inventoryAcc = { code: '1200', name: 'Inventory - Raw Materials' }
+    if (productType === 'trading') inventoryAcc = { code: '1202', name: 'Inventory - Trading Items' }
+    if (productType === 'finished_good') inventoryAcc = { code: '1201', name: 'Inventory - Finished Goods' }
+
     const lines = [
-      { account_code: '5001', account_name: 'Raw Material Cost', debit: amount },
+      // DR Inventory (Balance Sheet) — cost sits here until sold
+      { account_code: inventoryAcc.code, account_name: inventoryAcc.name, debit: amount },
+      // CR Cash/Bank/JazzCash — money goes out
       { account_code: cashAcc.code, account_name: cashAcc.name, credit: amount }
     ]
 

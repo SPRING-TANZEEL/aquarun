@@ -797,7 +797,7 @@ export default function Landing({ onLogin }) {
             <div className="ar-pc-label">{t.pr_label}</div>
             <div className="ar-pc-price">
               <span className="ar-pc-cur">Rs.</span>
-              <span className="ar-pc-amt">3,000</span>
+              <span className="ar-pc-amt">2,500</span>
               <span className="ar-pc-per">{t.pr_mo}</span>
             </div>
             <div className="ar-pc-setup">{t.pr_setup}</div>

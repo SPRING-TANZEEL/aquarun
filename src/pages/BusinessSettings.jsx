@@ -39,6 +39,16 @@ const SETTINGS_CONFIG = [
       { key: 'jazzcash_name_2', label: 'Account Name', placeholder: 'Account holder name' },
     ]
   },
+  {
+    section: 'Bank Account',
+    icon: '🏦',
+    fields: [
+      { key: 'bank_name', label: 'Bank Name', placeholder: 'e.g. HBL, MCB, UBL' },
+      { key: 'bank_account_title', label: 'Account Title', placeholder: 'Account holder name' },
+      { key: 'bank_account_number', label: 'Account Number', placeholder: 'e.g. 0123456789012345' },
+      { key: 'bank_iban', label: 'IBAN (optional)', placeholder: 'PK00XXXX0000000000000000' },
+    ]
+  },
 ]
 
 const MENU_ITEMS = [
