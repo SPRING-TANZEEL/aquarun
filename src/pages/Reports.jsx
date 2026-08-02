@@ -1958,7 +1958,7 @@ function ExecutiveSummary({ tenantId }) {
         { data: pendingDigital },
         { data: overdueCustomers },
         { data: salaryStatus },
-        { data: curExpenses },
+        { data: curExpensesData },
         { data: curOfficeExp },
       ] = await Promise.all([
         supabase.from('deliveries').select('qty_19l,qty_half_litre,qty_1_5l,payment_method,total_with_tax,total_amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('delivered_at', curFrom + 'T00:00:00').lte('delivered_at', curTo + 'T23:59:59'),
