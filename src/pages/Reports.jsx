@@ -11,6 +11,7 @@ export default function Reports({ tenantId }) {
     { key: 'sales', label: '📊 Sales Summary' },
     { key: 'pl', label: '📈 P&L' },
     { key: 'tax', label: '🧾 Tax Report' },
+    { key: 'executive', label: '📋 Executive' },
     { key: 'collection', label: '📥 Collections' },
     { key: 'bulk', label: '📨 Bulk Share' },
   ]
@@ -34,6 +35,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
       {activeTab === 'tax' && <SalesTaxReport tenantId={tenantId} />}
+      {activeTab === 'executive' && <ExecutiveSummary tenantId={tenantId} />}
       {activeTab === 'collection' && <CollectionAnalysis tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
@@ -1871,6 +1873,598 @@ function CollectionAnalysis({ tenantId }) {
     </div>
   )
 }
+
+// ─── EXECUTIVE SUMMARY ─────────────────────────────────────────────
+function ExecutiveSummary({ tenantId }) {
+  const today      = new Date()
+  const thisMonth  = today.toISOString().slice(0, 7)
+  const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+  const lastMonth  = lastMonthDate.toISOString().slice(0, 7)
+
+  const [loading,      setLoading]      = useState(true)
+  const [period,       setPeriod]       = useState('month')   // 'month' | 'quarter' | 'year'
+  const [currentM,     setCurrentM]     = useState(thisMonth)
+  const [compareM,     setCompareM]     = useState(lastMonth)
+  const [data,         setData]         = useState(null)
+  const [bizName,      setBizName]      = useState('')
+  const [lang,         setLang]         = useState('both')    // 'en' | 'ur' | 'both'
+
+  useEffect(() => { if (tenantId) fetchAll() }, [tenantId, currentM, compareM])
+
+  // ── Helper: fetch all journal lines for a month range ──
+  async function fetchJournalData(from, to) {
+    let allEntries = [], page = 0
+    while (true) {
+      const { data: jeData } = await supabase.from('journal_entries')
+        .select('id, entry_date, reference_type, narration')
+        .eq('tenant_id', tenantId)
+        .gte('entry_date', from).lte('entry_date', to)
+        .range(page * 1000, page * 1000 + 999)
+      if (!jeData || jeData.length === 0) break
+      allEntries = allEntries.concat(jeData)
+      if (jeData.length < 1000) break
+      page++
+    }
+    if (allEntries.length === 0) return {}
+
+    const jeIds = allEntries.map(j => j.id)
+    const jeMap = {}
+    allEntries.forEach(j => { jeMap[j.id] = j })
+
+    let allLines = []
+    for (let i = 0; i < jeIds.length; i += 100) {
+      const { data: lines } = await supabase.from('journal_entry_lines')
+        .select('account_code, account_name, debit, credit, journal_entry_id')
+        .eq('tenant_id', tenantId)
+        .in('journal_entry_id', jeIds.slice(i, i + 100))
+      if (lines) allLines = allLines.concat(lines)
+    }
+
+    // Group by account_code — reads ALL accounts dynamically
+    const accounts = {}
+    allLines.forEach(l => {
+      if (!accounts[l.account_code]) {
+        accounts[l.account_code] = { code: l.account_code, name: l.account_name, debit: 0, credit: 0 }
+      }
+      accounts[l.account_code].debit  += Number(l.debit  || 0)
+      accounts[l.account_code].credit += Number(l.credit || 0)
+    })
+    return accounts
+  }
+
+  async function fetchAll() {
+    setLoading(true)
+    try {
+      // Business name
+      const { data: biz } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'business_name').maybeSingle()
+      setBizName(biz?.setting_value || 'Your Business')
+
+      const curFrom  = currentM + '-01'
+      const curTo    = new Date(new Date(curFrom).setMonth(new Date(curFrom).getMonth() + 1) - 1).toISOString().split('T')[0]
+      const cmpFrom  = compareM + '-01'
+      const cmpTo    = new Date(new Date(cmpFrom).setMonth(new Date(cmpFrom).getMonth() + 1) - 1).toISOString().split('T')[0]
+
+      const [curAccounts, cmpAccounts] = await Promise.all([
+        fetchJournalData(curFrom, curTo),
+        fetchJournalData(cmpFrom, cmpTo),
+      ])
+
+      // ── Deliveries for bottle count + payment mix ──
+      const [
+        { data: curDeliveries },
+        { data: cmpDeliveries },
+        { data: curPayments },
+        { data: pendingDigital },
+        { data: overdueCustomers },
+        { data: salaryStatus },
+        { data: curExpenses },
+        { data: curOfficeExp },
+      ] = await Promise.all([
+        supabase.from('deliveries').select('qty_19l,qty_half_litre,qty_1_5l,payment_method,total_with_tax,total_amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('delivered_at', curFrom + 'T00:00:00').lte('delivered_at', curTo + 'T23:59:59'),
+        supabase.from('deliveries').select('qty_19l,qty_half_litre,qty_1_5l,payment_method,total_with_tax,total_amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('delivered_at', cmpFrom + 'T00:00:00').lte('delivered_at', cmpTo + 'T23:59:59'),
+        supabase.from('payments').select('amount,payment_method').eq('tenant_id', tenantId).eq('is_voided', false).gte('payment_date', curFrom).lte('payment_date', curTo),
+        supabase.from('deliveries').select('id,payment_method,total_with_tax,total_amount').eq('tenant_id', tenantId).eq('is_voided', false).eq('jazzcash_confirmed', false).in('payment_method', ['jazzcash','easypaisa','bank']),
+        supabase.from('customer_balances').select('id,full_name,balance,mobile').eq('tenant_id', tenantId).eq('is_active', true).gt('balance', 0),
+        supabase.from('salary_payments').select('rider_id,amount_paid,month_year').eq('tenant_id', tenantId).eq('month_year', currentM),
+        supabase.from('expenses').select('expense_type,amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('expense_date', curFrom).lte('expense_date', curTo),
+        supabase.from('office_expenses').select('coa_account_name,category,amount').eq('tenant_id', tenantId).eq('is_voided', false).gte('expense_date', curFrom).lte('expense_date', curTo),
+      ])
+
+      // ── Revenue (4xxx credit) — reads all 4xxx dynamically ──
+      const revenue    = (acc) => Object.values(acc).filter(a => a.code.startsWith('4')).reduce((s, a) => s + (a.credit - a.debit), 0)
+      const cogs       = (acc) => Object.values(acc).filter(a => a.code.startsWith('5')).reduce((s, a) => s + Math.max(0, a.debit - a.credit), 0)
+      const expenses   = (acc) => Object.values(acc).filter(a => a.code.startsWith('6')).reduce((s, a) => s + Math.max(0, a.debit - a.credit), 0)
+      const expByCode  = (acc, code) => Math.max(0, (acc[code]?.debit || 0) - (acc[code]?.credit || 0))
+
+      const curRevenue  = revenue(curAccounts)
+      const cmpRevenue  = revenue(cmpAccounts)
+      const curCOGS     = cogs(curAccounts)
+      const cmpCOGS     = cogs(cmpAccounts)
+      const curExpenses = expenses(curAccounts)
+      const cmpExpenses = expenses(cmpAccounts)
+      const curProfit   = curRevenue - curCOGS - curExpenses
+      const cmpProfit   = cmpRevenue - cmpCOGS - cmpExpenses
+
+      // ── Delivery stats ──
+      const cur19l    = curDeliveries?.reduce((s, d) => s + Number(d.qty_19l || 0), 0) || 0
+      const cmp19l    = cmpDeliveries?.reduce((s, d) => s + Number(d.qty_19l || 0), 0) || 0
+      const curHalf   = curDeliveries?.reduce((s, d) => s + Number(d.qty_half_litre || 0), 0) || 0
+      const cmpHalf   = cmpDeliveries?.reduce((s, d) => s + Number(d.qty_half_litre || 0), 0) || 0
+      const curTotal  = cur19l + curHalf
+      const cmpTotal  = cmp19l + cmpHalf
+
+      // ── Payment mix ──
+      const curCash   = curDeliveries?.filter(d => d.payment_method === 'cash').reduce((s, d) => s + Number(d.total_with_tax || d.total_amount), 0) || 0
+      const curCredit = curDeliveries?.filter(d => d.payment_method === 'credit').reduce((s, d) => s + Number(d.total_with_tax || d.total_amount), 0) || 0
+      const cmpCredit = cmpDeliveries?.filter(d => d.payment_method === 'credit').reduce((s, d) => s + Number(d.total_with_tax || d.total_amount), 0) || 0
+      const creditPct = curRevenue > 0 ? Math.round((curCredit / curRevenue) * 100) : 0
+      const cmpCreditPct = cmpRevenue > 0 ? Math.round((cmpCredit / cmpRevenue) * 100) : 0
+
+      // ── Expense breakdown — ALL 6xxx dynamically ──
+      const expenseDetails = Object.values(curAccounts)
+        .filter(a => a.code.startsWith('6') && (a.debit - a.credit) > 0)
+        .map(a => ({
+          code: a.code, name: a.name,
+          cur: Math.max(0, a.debit - a.credit),
+          cmp: Math.max(0, (cmpAccounts[a.code]?.debit || 0) - (cmpAccounts[a.code]?.credit || 0)),
+        }))
+        .sort((a, b) => b.cur - a.cur)
+
+      // Variable expenses (move with sales): fuel, refreshments, repairs, supplies
+      const VARIABLE_CODES = ['6017', '6018', '6019', '6008', '6003', '6009']
+      const curVarExp  = expenseDetails.filter(e => VARIABLE_CODES.includes(e.code)).reduce((s, e) => s + e.cur, 0)
+      const cmpVarExp  = expenseDetails.filter(e => VARIABLE_CODES.includes(e.code)).reduce((s, e) => s + e.cmp, 0)
+      const curFixExp  = expenseDetails.filter(e => !VARIABLE_CODES.includes(e.code)).reduce((s, e) => s + e.cur, 0)
+
+      // ── AR & collections ──
+      const totalAR    = overdueCustomers?.reduce((s, c) => s + Number(c.balance), 0) || 0
+      const over60     = overdueCustomers?.filter(c => {
+        // simple check: balance > 0 and no recent payment
+        return Number(c.balance) > 0
+      }) || []
+
+      // ── Pending digital payments ──
+      const pendingAmt = pendingDigital?.reduce((s, d) => s + Number(d.total_with_tax || d.total_amount), 0) || 0
+
+      // ── Profit margin ──
+      const curMargin  = curRevenue > 0 ? (curProfit / curRevenue) * 100 : 0
+      const cmpMargin  = cmpRevenue > 0 ? (cmpProfit / cmpRevenue) * 100 : 0
+      const expRatio   = curRevenue > 0 ? ((curExpenses + curCOGS) / curRevenue) * 100 : 0
+      const cmpExpRatio = cmpRevenue > 0 ? ((cmpExpenses + cmpCOGS) / cmpRevenue) * 100 : 0
+
+      // ── Revenue change ──
+      const revChange  = cmpRevenue > 0 ? ((curRevenue - cmpRevenue) / cmpRevenue) * 100 : 0
+      const profChange = cmpProfit  > 0 ? ((curProfit  - cmpProfit)  / cmpProfit)  * 100 : 0
+      const expChange  = cmpExpenses > 0 ? ((curExpenses - cmpExpenses) / cmpExpenses) * 100 : 0
+      const delChange  = cmpTotal > 0 ? ((curTotal - cmpTotal) / cmpTotal) * 100 : 0
+
+      // ── Sales vs Variable Expense correlation ──
+      const salesVsExpAlarm = revChange < -5 && curVarExp > cmpVarExp  // sales down but variable expenses up
+      const salesVsExpGood  = revChange > 0  && curVarExp <= cmpVarExp * 1.1 // sales up, expenses controlled
+
+      // ── Health Score (0-100) ──
+      let score = 60 // base
+      if (curMargin >= 35)  score += 15; else if (curMargin >= 20) score += 7; else score -= 10
+      if (revChange >= 5)   score += 10; else if (revChange >= 0)  score += 5; else score -= 10
+      if (creditPct <= 30)  score += 10; else if (creditPct <= 50) score += 3; else score -= 10
+      if (expRatio <= 65)   score += 10; else if (expRatio <= 75)  score += 3; else score -= 10
+      if (pendingAmt === 0) score += 5
+      if (salesVsExpAlarm)  score -= 10
+      score = Math.max(0, Math.min(100, score))
+
+      const healthColor = score >= 80 ? '#1a7a4a' : score >= 60 ? '#b45309' : score >= 40 ? '#c2410c' : '#c62828'
+      const healthBg    = score >= 80 ? '#e8f5e9' : score >= 60 ? '#fff8e1' : score >= 40 ? '#fff3e0' : '#ffebee'
+      const healthLabel = score >= 80 ? { en: 'Excellent', ur: 'بہترین' } : score >= 60 ? { en: 'Good', ur: 'اچھا' } : score >= 40 ? { en: 'Needs Attention', ur: 'توجہ درکار' } : { en: 'Critical', ur: 'تشویشناک' }
+      const healthEmoji = score >= 80 ? '🟢' : score >= 60 ? '🟡' : score >= 40 ? '🟠' : '🔴'
+
+      setData({
+        curRevenue, cmpRevenue, revChange,
+        curCOGS, cmpCOGS,
+        curExpenses, cmpExpenses, expChange,
+        curProfit, cmpProfit, profChange,
+        curMargin, cmpMargin,
+        expRatio, cmpExpRatio,
+        cur19l, cmp19l, curHalf, cmpHalf, curTotal, cmpTotal, delChange,
+        curCash, curCredit, creditPct, cmpCreditPct,
+        expenseDetails, curVarExp, cmpVarExp, curFixExp,
+        salesVsExpAlarm, salesVsExpGood,
+        totalAR, over60, pendingAmt, pendingDigital,
+        score, healthColor, healthBg, healthLabel, healthEmoji,
+        curAccounts, cmpAccounts,
+      })
+    } catch (err) {
+      console.error('ExecutiveSummary error:', err)
+    }
+    setLoading(false)
+  }
+
+  const fmt = n => Math.abs(Number(n || 0)).toLocaleString('en-PK', { maximumFractionDigits: 0 })
+  const pct = n => (n >= 0 ? '+' : '') + Number(n).toFixed(1) + '%'
+  const curLabel = new Date(currentM + '-01').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })
+  const cmpLabel = new Date(compareM + '-01').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })
+
+  // ── Bilingual text helper ──
+  function T({ en, ur }) {
+    if (lang === 'en') return <>{en}</>
+    if (lang === 'ur') return <span dir="rtl" style={{ fontFamily: 'serif' }}>{ur}</span>
+    return (
+      <div>
+        <div dir="rtl" style={{ fontFamily: 'serif', fontSize: '0.95em', color: '#1a1a2e', lineHeight: 1.8, marginBottom: 6 }}>{ur}</div>
+        <div style={{ color: '#444', lineHeight: 1.7 }}>{en}</div>
+      </div>
+    )
+  }
+
+  // ── Insight Card component ──
+  function InsightCard({ severity, titleEn, titleUr, textEn, textUr, actionEn, actionUr, value, sub }) {
+    const cfg = {
+      good:    { color: '#1a7a4a', bg: '#e8f5e9', border: '#86efac', icon: '✅' },
+      warn:    { color: '#b45309', bg: '#fff8e1', border: '#fde68a', icon: '⚠️' },
+      bad:     { color: '#c62828', bg: '#ffebee', border: '#fca5a5', icon: '🔴' },
+      info:    { color: '#0f4c81', bg: '#e3f0ff', border: '#93c5fd', icon: 'ℹ️' },
+    }[severity] || { color: '#555', bg: '#f8f9fa', border: '#e0e0e0', icon: '📊' }
+
+    return (
+      <div style={{ background: cfg.bg, border: `1.5px solid ${cfg.border}`, borderRadius: 12, padding: '16px 18px', marginBottom: 14 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: 18 }}>{cfg.icon}</span>
+            <div>
+              {lang !== 'ur' && <p style={{ fontSize: 14, fontWeight: 800, color: cfg.color, margin: 0 }}>{titleEn}</p>}
+              {lang !== 'en' && <p dir="rtl" style={{ fontSize: 14, fontWeight: 800, color: cfg.color, margin: 0, fontFamily: 'serif' }}>{titleUr}</p>}
+            </div>
+          </div>
+          {value && (
+            <div style={{ textAlign: 'right' }}>
+              <p style={{ fontSize: 18, fontWeight: 900, color: cfg.color, margin: 0 }}>{value}</p>
+              {sub && <p style={{ fontSize: 11, color: cfg.color, margin: '2px 0 0', opacity: 0.8 }}>{sub}</p>}
+            </div>
+          )}
+        </div>
+        <div style={{ fontSize: 13, color: '#333' }}>
+          <T en={textEn} ur={textUr} />
+        </div>
+        {(actionEn || actionUr) && (
+          <div style={{ marginTop: 10, padding: '8px 12px', background: 'rgba(0,0,0,0.05)', borderRadius: 8 }}>
+            <T
+              en={<><strong>💡 Recommended Action:</strong> {actionEn}</>}
+              ur={<><strong>💡 تجویز کردہ اقدام:</strong> {actionUr}</>}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (loading) return (
+    <div style={{ padding: 80, textAlign: 'center' }}>
+      <p style={{ fontSize: 40, margin: '0 0 16px' }}>📋</p>
+      <p style={{ color: '#888', fontSize: 15 }}>Analysing your business...</p>
+      <p style={{ color: '#aaa', fontSize: 12, marginTop: 4 }}>برائے کرم انتظار کریں</p>
+    </div>
+  )
+
+  if (!data) return null
+
+  const d = data
+
+  return (
+    <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif', maxWidth: 900, margin: '0 auto' }}>
+
+      {/* Controls */}
+      <div style={{ background: 'white', borderRadius: 12, padding: '14px 18px', marginBottom: 18, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#555' }}>📅 Compare:</span>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="month" value={currentM} onChange={e => setCurrentM(e.target.value)}
+            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          <span style={{ color: '#888', fontSize: 13 }}>vs</span>
+          <input type="month" value={compareM} onChange={e => setCompareM(e.target.value)}
+            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+        </div>
+        <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
+          {[{ k: 'both', l: 'اردو / English' }, { k: 'ur', l: 'اردو' }, { k: 'en', l: 'English' }].map(l => (
+            <button key={l.k} onClick={() => setLang(l.k)}
+              style={{ padding: '6px 12px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: lang === l.k ? '#0f4c81' : '#f0f4f8',
+                color: lang === l.k ? '#fff' : '#555' }}>
+              {l.l}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 14, padding: '22px 26px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
+          <div>
+            <p style={{ color: '#93c5fd', fontSize: 12, margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 1 }}>Executive Summary</p>
+            <p style={{ color: '#fff', fontWeight: 900, fontSize: 20, margin: '0 0 4px' }}>{bizName}</p>
+            <p style={{ color: '#93c5fd', fontSize: 13, margin: 0 }}>{curLabel} — compared with {cmpLabel}</p>
+            <p dir="rtl" style={{ color: '#93c5fd', fontSize: 12, margin: '3px 0 0', fontFamily: 'serif' }}>{curLabel} — {cmpLabel} سے موازنہ</p>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ background: d.healthBg, border: `2px solid ${d.healthColor}`, borderRadius: 12, padding: '12px 20px', display: 'inline-block' }}>
+              <p style={{ color: d.healthColor, fontSize: 11, margin: '0 0 3px', fontWeight: 700, textTransform: 'uppercase' }}>Business Health</p>
+              <p style={{ color: d.healthColor, fontSize: 28, fontWeight: 900, margin: '0 0 3px' }}>{d.score}/100 {d.healthEmoji}</p>
+              <p style={{ color: d.healthColor, fontSize: 13, margin: 0, fontWeight: 700 }}>{d.healthLabel.en}</p>
+              <p dir="rtl" style={{ color: d.healthColor, fontSize: 13, margin: '2px 0 0', fontWeight: 700, fontFamily: 'serif' }}>{d.healthLabel.ur}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Summary Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 20 }}>
+        {[
+          { labelEn: 'Revenue', labelUr: 'آمدنی', value: `Rs. ${fmt(d.curRevenue)}`, change: d.revChange, good: d.revChange >= 0 },
+          { labelEn: 'Net Profit', labelUr: 'خالص منافع', value: `Rs. ${fmt(d.curProfit)}`, change: d.profChange, good: d.profChange >= 0 },
+          { labelEn: 'Profit Margin', labelUr: 'منافع کا تناسب', value: d.curMargin.toFixed(1) + '%', change: d.curMargin - d.cmpMargin, good: d.curMargin >= 25 },
+          { labelEn: 'Deliveries', labelUr: 'ڈیلیوریاں', value: d.curTotal.toLocaleString(), change: d.delChange, good: d.delChange >= 0 },
+          { labelEn: 'Credit Sales %', labelUr: 'ادھار فروخت', value: d.creditPct + '%', change: d.creditPct - d.cmpCreditPct, good: d.creditPct <= 30 },
+          { labelEn: 'Total Expenses', labelUr: 'کل اخراجات', value: `Rs. ${fmt(d.curExpenses)}`, change: d.expChange, good: d.expChange <= 0 },
+        ].map(k => (
+          <div key={k.labelEn} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${k.good ? '#1a7a4a' : '#c62828'}` }}>
+            <p style={{ fontSize: 10, color: '#888', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{k.labelEn}</p>
+            {lang !== 'en' && <p dir="rtl" style={{ fontSize: 10, color: '#888', margin: '0 0 4px', fontFamily: 'serif' }}>{k.labelUr}</p>}
+            <p style={{ fontSize: 17, fontWeight: 800, color: '#1a1a2e', margin: '0 0 3px' }}>{k.value}</p>
+            <p style={{ fontSize: 11, fontWeight: 700, color: k.good ? '#1a7a4a' : '#c62828', margin: 0 }}>
+              {k.change >= 0 ? '↑' : '↓'} {Math.abs(k.change).toFixed(1)}{typeof k.change === 'number' && Math.abs(k.change) < 100 ? '%' : ''} vs {cmpLabel}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* ── REVENUE SECTION ── */}
+      <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 16px', marginBottom: 10, borderLeft: '4px solid #0f4c81' }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: '#0f4c81', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>📈 Revenue & Sales Analysis — آمدنی اور فروخت کا تجزیہ</p>
+      </div>
+
+      <InsightCard
+        severity={d.revChange >= 5 ? 'good' : d.revChange >= 0 ? 'info' : d.revChange >= -10 ? 'warn' : 'bad'}
+        titleEn="Revenue Performance"
+        titleUr="آمدنی کی کارکردگی"
+        value={`Rs. ${fmt(d.curRevenue)}`}
+        sub={`${d.revChange >= 0 ? '↑' : '↓'} ${Math.abs(d.revChange).toFixed(1)}% vs last month`}
+        textEn={
+          d.revChange >= 5
+            ? `Your total revenue for ${curLabel} is Rs. ${fmt(d.curRevenue)}, which is Rs. ${fmt(Math.abs(d.curRevenue - d.cmpRevenue))} (${Math.abs(d.revChange).toFixed(1)}%) higher than ${cmpLabel}'s Rs. ${fmt(d.cmpRevenue)}. This is excellent growth. The increase is driven by ${d.cur19l > d.cmp19l ? `19L bottle deliveries which grew from ${d.cmp19l} to ${d.cur19l} units` : `half litre sales`}. If this trend continues you are on track for Rs. ${fmt(d.curRevenue * 1.12)} next month.`
+            : d.revChange >= 0
+            ? `Your revenue for ${curLabel} is Rs. ${fmt(d.curRevenue)}, slightly higher than ${cmpLabel}'s Rs. ${fmt(d.cmpRevenue)} by ${Math.abs(d.revChange).toFixed(1)}%. Revenue is stable. Focus on growing new customers and increasing order frequency to accelerate growth.`
+            : d.revChange >= -10
+            ? `Your revenue for ${curLabel} is Rs. ${fmt(d.curRevenue)}, which is Rs. ${fmt(Math.abs(d.curRevenue - d.cmpRevenue))} (${Math.abs(d.revChange).toFixed(1)}%) lower than ${cmpLabel}'s Rs. ${fmt(d.cmpRevenue)}. This is a moderate decline that needs attention. Total deliveries changed from ${d.cmpTotal} to ${d.curTotal} units. Identify which customers reduced or stopped orders and follow up with them immediately.`
+            : `ALERT: Your revenue for ${curLabel} is Rs. ${fmt(d.curRevenue)}, which is Rs. ${fmt(Math.abs(d.curRevenue - d.cmpRevenue))} (${Math.abs(d.revChange).toFixed(1)}%) lower than ${cmpLabel}'s Rs. ${fmt(d.cmpRevenue)}. This is a significant drop that requires immediate action. Deliveries fell from ${d.cmpTotal} to ${d.curTotal} units. This level of decline if not reversed will seriously impact profitability.`
+        }
+        textUr={
+          d.revChange >= 5
+            ? `${curLabel} میں آپ کی کل آمدنی Rs. ${fmt(d.curRevenue)} ہے جو کہ ${cmpLabel} کی Rs. ${fmt(d.cmpRevenue)} سے Rs. ${fmt(Math.abs(d.curRevenue - d.cmpRevenue))} یعنی ${Math.abs(d.revChange).toFixed(1)}% زیادہ ہے۔ یہ بہترین ترقی ہے۔ اس رفتار سے اگلے مہینے Rs. ${fmt(d.curRevenue * 1.12)} تک پہنچ سکتے ہیں۔`
+            : d.revChange >= 0
+            ? `${curLabel} میں آمدنی Rs. ${fmt(d.curRevenue)} ہے جو ${cmpLabel} سے تھوڑی زیادہ ہے۔ آمدنی مستحکم ہے۔ نئے گاہک بڑھانے پر توجہ دیں۔`
+            : d.revChange >= -10
+            ? `${curLabel} میں آمدنی Rs. ${fmt(d.curRevenue)} ہے جو ${cmpLabel} کی Rs. ${fmt(d.cmpRevenue)} سے Rs. ${fmt(Math.abs(d.curRevenue - d.cmpRevenue))} یعنی ${Math.abs(d.revChange).toFixed(1)}% کم ہے۔ یہ معمولی کمی ہے لیکن توجہ درکار ہے۔ جن گاہکوں نے آرڈر کم کیے ان سے فوری رابطہ کریں۔`
+            : `خبردار: ${curLabel} میں آمدنی ${Math.abs(d.revChange).toFixed(1)}% کم ہوئی ہے۔ ڈیلیوریاں ${d.cmpTotal} سے کم ہو کر ${d.curTotal} رہ گئی ہیں۔ فوری اقدام ضروری ہے۔`
+        }
+        actionEn={d.revChange < 0 ? `Contact customers who had no deliveries this month. Check if any customers switched to a competitor. Offer promotions to increase order frequency.` : `Maintain current service quality and on-time delivery to sustain growth.`}
+        actionUr={d.revChange < 0 ? `جن گاہکوں کی اس مہینے ڈیلیوری نہیں ہوئی ان سے رابطہ کریں۔ آرڈر کی تعداد بڑھانے کے لیے خصوصی پیشکش کریں۔` : `موجودہ سروس کا معیار برقرار رکھیں اور وقت پر ڈیلیوری جاری رکھیں۔`}
+      />
+
+      <InsightCard
+        severity={d.cur19l >= d.cmp19l ? 'good' : 'warn'}
+        titleEn="Delivery Volume Analysis"
+        titleUr="ڈیلیوری حجم کا تجزیہ"
+        value={`${d.curTotal.toLocaleString()} units`}
+        sub={`${d.delChange >= 0 ? '↑' : '↓'} ${Math.abs(d.delChange).toFixed(1)}%`}
+        textEn={`In ${curLabel} you delivered ${d.cur19l.toLocaleString()} units of 19L bottles and ${d.curHalf.toLocaleString()} units of half litre, totalling ${d.curTotal.toLocaleString()} units. Compared to ${cmpLabel} (${d.cmp19l.toLocaleString()} × 19L and ${d.cmpHalf.toLocaleString()} × half litre = ${d.cmpTotal.toLocaleString()} total), ${d.curTotal >= d.cmpTotal ? `deliveries increased by ${d.curTotal - d.cmpTotal} units which is positive.` : `deliveries decreased by ${d.cmpTotal - d.curTotal} units. Each 19L bottle delivers approximately Rs. ${d.cur19l > 0 ? Math.round((d.curRevenue * 0.75) / d.cur19l) : 0} revenue, so this drop represents approximately Rs. ${fmt((d.cmpTotal - d.curTotal) * (d.cur19l > 0 ? Math.round((d.curRevenue * 0.75) / d.cur19l) : 100))} in lost revenue.`}`}
+        textUr={`${curLabel} میں آپ نے ${d.cur19l.toLocaleString()} 19 لیٹر بوتلیں اور ${d.curHalf.toLocaleString()} آدھا لیٹر ڈیلیور کیں یعنی کل ${d.curTotal.toLocaleString()} یونٹ۔ ${cmpLabel} میں یہ ${d.cmpTotal.toLocaleString()} یونٹ تھیں۔ ${d.curTotal >= d.cmpTotal ? `ڈیلیوریاں ${d.curTotal - d.cmpTotal} یونٹ بڑھی ہیں جو ایک مثبت علامت ہے۔` : `ڈیلیوریاں ${d.cmpTotal - d.curTotal} یونٹ کم ہوئی ہیں۔`}`}
+      />
+
+      {/* ── PROFITABILITY ── */}
+      <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 16px', marginBottom: 10, marginTop: 20, borderLeft: '4px solid #1a7a4a' }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: '#1a7a4a', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>💰 Profitability Analysis — منافع کا تجزیہ</p>
+      </div>
+
+      <InsightCard
+        severity={d.curMargin >= 35 ? 'good' : d.curMargin >= 20 ? 'info' : 'bad'}
+        titleEn="Profit Margin"
+        titleUr="منافع کا تناسب"
+        value={d.curMargin.toFixed(1) + '%'}
+        sub={`Target: 30%+ | Last month: ${d.cmpMargin.toFixed(1)}%`}
+        textEn={`Your net profit for ${curLabel} is Rs. ${fmt(d.curProfit)}, which represents a ${d.curMargin.toFixed(1)}% profit margin. ${d.curMargin >= 35 ? `This is excellent — above the 30% target for water delivery businesses. For every Rs. 100 of revenue, you are keeping Rs. ${d.curMargin.toFixed(0)} as profit.` : d.curMargin >= 20 ? `This is acceptable but below the 30% target. For every Rs. 100 of revenue, you are keeping Rs. ${d.curMargin.toFixed(0)} as profit. To improve this, focus on reducing variable expenses or increasing prices slightly.` : `This is below acceptable levels. Your total expenses of Rs. ${fmt(d.curExpenses + d.curCOGS)} are consuming ${d.expRatio.toFixed(1)}% of your revenue, leaving only ${d.curMargin.toFixed(1)}% as profit. Immediate expense review is required.`} ${d.curMargin > d.cmpMargin ? `Margin improved from ${d.cmpMargin.toFixed(1)}% last month — well done.` : `Margin declined from ${d.cmpMargin.toFixed(1)}% last month — investigate the cause.`}`}
+        textUr={`${curLabel} میں آپ کا خالص منافع Rs. ${fmt(d.curProfit)} ہے جو آمدنی کا ${d.curMargin.toFixed(1)}% ہے۔ ${d.curMargin >= 35 ? `یہ بہترین ہے — ہر Rs. 100 کی آمدنی میں Rs. ${d.curMargin.toFixed(0)} منافع ہے۔` : d.curMargin >= 20 ? `یہ قابل قبول ہے لیکن 30% ہدف سے کم ہے۔ اخراجات کم کریں یا قیمتیں بڑھائیں۔` : `یہ خطرناک سطح ہے۔ اخراجات Rs. ${fmt(d.curExpenses + d.curCOGS)} ہیں جو آمدنی کا ${d.expRatio.toFixed(1)}% ہیں۔ فوری اخراجات کا جائزہ لیں۔`}`}
+        actionEn={d.curMargin < 30 ? `Review all expense categories. Focus on reducing rider expenses (fuel, repairs) by optimizing routes. Consider a Rs. 5-10 price increase on 19L bottles if competitors allow.` : undefined}
+        actionUr={d.curMargin < 30 ? `تمام اخراجات کا جائزہ لیں۔ روٹ کی منصوبہ بندی بہتر کریں تاکہ ایندھن کا خرچ کم ہو۔` : undefined}
+      />
+
+      {/* ── SALES vs EXPENSE CORRELATION ── */}
+      <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 16px', marginBottom: 10, marginTop: 20, borderLeft: '4px solid #c62828' }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: '#c62828', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>📊 Sales vs Expenses Correlation — فروخت اور اخراجات کا تناسب</p>
+      </div>
+
+      {d.salesVsExpAlarm && (
+        <InsightCard
+          severity="bad"
+          titleEn="⚠️ Sales Down But Variable Expenses Still High"
+          titleUr="فروخت کم لیکن متغیر اخراجات بلند"
+          value={`Rs. ${fmt(d.curVarExp)}`}
+          sub={`Was Rs. ${fmt(d.cmpVarExp)} last month`}
+          textEn={`This is a serious concern. Your sales decreased by ${Math.abs(d.revChange).toFixed(1)}% from Rs. ${fmt(d.cmpRevenue)} to Rs. ${fmt(d.curRevenue)}, which means fewer deliveries were made. However, your variable expenses (fuel, repairs, supplies, refreshments) actually INCREASED from Rs. ${fmt(d.cmpVarExp)} to Rs. ${fmt(d.curVarExp)} — a ${((d.curVarExp - d.cmpVarExp) / d.cmpVarExp * 100).toFixed(1)}% increase. This is the opposite of what should happen. When deliveries decrease, fuel and related costs should decrease proportionally. This mismatch is eating directly into your profits and means your expense-to-revenue ratio worsened from ${d.cmpExpRatio.toFixed(1)}% to ${d.expRatio.toFixed(1)}%.`}
+          textUr={`یہ ایک سنگین مسئلہ ہے۔ آپ کی فروخت ${Math.abs(d.revChange).toFixed(1)}% کم ہوئی یعنی ڈیلیوریاں کم ہوئیں۔ لیکن متغیر اخراجات (ایندھن، مرمت، سپلائی، ناشتہ) Rs. ${fmt(d.cmpVarExp)} سے بڑھ کر Rs. ${fmt(d.curVarExp)} ہو گئے — یعنی ${((d.curVarExp - d.cmpVarExp) / d.cmpVarExp * 100).toFixed(1)}% اضافہ۔ جب ڈیلیوریاں کم ہوں تو ان اخراجات کو بھی کم ہونا چاہیے تھا۔ یہ عدم توازن آپ کا منافع کھا رہا ہے اور اخراجات کا تناسب ${d.cmpExpRatio.toFixed(1)}% سے بڑھ کر ${d.expRatio.toFixed(1)}% ہو گیا ہے۔`}
+          actionEn={`Immediately review each rider's daily fuel consumption. Compare fuel expense per delivery this month vs last month. Check if any unusual repairs or purchases were made. Ask each rider to account for their expenses this month.`}
+          actionUr={`فوری طور پر ہر رائیڈر کا روزانہ ایندھن خرچ دیکھیں۔ اس مہینے فی ڈیلیوری خرچ کا گزشتہ مہینے سے موازنہ کریں۔ غیر معمولی مرمت یا خریداری کی جانچ کریں۔`}
+        />
+      )}
+
+      {d.salesVsExpGood && (
+        <InsightCard
+          severity="good"
+          titleEn="Sales Up, Expenses Controlled"
+          titleUr="فروخت زیادہ، اخراجات کنٹرول میں"
+          textEn={`Excellent expense management. Your revenue increased ${d.revChange.toFixed(1)}% while variable expenses were kept under control at Rs. ${fmt(d.curVarExp)} vs Rs. ${fmt(d.cmpVarExp)} last month. This shows operational efficiency — your expense-to-revenue ratio improved from ${d.cmpExpRatio.toFixed(1)}% to ${d.expRatio.toFixed(1)}%.`}
+          textUr={`بہترین اخراجات کا انتظام۔ آمدنی ${d.revChange.toFixed(1)}% بڑھی اور متغیر اخراجات کنٹرول میں رہے۔ اخراجات کا تناسب ${d.cmpExpRatio.toFixed(1)}% سے بہتر ہو کر ${d.expRatio.toFixed(1)}% ہوا۔`}
+        />
+      )}
+
+      {/* Individual expense breakdown */}
+      {d.expenseDetails.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden', marginBottom: 14 }}>
+          <div style={{ padding: '12px 16px', background: '#f8fafc', borderBottom: '1px solid #f0f0f0' }}>
+            <p style={{ fontSize: 13, fontWeight: 800, color: '#333', margin: 0 }}>Expense Breakdown — {curLabel}</p>
+            <p dir="rtl" style={{ fontSize: 12, color: '#888', margin: '2px 0 0', fontFamily: 'serif' }}>اخراجات کی تفصیل</p>
+          </div>
+          {d.expenseDetails.map(e => {
+            const chg = e.cmp > 0 ? ((e.cur - e.cmp) / e.cmp * 100) : 0
+            const isVariable = ['6017','6018','6019','6008','6003','6009'].includes(e.code)
+            const alarm = isVariable && d.revChange < -3 && chg > 5
+            return (
+              <div key={e.code} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 16px', borderBottom: '1px solid #f5f5f5', background: alarm ? '#fff8f8' : 'white' }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#333', margin: '0 0 2px' }}>
+                    {alarm ? '⚠️ ' : ''}{e.name}
+                    <span style={{ marginLeft: 8, fontSize: 10, padding: '1px 7px', borderRadius: 10, background: isVariable ? '#e3f0ff' : '#f0f4f8', color: isVariable ? '#0f4c81' : '#888', fontWeight: 600 }}>
+                      {isVariable ? 'Variable' : 'Fixed'}
+                    </span>
+                  </p>
+                  <p style={{ fontSize: 11, color: '#888', margin: 0 }}>
+                    Last month: Rs. {fmt(e.cmp)} → This month: Rs. {fmt(e.cur)}
+                  </p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: 15, fontWeight: 800, color: chg > 10 ? '#c62828' : chg < -5 ? '#1a7a4a' : '#333', margin: '0 0 2px' }}>Rs. {fmt(e.cur)}</p>
+                  {e.cmp > 0 && (
+                    <p style={{ fontSize: 11, fontWeight: 700, color: chg > 0 ? '#c62828' : '#1a7a4a', margin: 0 }}>
+                      {chg >= 0 ? '↑' : '↓'} {Math.abs(chg).toFixed(1)}%
+                    </p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+          <div style={{ padding: '10px 16px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#333' }}>Total Expenses / کل اخراجات</span>
+            <span style={{ fontSize: 14, fontWeight: 800, color: '#c62828' }}>Rs. {fmt(d.curExpenses)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREDIT & COLLECTIONS ── */}
+      <div style={{ background: '#f8fafc', borderRadius: 10, padding: '10px 16px', marginBottom: 10, marginTop: 20, borderLeft: '4px solid #b45309' }}>
+        <p style={{ fontSize: 12, fontWeight: 800, color: '#b45309', margin: 0, textTransform: 'uppercase', letterSpacing: 0.5 }}>💳 Credit Sales & Collections — ادھار فروخت اور وصولی</p>
+      </div>
+
+      <InsightCard
+        severity={d.creditPct <= 25 ? 'good' : d.creditPct <= 40 ? 'warn' : 'bad'}
+        titleEn="Credit Sales Analysis"
+        titleUr="ادھار فروخت کا تجزیہ"
+        value={d.creditPct + '%'}
+        sub={`Credit / Total Sales`}
+        textEn={`In ${curLabel}, Rs. ${fmt(d.curCredit)} (${d.creditPct}%) of your sales were on credit, meaning customers did not pay at the time of delivery. ${d.creditPct <= 25 ? `This is an excellent ratio — most of your sales are cash which means strong daily cash flow. The ideal target is below 30%.` : d.creditPct <= 40 ? `This is an acceptable ratio but moving towards the higher end. Last month was ${d.cmpCreditPct}%. Monitor this closely. High credit sales mean your cash is tied up in customer balances and you may face cash shortages despite good revenue.` : `This is too high. Nearly half your sales are on credit which means a large portion of your revenue is not in your hands. You currently have Rs. ${fmt(d.totalAR)} outstanding from customers. High credit sales combined with slow collection can lead to cash flow problems even when revenue looks healthy on paper.`}`}
+        textUr={`${curLabel} میں Rs. ${fmt(d.curCredit)} یعنی ${d.creditPct}% فروخت ادھار تھی۔ ${d.creditPct <= 25 ? `یہ بہترین تناسب ہے۔ زیادہ تر فروخت نقد ہے جس سے روزانہ نقد بہاؤ مضبوط ہے۔` : d.creditPct <= 40 ? `یہ قابل قبول ہے لیکن بڑھ رہا ہے۔ گزشتہ مہینے ${d.cmpCreditPct}% تھا۔ زیادہ ادھار سے نقدی میں مشکل آ سکتی ہے۔` : `یہ بہت زیادہ ہے۔ آپ کی تقریباً نصف فروخت ادھار ہے اور Rs. ${fmt(d.totalAR)} گاہکوں کے ذمے واجب ہے۔ اس سے نقدی کا بحران آ سکتا ہے۔`}`}
+        actionEn={d.creditPct > 30 ? `Reduce credit limits for customers who consistently delay payments. Require partial advance payment from new credit customers. Target: bring credit sales below 30% next month.` : undefined}
+        actionUr={d.creditPct > 30 ? `جو گاہک ہمیشہ دیر سے ادا کرتے ہیں ان کی ادھار حد کم کریں۔ نئے گاہکوں سے پیشگی ادائیگی لیں۔ ہدف: اگلے مہینے ادھار 30% سے کم لائیں۔` : undefined}
+      />
+
+      {d.totalAR > 0 && (
+        <InsightCard
+          severity={d.totalAR > d.curRevenue * 0.5 ? 'bad' : d.totalAR > d.curRevenue * 0.25 ? 'warn' : 'info'}
+          titleEn="Outstanding Receivables"
+          titleUr="واجب الوصول رقم"
+          value={`Rs. ${fmt(d.totalAR)}`}
+          sub={`${d.over60.length} customers with balance`}
+          textEn={`You currently have Rs. ${fmt(d.totalAR)} outstanding from ${d.over60.length} customers. This represents ${(d.totalAR / d.curRevenue * 100).toFixed(1)}% of your monthly revenue sitting uncollected. ${d.totalAR > d.curRevenue * 0.5 ? `This is critically high — more than half a month's revenue is locked in customer balances. This is a major cash flow risk. Some of these customers may become bad debts if not followed up urgently.` : `Regular follow-up is needed to ensure timely collection.`} Review the Collections tab for detailed aging analysis of which customers owe the most and for how long.`}
+          textUr={`فی الحال ${d.over60.length} گاہکوں سے Rs. ${fmt(d.totalAR)} واجب ہے جو آپ کی ماہانہ آمدنی کا ${(d.totalAR / d.curRevenue * 100).toFixed(1)}% ہے۔ ${d.totalAR > d.curRevenue * 0.5 ? `یہ انتہائی زیادہ ہے — آدھے مہینے کی آمدنی گاہکوں کے پاس پھنسی ہوئی ہے۔ فوری وصولی کریں۔` : `باقاعدہ فالو اپ ضروری ہے۔`}`}
+          actionEn={`Use the Collections tab to identify customers overdue 60+ days and call them immediately. Consider stopping deliveries to customers with balances older than 90 days until they pay.`}
+          actionUr={`کلیکشن رپورٹ میں 60 دن سے زیادہ کے بقایا گاہکوں کو دیکھیں اور فوری کال کریں۔ 90 دن سے زیادہ بقایا والے گاہکوں کی ڈیلیوری روکنے پر غور کریں۔`}
+        />
+      )}
+
+      {d.pendingAmt > 0 && (
+        <InsightCard
+          severity="warn"
+          titleEn="Unconfirmed Digital Payments"
+          titleUr="غیر تصدیق شدہ ڈیجیٹل ادائیگیاں"
+          value={`Rs. ${fmt(d.pendingAmt)}`}
+          sub={`${d.pendingDigital?.length} transactions pending`}
+          textEn={`There are ${d.pendingDigital?.length} digital payments (JazzCash/EasyPaisa/Bank) totalling Rs. ${fmt(d.pendingAmt)} that have not been confirmed yet. These are recorded as sales but the money has not been verified in your accounts. Until confirmed, these amounts are sitting in clearing accounts and do not reflect in your actual cash or JazzCash balance. Go to Digital Payments tab immediately to confirm these.`}
+          textUr={`${d.pendingDigital?.length} ڈیجیٹل ادائیگیاں کل Rs. ${fmt(d.pendingAmt)} کی تصدیق ابھی نہیں ہوئی۔ یہ رقم کلیئرنگ اکاؤنٹ میں ہے اور آپ کی اصل بیلنس میں شامل نہیں۔ ڈیجیٹل پیمنٹس ٹیب میں جا کر فوری تصدیق کریں۔`}
+          actionEn={`Go to Digital Payments tab and confirm all pending transactions today.`}
+          actionUr={`ڈیجیٹل پیمنٹس ٹیب میں جائیں اور آج تمام زیر التوا ادائیگیاں تصدیق کریں۔`}
+        />
+      )}
+
+      {/* ── SUMMARY & RECOMMENDATIONS ── */}
+      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 14, padding: '22px 24px', marginTop: 20 }}>
+        <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, margin: '0 0 6px' }}>
+          📋 Executive Summary — {curLabel}
+        </p>
+        <p dir="rtl" style={{ color: '#93c5fd', fontSize: 13, margin: '0 0 18px', fontFamily: 'serif' }}>
+          {bizName} — {curLabel} — خلاصہ
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+          {/* Positives */}
+          <div style={{ background: 'rgba(26,122,74,0.2)', borderRadius: 10, padding: '14px 16px' }}>
+            <p style={{ color: '#6ee7b7', fontWeight: 700, fontSize: 13, margin: '0 0 10px' }}>✅ What's Good / کیا اچھا ہے</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                d.revChange >= 0   && { en: `Revenue up ${d.revChange.toFixed(1)}% vs last month`, ur: `آمدنی ${d.revChange.toFixed(1)}% بڑھی` },
+                d.curMargin >= 30  && { en: `Profit margin healthy at ${d.curMargin.toFixed(1)}%`, ur: `منافع کا تناسب ${d.curMargin.toFixed(1)}% صحت مند` },
+                d.creditPct <= 30  && { en: `Credit sales under control at ${d.creditPct}%`, ur: `ادھار فروخت ${d.creditPct}% قابو میں` },
+                d.expChange <= 0   && { en: `Total expenses reduced vs last month`, ur: `اخراجات گزشتہ مہینے سے کم` },
+                d.salesVsExpGood   && { en: `Variable expenses controlled despite sales growth`, ur: `فروخت بڑھنے کے باوجود اخراجات قابو میں` },
+                d.pendingAmt === 0 && { en: `All digital payments confirmed — no pending`, ur: `تمام ڈیجیٹل ادائیگیاں تصدیق شدہ` },
+                d.cur19l > d.cmp19l && { en: `19L bottle deliveries increased by ${d.cur19l - d.cmp19l} units`, ur: `19 لیٹر ڈیلیوریاں ${d.cur19l - d.cmp19l} یونٹ بڑھیں` },
+              ].filter(Boolean).map((item, i) => (
+                <div key={i} style={{ fontSize: 12, color: '#d1fae5' }}>
+                  {lang !== 'ur' && <p style={{ margin: '0 0 1px' }}>• {item.en}</p>}
+                  {lang !== 'en' && <p dir="rtl" style={{ margin: 0, fontFamily: 'serif' }}>• {item.ur}</p>}
+                </div>
+              ))}
+              {[d.revChange >= 0, d.curMargin >= 30, d.creditPct <= 30, d.expChange <= 0].filter(Boolean).length === 0 && (
+                <p style={{ color: '#6ee7b7', fontSize: 12, margin: 0, opacity: 0.7 }}>No positives this month — focus on improvement</p>
+              )}
+            </div>
+          </div>
+
+          {/* Negatives */}
+          <div style={{ background: 'rgba(198,40,40,0.2)', borderRadius: 10, padding: '14px 16px' }}>
+            <p style={{ color: '#fca5a5', fontWeight: 700, fontSize: 13, margin: '0 0 10px' }}>🔴 Needs Attention / کیا بہتر کرنا ہے</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                d.revChange < 0        && { en: `Revenue dropped ${Math.abs(d.revChange).toFixed(1)}% — investigate cause`, ur: `آمدنی ${Math.abs(d.revChange).toFixed(1)}% کم — وجہ جانیں` },
+                d.curMargin < 25       && { en: `Profit margin ${d.curMargin.toFixed(1)}% is critically low`, ur: `منافع ${d.curMargin.toFixed(1)}% خطرناک حد سے کم` },
+                d.creditPct > 40       && { en: `Credit sales ${d.creditPct}% too high — cash flow risk`, ur: `ادھار فروخت ${d.creditPct}% بہت زیادہ — نقدی خطرے میں` },
+                d.salesVsExpAlarm      && { en: `Sales down but variable expenses UP — urgent review needed`, ur: `فروخت کم لیکن متغیر اخراجات بڑھے — فوری جائزہ لیں` },
+                d.pendingAmt > 0       && { en: `Rs. ${fmt(d.pendingAmt)} digital payments unconfirmed`, ur: `Rs. ${fmt(d.pendingAmt)} ڈیجیٹل ادائیگیاں تصدیق نہیں` },
+                d.totalAR > d.curRevenue * 0.3 && { en: `Rs. ${fmt(d.totalAR)} outstanding from customers`, ur: `گاہکوں سے Rs. ${fmt(d.totalAR)} واجب الوصول` },
+                d.expChange > 10       && { en: `Expenses increased ${d.expChange.toFixed(1)}% — review all categories`, ur: `اخراجات ${d.expChange.toFixed(1)}% بڑھے — تمام کا جائزہ لیں` },
+              ].filter(Boolean).map((item, i) => (
+                <div key={i} style={{ fontSize: 12, color: '#fecaca' }}>
+                  {lang !== 'ur' && <p style={{ margin: '0 0 1px' }}>• {item.en}</p>}
+                  {lang !== 'en' && <p dir="rtl" style={{ margin: 0, fontFamily: 'serif' }}>• {item.ur}</p>}
+                </div>
+              ))}
+              {[d.revChange < 0, d.curMargin < 25, d.creditPct > 40, d.salesVsExpAlarm, d.pendingAmt > 0].filter(Boolean).length === 0 && (
+                <p style={{ color: '#fca5a5', fontSize: 12, margin: 0, opacity: 0.7 }}>No critical issues this month — great work!</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 12, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: 0 }}>
+            Generated by AquaRun • {bizName} • {new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })}
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 11, margin: 0 }}>
+            Health Score: {d.score}/100 {d.healthEmoji} {d.healthLabel.en} / {d.healthLabel.ur}
+          </p>
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
 
 // ─── SALES SUMMARY ─────────────────────────────────────────────────
 function SalesSummary({ tenantId }) {
