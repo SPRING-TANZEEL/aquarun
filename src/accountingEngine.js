@@ -39,21 +39,23 @@ async function postJournalEntry({ date, referenceType, referenceId, narration, l
 
 // ─── HELPER: GET CASH ACCOUNT BY PAYMENT METHOD ───────────────────
 // For CEO/admin direct accounts
+// Actual accounts — use for expenses, purchases, salaries (money leaves immediately)
 function getCashAccount(paymentMethod) {
+  switch (paymentMethod) {
+    case 'jazzcash':   return { code: '1002', name: 'JazzCash Account' }
+    case 'easypaisa':  return { code: '1004', name: 'EasyPaisa Account' }
+    case 'bank':       return { code: '1003', name: 'Bank Account' }
+    default:           return { code: '1001', name: 'Cash in Hand' }
+  }
+}
+
+// Clearing accounts — use for sales/payments pending confirmation
+function getClearingAccount(paymentMethod) {
   switch (paymentMethod) {
     case 'jazzcash':   return { code: '1102', name: 'JazzCash Clearing - Pending' }
     case 'easypaisa':  return { code: '1103', name: 'EasyPaisa Clearing - Pending' }
     case 'bank':       return { code: '1105', name: 'Bank Transfer Clearing - Pending' }
     default:           return { code: '1001', name: 'Cash in Hand' }
-  }
-}
-
-// ─── HELPER: GET CLEARING ACCOUNT BY PAYMENT METHOD ───────────────
-// Unconfirmed mobile money sits in clearing until confirmed
-function getClearingAccount(paymentMethod) {
-  switch (paymentMethod) {
-    case 'easypaisa': return { code: '1103', name: 'EasyPaisa Clearing - Pending' }
-    default:          return { code: '1102', name: 'JazzCash Clearing - Pending' }
   }
 }
 
