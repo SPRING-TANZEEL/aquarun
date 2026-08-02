@@ -11,6 +11,7 @@ export default function Reports({ tenantId }) {
     { key: 'sales', label: '📊 Sales Summary' },
     { key: 'pl', label: '📈 P&L' },
     { key: 'tax', label: '🧾 Tax Report' },
+    { key: 'collection', label: '📥 Collections' },
     { key: 'bulk', label: '📨 Bulk Share' },
   ]
   return (
@@ -33,6 +34,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
       {activeTab === 'tax' && <SalesTaxReport tenantId={tenantId} />}
+      {activeTab === 'collection' && <CollectionAnalysis tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
   )
@@ -1519,6 +1521,351 @@ function SalesTaxReport({ tenantId }) {
               </tr>
             </tfoot>
           </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── COLLECTION ANALYSIS ───────────────────────────────────────────
+function CollectionAnalysis({ tenantId }) {
+  const today     = new Date().toISOString().split('T')[0]
+  const thisMonth = new Date().toISOString().slice(0, 7)
+  const [loading,    setLoading]    = useState(true)
+  const [view,       setView]       = useState('aging')   // 'aging' | 'source'
+  const [search,     setSearch]     = useState('')
+  const [data,       setData]       = useState(null)
+  const [refMonth,   setRefMonth]   = useState(thisMonth) // for collection source
+
+  useEffect(() => { if (tenantId) fetchData() }, [tenantId])
+
+  async function fetchData() {
+    setLoading(true)
+    try {
+      // ── Fetch all credit/unpaid deliveries ──
+      const { data: deliveries } = await supabase
+        .from('deliveries')
+        .select('id, customer_id, delivered_at, total_amount, total_with_tax, amount_received, credit_amount, payment_method, jazzcash_confirmed')
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
+        .order('delivered_at', { ascending: false })
+
+      // ── Fetch all payments ──
+      const { data: payments } = await supabase
+        .from('payments')
+        .select('id, customer_id, amount, payment_date, payment_method, jazzcash_confirmed, created_at')
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
+        .order('payment_date', { ascending: false })
+
+      // ── Fetch customer balances ──
+      const { data: customers } = await supabase
+        .from('customer_balances')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .gt('balance', 0)
+        .order('balance', { ascending: false })
+
+      const now = new Date()
+
+      // ── Build aging per customer ──
+      const aging = (customers || []).map(c => {
+        // Find oldest unpaid delivery for this customer
+        const custDeliveries = (deliveries || [])
+          .filter(d => d.customer_id === c.id && d.payment_method === 'credit')
+          .sort((a, b) => new Date(a.delivered_at) - new Date(b.delivered_at))
+
+        const oldest = custDeliveries[0]
+        const daysPending = oldest
+          ? Math.floor((now - new Date(oldest.delivered_at)) / 86400000)
+          : 999
+
+        const bucket = daysPending <= 30 ? '0-30'
+          : daysPending <= 60 ? '31-60'
+          : daysPending <= 90 ? '61-90'
+          : '90+'
+
+        return { ...c, daysPending, bucket, oldestDate: oldest?.delivered_at }
+      })
+
+      // ── Build collection source (which month's sales are being collected now) ──
+      // Group payments by payment_month, then find which delivery month they belong to
+      const paymentsByMonth = {}
+      ;(payments || []).forEach(p => {
+        const payMonth = (p.payment_date || p.created_at || '').slice(0, 7)
+        if (!payMonth) return
+        if (!paymentsByMonth[payMonth]) paymentsByMonth[payMonth] = []
+        paymentsByMonth[payMonth].push(p)
+      })
+
+      // For each payment month, figure out which delivery months the collections came from
+      // We do this by matching payment customer + approximate timing
+      const collectionSource = {}
+      Object.entries(paymentsByMonth).forEach(([payMonth, pmts]) => {
+        const sourceBreakdown = {}
+        let totalCollected = 0
+        pmts.forEach(p => {
+          const amt = Number(p.amount)
+          totalCollected += amt
+          // Find deliveries for this customer before payment date
+          const custDels = (deliveries || []).filter(d =>
+            d.customer_id === p.customer_id &&
+            d.payment_method === 'credit' &&
+            new Date(d.delivered_at) <= new Date(p.payment_date || p.created_at)
+          ).sort((a, b) => new Date(b.delivered_at) - new Date(a.delivered_at))
+
+          // Attribute payment to most recent delivery month
+          const delMonth = custDels[0]?.delivered_at?.slice(0, 7) || payMonth
+          sourceBreakdown[delMonth] = (sourceBreakdown[delMonth] || 0) + amt
+        })
+        collectionSource[payMonth] = { totalCollected, sourceBreakdown }
+      })
+
+      // ── DSO calculation ──
+      const last30Days = new Date(now - 30 * 86400000).toISOString().split('T')[0]
+      const recentSales = (deliveries || [])
+        .filter(d => d.delivered_at >= last30Days)
+        .reduce((s, d) => s + Number(d.total_with_tax || d.total_amount), 0)
+      const totalAR = (customers || []).reduce((s, c) => s + Number(c.balance), 0)
+      const dso = recentSales > 0 ? Math.round((totalAR / recentSales) * 30) : 0
+
+      setData({ aging, collectionSource, dso, totalAR, customers })
+    } catch (err) {
+      console.error('CollectionAnalysis error:', err)
+    }
+    setLoading(false)
+  }
+
+  if (loading) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <p style={{ fontSize: 32, margin: '0 0 12px' }}>📥</p>
+      <p style={{ color: '#888', fontSize: 14 }}>Analysing collections...</p>
+    </div>
+  )
+
+  if (!data) return null
+
+  const filteredAging = data.aging.filter(c =>
+    !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.mobile?.includes(search)
+  )
+
+  const buckets = {
+    '0-30':  filteredAging.filter(c => c.bucket === '0-30'),
+    '31-60': filteredAging.filter(c => c.bucket === '31-60'),
+    '61-90': filteredAging.filter(c => c.bucket === '61-90'),
+    '90+':   filteredAging.filter(c => c.bucket === '90+'),
+  }
+
+  const bucketTotals = Object.fromEntries(
+    Object.entries(buckets).map(([k, v]) => [k, v.reduce((s, c) => s + Number(c.balance), 0)])
+  )
+
+  const BUCKET_CONFIG = [
+    { key: '0-30',  label: '0–30 Days',  color: '#1a7a4a', bg: '#e8f5e9', risk: 'Current' },
+    { key: '31-60', label: '31–60 Days', color: '#b45309', bg: '#fff8e1', risk: 'Overdue' },
+    { key: '61-90', label: '61–90 Days', color: '#c2410c', bg: '#fff3e0', risk: 'At Risk' },
+    { key: '90+',   label: '90+ Days',   color: '#c62828', bg: '#ffebee', risk: 'Critical' },
+  ]
+
+  const sourceData = data.collectionSource[refMonth]
+
+  return (
+    <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 12, padding: '18px 22px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: '0 0 3px' }}>📥 Collection Analysis</p>
+          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0 }}>AR Aging · Collection Source · Days Sales Outstanding</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ color: '#93c5fd', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Total Receivable</p>
+          <p style={{ color: '#fff', fontWeight: 900, fontSize: 22, margin: '0 0 2px' }}>Rs. {data.totalAR.toLocaleString()}</p>
+          <p style={{ color: data.dso <= 30 ? '#6ee7b7' : data.dso <= 60 ? '#fde68a' : '#fca5a5', fontSize: 12, fontWeight: 700, margin: 0 }}>
+            DSO: {data.dso} days {data.dso <= 30 ? '✅' : data.dso <= 60 ? '⚠️' : '🔴'}
+          </p>
+        </div>
+      </div>
+
+      {/* View Toggle */}
+      <div style={{ display: 'flex', gap: 6, background: 'white', padding: 5, borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 18 }}>
+        {[
+          { key: 'aging',  label: '⏳ AR Aging Analysis' },
+          { key: 'source', label: '📊 Collection Source' },
+        ].map(v => (
+          <button key={v.key} onClick={() => setView(v.key)} style={{
+            flex: 1, padding: '9px', border: 'none', borderRadius: 7, cursor: 'pointer',
+            background: view === v.key ? '#0f4c81' : 'transparent',
+            color: view === v.key ? 'white' : '#666',
+            fontWeight: view === v.key ? 700 : 500, fontSize: 13,
+          }}>{v.label}</button>
+        ))}
+      </div>
+
+      {/* ══ AR AGING ══ */}
+      {view === 'aging' && (
+        <div>
+          {/* Bucket Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 16 }}>
+            {BUCKET_CONFIG.map(b => (
+              <div key={b.key} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${b.color}` }}>
+                <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{b.label}</p>
+                <p style={{ fontSize: 11, color: b.color, fontWeight: 700, margin: '0 0 4px' }}>{b.risk}</p>
+                <p style={{ fontSize: 16, fontWeight: 800, color: b.color, margin: '0 0 2px' }}>Rs. {bucketTotals[b.key].toLocaleString()}</p>
+                <p style={{ fontSize: 10, color: '#aaa', margin: 0 }}>{buckets[b.key].length} customers</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Search */}
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="🔍 Search customer name or mobile..."
+            style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 16 }} />
+
+          {/* Bucket Sections */}
+          {BUCKET_CONFIG.map(b => {
+            const items = buckets[b.key]
+            if (items.length === 0) return null
+            const total = bucketTotals[b.key]
+            return (
+              <div key={b.key} style={{ marginBottom: 18 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 14px', background: b.bg, borderRadius: '8px 8px 0 0', border: `1px solid ${b.color}20` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: b.color, display: 'inline-block' }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: b.color }}>{b.label} — {b.risk}</span>
+                    <span style={{ fontSize: 11, color: '#888' }}>({items.length} customers)</span>
+                  </div>
+                  <span style={{ fontSize: 14, fontWeight: 800, color: b.color }}>Rs. {total.toLocaleString()}</span>
+                </div>
+                <div style={{ background: 'white', borderRadius: '0 0 8px 8px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+                  {items.map((c, i) => (
+                    <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '11px 16px', borderBottom: i < items.length - 1 ? '1px solid #f0f0f0' : 'none' }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', margin: '0 0 2px' }}>{c.full_name}</p>
+                        <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <p style={{ fontSize: 15, fontWeight: 800, color: b.color, margin: '0 0 2px' }}>Rs. {Number(c.balance).toLocaleString()}</p>
+                        <p style={{ fontSize: 11, color: '#888', margin: 0 }}>
+                          {c.daysPending === 999 ? 'No credit deliveries' : `${c.daysPending} days outstanding`}
+                        </p>
+                        {c.oldestDate && (
+                          <p style={{ fontSize: 10, color: '#aaa', margin: '1px 0 0' }}>
+                            Since {new Date(c.oldestDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+
+          {filteredAging.length === 0 && (
+            <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <p style={{ fontSize: 40, margin: '0 0 12px' }}>✅</p>
+              <p style={{ fontWeight: 700, color: '#1a7a4a', fontSize: 15 }}>No outstanding receivables!</p>
+              <p style={{ color: '#888', fontSize: 13, marginTop: 4 }}>All customer balances are clear</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ══ COLLECTION SOURCE ══ */}
+      {view === 'source' && (
+        <div>
+          {/* Month selector */}
+          <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#555' }}>📅 Show collections received in:</span>
+            <input type="month" value={refMonth} onChange={e => setRefMonth(e.target.value)}
+              style={{ padding: '7px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, outline: 'none', color: '#333' }} />
+            <button onClick={fetchData}
+              style={{ padding: '7px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+              🔍 Search
+            </button>
+          </div>
+
+          {!sourceData ? (
+            <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <p style={{ fontSize: 40, margin: '0 0 12px' }}>📭</p>
+              <p style={{ fontWeight: 700, color: '#888', fontSize: 15 }}>No collections found for this month</p>
+            </div>
+          ) : (
+            <div>
+              {/* Total collected card */}
+              <div style={{ background: 'linear-gradient(135deg,#1a7a4a,#2e7d32)', borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <p style={{ color: '#a7f3d0', fontSize: 12, margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: 1 }}>
+                    Total Collected in {new Date(refMonth + '-01').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })}
+                  </p>
+                  <p style={{ color: '#fff', fontWeight: 900, fontSize: 26, margin: 0 }}>Rs. {sourceData.totalCollected.toLocaleString()}</p>
+                </div>
+                <div style={{ fontSize: 40, opacity: 0.3 }}>💰</div>
+              </div>
+
+              {/* Source breakdown */}
+              <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid #f0f0f0', background: '#f8fafc' }}>
+                  <p style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>Which Month's Sales Were Collected?</p>
+                  <p style={{ fontSize: 11, color: '#888', margin: '3px 0 0' }}>Collections broken down by the month the sale was originally made</p>
+                </div>
+                {Object.entries(sourceData.sourceBreakdown)
+                  .sort(([a], [b]) => b.localeCompare(a))
+                  .map(([month, amount]) => {
+                    const pct = Math.round((amount / sourceData.totalCollected) * 100)
+                    const isCurrentMonth = month === refMonth
+                    const monthsAgo = Math.round((new Date(refMonth + '-01') - new Date(month + '-01')) / (1000 * 60 * 60 * 24 * 30))
+                    return (
+                      <div key={month} style={{ padding: '14px 18px', borderBottom: '1px solid #f5f5f5' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                          <div>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>
+                              {new Date(month + '-01').toLocaleDateString('en-PK', { month: 'long', year: 'numeric' })}
+                            </span>
+                            <span style={{ marginLeft: 8, fontSize: 11, padding: '2px 8px', borderRadius: 10, fontWeight: 600,
+                              background: isCurrentMonth ? '#e3f0ff' : monthsAgo <= 1 ? '#e8f5e9' : monthsAgo <= 2 ? '#fff8e1' : '#ffebee',
+                              color: isCurrentMonth ? '#0f4c81' : monthsAgo <= 1 ? '#1a7a4a' : monthsAgo <= 2 ? '#b45309' : '#c62828',
+                            }}>
+                              {isCurrentMonth ? 'Current Month' : monthsAgo === 1 ? '1 month old' : `${monthsAgo} months old`}
+                            </span>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: '#1a7a4a' }}>Rs. {amount.toLocaleString()}</span>
+                            <span style={{ fontSize: 12, color: '#888', marginLeft: 8 }}>{pct}%</span>
+                          </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height: 6, background: '#f0f0f0', borderRadius: 3, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3,
+                            background: isCurrentMonth ? '#0f4c81' : monthsAgo <= 1 ? '#1a7a4a' : monthsAgo <= 2 ? '#f59e0b' : '#ef4444',
+                            transition: 'width 0.5s ease',
+                          }} />
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                {/* DSO insight */}
+                <div style={{ padding: '14px 18px', background: '#f8fafc', borderTop: '2px solid #e0e0e0' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', margin: '0 0 6px' }}>📊 Collection Insight</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+                    {[
+                      { label: 'DSO (Days Sales Outstanding)', value: `${data.dso} days`, color: data.dso <= 30 ? '#1a7a4a' : data.dso <= 60 ? '#b45309' : '#c62828' },
+                      { label: 'Total Outstanding (AR)', value: `Rs. ${data.totalAR.toLocaleString()}`, color: '#0f4c81' },
+                      { label: 'Current Month Collection', value: `Rs. ${sourceData.totalCollected.toLocaleString()}`, color: '#1a7a4a' },
+                    ].map(m => (
+                      <div key={m.label} style={{ textAlign: 'center', padding: '10px', background: 'white', borderRadius: 8, border: '1px solid #e0e0e0' }}>
+                        <p style={{ fontSize: 10, color: '#888', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{m.label}</p>
+                        <p style={{ fontSize: 14, fontWeight: 800, color: m.color, margin: 0 }}>{m.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
