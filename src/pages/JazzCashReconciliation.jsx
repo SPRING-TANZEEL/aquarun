@@ -39,7 +39,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       customer: d.customers?.full_name || 'Walk-in',
       mobile: d.customers?.mobile || '',
       rider: d.riders?.full_name || '—',
-      amount: Number(d.total_with_tax || d.total_amount),
+      amount: Number(d.amount_received) > 0 ? Number(d.amount_received) : Number(d.total_with_tax || d.total_amount),
+      invoiceAmount: Number(d.total_with_tax || d.total_amount),
       date: d.delivered_at,
       detail: [d.qty_19l > 0 && `19L×${d.qty_19l}`, d.qty_half_litre > 0 && `½L×${d.qty_half_litre}`, d.qty_1_5l > 0 && `1.5L×${d.qty_1_5l}`].filter(Boolean).join(' '),
       raw: d
@@ -84,7 +85,6 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
           jazzcash_confirmed: true,
           jazzcash_confirmed_at: new Date().toISOString(),
           jazzcash_confirmed_by: 'Admin',
-          amount_received: entry.amount
         }).eq('id', entry.id).eq('tenant_id', tenantId).select().single()
         if (error) { alert('Error: ' + error.message); setConfirming(null); return }
 
