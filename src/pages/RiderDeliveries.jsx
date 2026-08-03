@@ -29,12 +29,17 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [selectedRate, setSelectedRate] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState(null)
   const [bizSettings, setBizSettings] = useState({})
+  const [hasChurnIntelligence, setHasChurnIntelligence] = useState(false)
+
   useEffect(() => {
     if (!tenantId) return
     supabase.from('business_settings').select('*').eq('tenant_id', tenantId).then(({ data }) => {
       const map = {}
       data?.forEach(s => { map[s.setting_key] = s.setting_value })
       setBizSettings(map)
+    })
+    supabase.from('tenants').select('has_churn_intelligence').eq('id', tenantId).maybeSingle().then(({ data }) => {
+      setHasChurnIntelligence(data?.has_churn_intelligence || false)
     })
   }, [tenantId])
 
@@ -536,6 +541,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           </div>
 
           {/* Visit Remark */}
+          {hasChurnIntelligence ? (
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>
               📝 Visit Remark <span style={{ fontSize: 11, color: '#aaa', fontWeight: 400 }}>(optional)</span>
@@ -583,6 +589,13 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               </div>
             )}
           </div>
+
+          ) : (
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 12, border: '1.5px dashed #ddd', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>🔒 Visit Remarks</p>
+              <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>Premium feature — contact admin to enable</p>
+            </div>
+          )}
 
           {/* Bottles to deliver */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
@@ -633,6 +646,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           </div>
 
           {/* Other Brand Bottles Received */}
+          {hasChurnIntelligence ? (
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
@@ -647,6 +661,13 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               </p>
             )}
           </div>
+
+          ) : (
+            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 12, border: '1.5px dashed #ddd', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>🔒 Competitor Bottle Tracking</p>
+              <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>Premium feature — contact admin to enable</p>
+            </div>
+          )}
 
           {/* Rate */}
           {qty19l > 0 && (
