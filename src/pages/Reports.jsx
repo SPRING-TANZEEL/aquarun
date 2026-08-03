@@ -1438,8 +1438,8 @@ function CustomerSales({ tenantId }) {
       )}
 
       {!loading && filtered.length > 0 && (
-        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
                 {['#', 'Customer', 'Mobile', 'Deliveries', '19L', 'Half L', '1.5L', 'Total Qty', 'Cash', 'Credit', 'Digital', 'Total Sales'].map((h, i) => (
