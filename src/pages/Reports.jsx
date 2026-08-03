@@ -14,6 +14,7 @@ export default function Reports({ tenantId }) {
     { key: 'executive', label: '📋 Executive' },
     { key: 'churn', label: '📋 Churn Risk' },
     { key: 'collection', label: '📥 Collections' },
+    { key: 'bottles', label: '🫙 Bottles' },
     { key: 'bulk', label: '📨 Bulk Share' },
   ]
   return (
@@ -39,6 +40,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'executive' && <ExecutiveSummary tenantId={tenantId} />}
       {activeTab === 'churn' && <ChurnRisk tenantId={tenantId} />}
       {activeTab === 'collection' && <CollectionAnalysis tenantId={tenantId} />}
+      {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
   )
@@ -1266,6 +1268,217 @@ function ChurnRisk({ tenantId }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ─── BOTTLE BALANCE REPORT ──────────────────────────────────────────
+function BottleBalance({ tenantId }) {
+  const [customers, setCustomers]   = useState([])
+  const [loading,   setLoading]     = useState(true)
+  const [search,    setSearch]      = useState('')
+  const [sortBy,    setSortBy]      = useState('bottles')  // 'bottles' | 'value' | 'name'
+  const [bottleCost, setBottleCost] = useState(900)
+  const [totalBottles, setTotalBottles] = useState(0)
+  const [bizName,   setBizName]     = useState('')
+
+  useEffect(() => { if (tenantId) fetchData() }, [tenantId])
+
+  async function fetchData() {
+    setLoading(true)
+    try {
+      // Fetch bottle replacement cost from settings
+      const { data: costSetting } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'bottle_replacement_cost').maybeSingle()
+      const cost = Number(costSetting?.setting_value || 900)
+      setBottleCost(cost)
+
+      // Fetch business name for print
+      const { data: bizSetting } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'business_name').maybeSingle()
+      setBizName(bizSetting?.setting_value || '')
+
+      // Fetch all customers with bottle data
+      const { data } = await supabase.from('customers')
+        .select('id, full_name, mobile, customer_code, address, our_bottles_placed, rate_19l, is_active')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .gt('our_bottles_placed', 0)
+        .order('our_bottles_placed', { ascending: false })
+
+      setCustomers(data || [])
+      setTotalBottles((data || []).reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0))
+    } catch (err) {
+      console.error('BottleBalance error:', err)
+    }
+    setLoading(false)
+  }
+
+  function printReport() {
+    const win = window.open('', '_blank')
+    const totalValue = customers.reduce((s, c) => s + Number(c.our_bottles_placed || 0) * bottleCost, 0)
+    const rows = filtered.map((c, i) => `
+      <tr style="border-bottom:1px solid #eee; background:${i % 2 === 0 ? 'white' : '#fafafa'}">
+        <td style="padding:6px 10px">${i + 1}</td>
+        <td style="padding:6px 10px;font-weight:600">${c.full_name}</td>
+        <td style="padding:6px 10px">${c.mobile || '—'}</td>
+        <td style="padding:6px 10px">${c.customer_code || '—'}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:#0f4c81">${c.our_bottles_placed}</td>
+        <td style="padding:6px 10px;text-align:right;font-weight:700;color:#c62828">Rs. ${(Number(c.our_bottles_placed) * bottleCost).toLocaleString()}</td>
+      </tr>
+    `).join('')
+    win.document.write(`<!DOCTYPE html><html><head><title>${bizName} — Bottle Balance</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;padding:12px}
+    table{width:100%;border-collapse:collapse}th{background:#f0f0f0;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;border-bottom:2px solid #ccc}
+    @media print{body{padding:8px}}</style></head><body>
+    <div style="text-align:center;padding-bottom:10px;border-bottom:2px solid #000;margin-bottom:12px">
+      <h1 style="font-size:16px;font-weight:700;margin:0 0 2px">${bizName}</h1>
+      <p style="font-size:12px;margin:0 0 1px">Bottle Balance Report</p>
+      <p style="font-size:10px;color:#555">Printed: ${new Date().toLocaleDateString('en-PK', { day:'2-digit', month:'long', year:'numeric' })}</p>
+    </div>
+    <div style="display:flex;gap:20px;margin-bottom:12px;padding:10px;background:#f8f9fa;border-radius:6px">
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL CUSTOMERS</p><p style="font-size:16px;font-weight:700;margin:0">${filtered.length}</p></div>
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL BOTTLES</p><p style="font-size:16px;font-weight:700;margin:0;color:#0f4c81">${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0), 0)}</p></div>
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL VALUE (@ Rs.${bottleCost}/bottle)</p><p style="font-size:16px;font-weight:700;margin:0;color:#c62828">Rs. ${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0) * bottleCost, 0).toLocaleString()}</p></div>
+    </div>
+    <table><thead><tr><th>#</th><th>Customer</th><th>Mobile</th><th>ID</th><th style="text-align:center">Bottles</th><th style="text-align:right">Value</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr style="background:#0f4c81;color:white"><td colspan="4" style="padding:8px 10px;font-weight:700">TOTAL</td>
+    <td style="padding:8px 10px;text-align:center;font-weight:700">${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0), 0)}</td>
+    <td style="padding:8px 10px;text-align:right;font-weight:700">Rs. ${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0) * bottleCost, 0).toLocaleString()}</td></tr></tfoot>
+    </table>
+    <div style="margin-top:10px;padding-top:8px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888">
+      <span>Generated by AquaRun • ${bizName}</span>
+      <span>Bottle replacement cost: Rs. ${bottleCost}/bottle</span>
+    </div>
+    </body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 500)
+  }
+
+  const filtered = customers
+    .filter(c => !search || c.full_name?.toLowerCase().includes(search.toLowerCase()) || c.mobile?.includes(search) || c.customer_code?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'bottles') return Number(b.our_bottles_placed) - Number(a.our_bottles_placed)
+      if (sortBy === 'value')   return (Number(b.our_bottles_placed) * bottleCost) - (Number(a.our_bottles_placed) * bottleCost)
+      if (sortBy === 'name')    return a.full_name?.localeCompare(b.full_name)
+      return 0
+    })
+
+  const totalValue      = filtered.reduce((s, c) => s + Number(c.our_bottles_placed || 0) * bottleCost, 0)
+  const totalFilteredBtl = filtered.reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0)
+
+  if (loading) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <p style={{ fontSize: 32, margin: '0 0 12px' }}>🫙</p>
+      <p style={{ color: '#888', fontSize: 14 }}>Loading bottle balance...</p>
+    </div>
+  )
+
+  return (
+    <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 12, padding: '18px 22px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: '0 0 3px' }}>🫙 Bottle Balance Report</p>
+          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0 }}>Our bottles currently placed with customers · Rs. {bottleCost}/bottle replacement cost</p>
+        </div>
+        <button onClick={printReport} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🖨️ Print / PDF</button>
+      </div>
+
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 16 }}>
+        {[
+          { label: 'Total Customers', value: filtered.length + ' customers', color: '#0f4c81', bg: '#e3f0ff' },
+          { label: 'Total Bottles Out', value: totalFilteredBtl + ' bottles', color: '#1a7a4a', bg: '#e8f5e9' },
+          { label: 'Total Value at Risk', value: 'Rs. ' + totalValue.toLocaleString(), color: '#c62828', bg: '#ffebee' },
+          { label: 'Avg per Customer', value: filtered.length > 0 ? (totalFilteredBtl / filtered.length).toFixed(1) + ' bottles' : '0', color: '#b45309', bg: '#fff8e1' },
+        ].map(c => (
+          <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
+            <p style={{ fontSize: 10, color: '#888', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+            <p style={{ fontSize: 17, fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Search + Sort */}
+      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="🔍 Search customer name, mobile or ID..."
+          style={{ flex: 1, minWidth: 200, padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+        <div style={{ display: 'flex', gap: 6 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#555', alignSelf: 'center' }}>Sort:</span>
+          {[{ k: 'bottles', l: 'Most Bottles' }, { k: 'value', l: 'Highest Value' }, { k: 'name', l: 'Name A-Z' }].map(s => (
+            <button key={s.k} onClick={() => setSortBy(s.k)}
+              style={{ padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: sortBy === s.k ? '#0f4c81' : '#f0f4f8', color: sortBy === s.k ? '#fff' : '#555' }}>
+              {s.l}
+            </button>
+          ))}
+        </div>
+        <button onClick={fetchData} style={{ padding: '8px 14px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
+      </div>
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <p style={{ fontSize: 40, margin: '0 0 12px' }}>🫙</p>
+          <p style={{ fontWeight: 700, color: '#1a7a4a', fontSize: 15, margin: '0 0 4px' }}>No bottles placed with customers</p>
+          <p style={{ color: '#888', fontSize: 13, margin: 0 }}>All bottles have been returned</p>
+        </div>
+      ) : (
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8f9fa' }}>
+                {['#', 'Customer', 'Mobile', 'ID', 'Address', 'Bottles', 'Value at Risk'].map((h, i) => (
+                  <th key={h} style={{ padding: '11px 14px', textAlign: i >= 5 ? 'right' : 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c, idx) => {
+                const bottles = Number(c.our_bottles_placed || 0)
+                const value   = bottles * bottleCost
+                return (
+                  <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: '#aaa' }}>{idx + 1}</td>
+                    <td style={{ padding: '11px 14px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', margin: '0 0 1px' }}>{c.full_name}</p>
+                    </td>
+                    <td style={{ padding: '11px 14px', fontSize: 12, color: '#555' }}>{c.mobile || '—'}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#888' }}>{c.customer_code || '—'}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#888', maxWidth: 180 }}>{c.address ? c.address.slice(0, 30) + (c.address.length > 30 ? '...' : '') : '—'}</td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>
+                      <span style={{ fontSize: 16, fontWeight: 800, color: '#0f4c81' }}>{bottles}</span>
+                      <span style={{ fontSize: 11, color: '#888', marginLeft: 4 }}>btls</span>
+                    </td>
+                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>
+                      <p style={{ fontSize: 14, fontWeight: 800, color: '#c62828', margin: 0 }}>Rs. {value.toLocaleString()}</p>
+                      <p style={{ fontSize: 10, color: '#aaa', margin: '1px 0 0' }}>@ Rs.{bottleCost}/bottle</p>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#0f4c81' }}>
+                <td colSpan={5} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#fff' }}>
+                  TOTAL — {filtered.length} customers
+                </td>
+                <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: 900, color: '#fff', textAlign: 'right' }}>
+                  {totalFilteredBtl}
+                </td>
+                <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: 900, color: '#fff', textAlign: 'right' }}>
+                  Rs. {totalValue.toLocaleString()}
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
