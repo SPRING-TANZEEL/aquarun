@@ -12,6 +12,7 @@ export default function Reports({ tenantId }) {
     { key: 'pl', label: '📈 P&L' },
     { key: 'tax', label: '🧾 Tax Report' },
     { key: 'executive', label: '📋 Executive' },
+    { key: 'churn', label: '📋 Churn Risk' },
     { key: 'collection', label: '📥 Collections' },
     { key: 'bulk', label: '📨 Bulk Share' },
   ]
@@ -36,6 +37,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
       {activeTab === 'tax' && <SalesTaxReport tenantId={tenantId} />}
       {activeTab === 'executive' && <ExecutiveSummary tenantId={tenantId} />}
+      {activeTab === 'churn' && <ChurnRisk tenantId={tenantId} />}
       {activeTab === 'collection' && <CollectionAnalysis tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
@@ -969,6 +971,305 @@ function CustomerLedger({ tenantId }) {
 }
 
 // ─── BULK WHATSAPP SHARE ───────────────────────────────────────────
+// ─── CHURN RISK REPORT ─────────────────────────────────────────────
+function ChurnRisk({ tenantId }) {
+  const today      = new Date().toISOString().split('T')[0]
+  const [loading,  setLoading]  = useState(true)
+  const [data,     setData]     = useState(null)
+  const [filter,   setFilter]   = useState('all')   // 'all'|'7'|'15'|'30'
+  const [riskFilter, setRiskFilter] = useState('all') // 'all'|'low'|'medium'|'high'|'critical'
+  const [search,   setSearch]   = useState('')
+  const [bottleCost, setBottleCost] = useState(900)
+
+  useEffect(() => { if (tenantId) fetchData() }, [tenantId])
+
+  async function fetchData() {
+    setLoading(true)
+    try {
+      // Fetch bottle cost from settings
+      const { data: costSetting } = await supabase.from('business_settings')
+        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'bottle_replacement_cost').maybeSingle()
+      const cost = Number(costSetting?.setting_value || 900)
+      setBottleCost(cost)
+
+      // Fetch all active customers
+      const { data: customers } = await supabase.from('customers')
+        .select('id, full_name, mobile, customer_code, our_bottles_placed, other_brand_bottles_held, rate_19l, is_active, address')
+        .eq('tenant_id', tenantId).eq('is_active', true)
+
+      // Fetch last delivery per customer
+      const { data: lastDeliveries } = await supabase.from('deliveries')
+        .select('customer_id, delivered_at, qty_19l')
+        .eq('tenant_id', tenantId).eq('is_voided', false)
+        .order('delivered_at', { ascending: false })
+
+      // Fetch avg delivery frequency per customer (last 90 days)
+      const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString()
+      const { data: recentDeliveries } = await supabase.from('deliveries')
+        .select('customer_id, delivered_at')
+        .eq('tenant_id', tenantId).eq('is_voided', false)
+        .gte('delivered_at', ninetyDaysAgo)
+        .order('delivered_at', { ascending: true })
+
+      // Fetch latest remark per customer
+      const { data: remarks } = await supabase.from('customer_visit_remarks')
+        .select('customer_id, remark_type, remark_text, visit_date, created_at')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
+
+      // Build last delivery map
+      const lastDeliveryMap = {}
+      lastDeliveries?.forEach(d => {
+        if (!lastDeliveryMap[d.customer_id]) lastDeliveryMap[d.customer_id] = d
+      })
+
+      // Build avg frequency map
+      const freqMap = {}
+      recentDeliveries?.forEach(d => {
+        if (!freqMap[d.customer_id]) freqMap[d.customer_id] = []
+        freqMap[d.customer_id].push(new Date(d.delivered_at))
+      })
+
+      // Build latest remark map
+      const remarkMap = {}
+      remarks?.forEach(r => {
+        if (!remarkMap[r.customer_id]) remarkMap[r.customer_id] = r
+      })
+
+      // Build churn data per customer
+      const churnData = []
+      const nowDate = new Date()
+
+      for (const c of customers || []) {
+        const lastDel = lastDeliveryMap[c.id]
+        if (!lastDel) continue // never had delivery — skip
+
+        const lastDelDate = new Date(lastDel.delivered_at)
+        const daysSinceLast = Math.floor((nowDate - lastDelDate) / 86400000)
+        if (daysSinceLast < 5) continue // ordered recently — not at risk
+
+        // Calculate average frequency
+        const delDates = freqMap[c.id] || []
+        let avgFrequency = 7 // default weekly
+        if (delDates.length >= 2) {
+          const gaps = []
+          for (let i = 1; i < delDates.length; i++) {
+            gaps.push((delDates[i] - delDates[i-1]) / 86400000)
+          }
+          avgFrequency = Math.round(gaps.reduce((s, g) => s + g, 0) / gaps.length)
+        }
+        avgFrequency = Math.max(1, avgFrequency)
+
+        const cyclesMissed = daysSinceLast / avgFrequency
+
+        // Risk level
+        let risk = 'low'
+        if (cyclesMissed >= 5) risk = 'critical'
+        else if (cyclesMissed >= 3) risk = 'high'
+        else if (cyclesMissed >= 2) risk = 'medium'
+
+        // Adjust for remarks
+        const latestRemark = remarkMap[c.id]
+        if (latestRemark?.remark_type === 'wont_purchase' || latestRemark?.remark_type === 'shifted') {
+          risk = 'critical'
+        } else if (latestRemark?.remark_type === 'vacation' || latestRemark?.remark_type === 'has_water') {
+          risk = risk === 'critical' ? 'high' : risk === 'high' ? 'medium' : 'low'
+        }
+
+        // Adjust for competitor bottles
+        const otherBrands = Number(c.other_brand_bottles_held || 0)
+        if (otherBrands > 0 && risk === 'medium') risk = 'high'
+        if (otherBrands > 2 && risk === 'high') risk = 'critical'
+
+        const bottleExposure = Number(c.our_bottles_placed || 0) * cost
+
+        churnData.push({
+          ...c, daysSinceLast, avgFrequency,
+          cyclesMissed: Math.round(cyclesMissed * 10) / 10,
+          risk, lastDelDate, latestRemark,
+          bottleExposure, otherBrands,
+          pattern: avgFrequency === 1 ? 'Daily' : avgFrequency <= 3 ? `Every ${avgFrequency} days` : avgFrequency <= 7 ? 'Weekly' : avgFrequency <= 14 ? 'Fortnightly' : 'Monthly',
+        })
+      }
+
+      churnData.sort((a, b) => {
+        const riskOrder = { critical: 0, high: 1, medium: 2, low: 3 }
+        return riskOrder[a.risk] - riskOrder[b.risk] || b.daysSinceLast - a.daysSinceLast
+      })
+
+      // Summary stats
+      const totalBottleExposure = churnData.reduce((s, c) => s + c.bottleExposure, 0)
+      const riskCounts = { critical: 0, high: 0, medium: 0, low: 0 }
+      churnData.forEach(c => riskCounts[c.risk]++)
+
+      setData({ churnData, totalBottleExposure, riskCounts, cost })
+    } catch (err) {
+      console.error('ChurnRisk error:', err)
+    }
+    setLoading(false)
+  }
+
+  const RISK_CONFIG = {
+    low:      { color: '#1a7a4a', bg: '#e8f5e9', border: '#86efac', label: '🟢 Low Risk',      urdu: 'کم خطرہ' },
+    medium:   { color: '#b45309', bg: '#fff8e1', border: '#fde68a', label: '🟡 Medium Risk',   urdu: 'درمیانہ خطرہ' },
+    high:     { color: '#c2410c', bg: '#fff3e0', border: '#fdba74', label: '🟠 High Risk',     urdu: 'زیادہ خطرہ' },
+    critical: { color: '#c62828', bg: '#ffebee', border: '#fca5a5', label: '🔴 Critical',      urdu: 'انتہائی خطرناک' },
+  }
+
+  const REMARK_LABELS = {
+    not_home: '🏠 Not at Home', has_water: '💧 Has Water', wont_purchase: '🚫 Won\'t Buy',
+    shifted: '🏚️ Shifted', vacation: '✈️ Vacation', no_response: '📵 No Response',
+    office_closed: '🏢 Office Closed', other: '💬 Other',
+  }
+
+  const filtered = (data?.churnData || []).filter(c => {
+    if (filter !== 'all' && c.daysSinceLast < Number(filter)) return false
+    if (riskFilter !== 'all' && c.risk !== riskFilter) return false
+    if (search && !c.full_name?.toLowerCase().includes(search.toLowerCase()) && !c.mobile?.includes(search)) return false
+    return true
+  })
+
+  const totalBottleRisk = filtered.reduce((s, c) => s + c.bottleExposure, 0)
+
+  if (loading) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <p style={{ fontSize: 32, margin: '0 0 12px' }}>📋</p>
+      <p style={{ color: '#888', fontSize: 14 }}>Analysing customer churn risk...</p>
+    </div>
+  )
+
+  return (
+    <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+
+      {/* Header */}
+      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 12, padding: '18px 22px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: '0 0 3px' }}>📋 Customer Churn Risk</p>
+          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0 }}>Customers who stopped ordering · Bottle recovery · Competitor tracking</p>
+        </div>
+        <button onClick={fetchData} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
+      </div>
+
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 16 }}>
+        {[
+          { label: 'Critical', labelUr: 'انتہائی خطرناک', value: data?.riskCounts.critical || 0, color: '#c62828', bg: '#ffebee', isCount: true },
+          { label: 'High Risk', labelUr: 'زیادہ خطرہ', value: data?.riskCounts.high || 0, color: '#c2410c', bg: '#fff3e0', isCount: true },
+          { label: 'Medium Risk', labelUr: 'درمیانہ', value: data?.riskCounts.medium || 0, color: '#b45309', bg: '#fff8e1', isCount: true },
+          { label: 'Bottle Exposure', labelUr: 'بوتلوں کی مالیت', value: `Rs. ${(data?.totalBottleExposure || 0).toLocaleString()}`, color: '#0f4c81', bg: '#e3f0ff', isCount: false },
+        ].map(c => (
+          <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
+            <p style={{ fontSize: 10, color: '#888', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+            <p dir="rtl" style={{ fontSize: 9, color: '#aaa', margin: '0 0 4px', fontFamily: 'serif' }}>{c.labelUr}</p>
+            <p style={{ fontSize: c.isCount ? 22 : 15, fontWeight: 800, color: c.color, margin: 0 }}>{c.isCount ? c.value + ' customers' : c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Days missed:</span>
+        {[{ k: 'all', l: 'All' }, { k: '7', l: '7+ days' }, { k: '15', l: '15+ days' }, { k: '30', l: '30+ days' }].map(f => (
+          <button key={f.k} onClick={() => setFilter(f.k)}
+            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+        ))}
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#555', marginLeft: 8 }}>Risk:</span>
+        {[{ k: 'all', l: 'All' }, { k: 'critical', l: '🔴 Critical' }, { k: 'high', l: '🟠 High' }, { k: 'medium', l: '🟡 Medium' }, { k: 'low', l: '🟢 Low' }].map(f => (
+          <button key={f.k} onClick={() => setRiskFilter(f.k)}
+            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              background: riskFilter === f.k ? '#0f4c81' : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 Search customer name or mobile..."
+        style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
+
+      {/* Results count */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+        <p style={{ fontSize: 13, color: '#555', margin: 0, fontWeight: 600 }}>{filtered.length} customers at risk</p>
+        {totalBottleRisk > 0 && <p style={{ fontSize: 13, color: '#c62828', margin: 0, fontWeight: 700 }}>🚨 Bottle exposure: Rs. {totalBottleRisk.toLocaleString()}</p>}
+      </div>
+
+      {/* Customer List */}
+      {filtered.length === 0 ? (
+        <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <p style={{ fontSize: 40, margin: '0 0 12px' }}>✅</p>
+          <p style={{ fontWeight: 700, color: '#1a7a4a', fontSize: 15, margin: '0 0 4px' }}>No customers at risk!</p>
+          <p style={{ color: '#888', fontSize: 13, margin: 0 }}>All customers are ordering regularly</p>
+        </div>
+      ) : filtered.map(c => {
+        const rc = RISK_CONFIG[c.risk]
+        return (
+          <div key={c.id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', marginBottom: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${rc.color}`, border: `1px solid ${rc.border}` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                {/* Name + Risk Badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                  <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>{c.full_name}</p>
+                  <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: rc.bg, color: rc.color }}>{rc.label}</span>
+                  {c.otherBrands > 0 && <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#f3e5f5', color: '#7b1fa2' }}>⚠️ {c.otherBrands} competitor bottle{c.otherBrands > 1 ? 's' : ''}</span>}
+                </div>
+
+                {/* Details row */}
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                  <p style={{ fontSize: 12, color: '#888', margin: 0 }}>📱 {c.mobile || '—'}</p>
+                  <p style={{ fontSize: 12, color: '#888', margin: 0 }}>🔄 {c.pattern}</p>
+                  <p style={{ fontSize: 12, color: '#888', margin: 0 }}>📅 Last order: {new Date(c.lastDelDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: rc.color, margin: 0 }}>⏰ {c.daysSinceLast} days ago ({c.cyclesMissed} cycles missed)</p>
+                </div>
+
+                {/* Latest remark */}
+                {c.latestRemark && (
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', background: '#f8f9fa', borderRadius: 6 }}>
+                    <span style={{ fontSize: 11, color: '#555' }}>Latest remark:</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#0f4c81' }}>{REMARK_LABELS[c.latestRemark.remark_type] || c.latestRemark.remark_type}</span>
+                    {c.latestRemark.remark_text && <span style={{ fontSize: 11, color: '#888' }}>— {c.latestRemark.remark_text}</span>}
+                    <span style={{ fontSize: 10, color: '#aaa' }}>{new Date(c.latestRemark.visit_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Right side — bottles + actions */}
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                {c.our_bottles_placed > 0 && (
+                  <div style={{ marginBottom: 8 }}>
+                    <p style={{ fontSize: 11, color: '#888', margin: '0 0 2px' }}>Our bottles at customer</p>
+                    <p style={{ fontSize: 16, fontWeight: 800, color: '#0f4c81', margin: '0 0 1px' }}>{c.our_bottles_placed} bottles</p>
+                    <p style={{ fontSize: 11, color: '#c62828', margin: 0, fontWeight: 600 }}>Rs. {c.bottleExposure.toLocaleString()} at risk</p>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                  {c.mobile && (
+                    <a href={`tel:${c.mobile}`}
+                      style={{ padding: '6px 12px', background: '#e3f0ff', color: '#0f4c81', borderRadius: 6, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                      📞 Call
+                    </a>
+                  )}
+                  {c.mobile && (
+                    <a href={(() => {
+                      const phone = c.mobile.replace(/^0/, '92').replace(/[-\s]/g, '')
+                      const msgEn = `Dear ${c.full_name}, we noticed you haven't ordered water recently. Please let us know if you need delivery. Thank you!`
+                      const msgUr = `${c.full_name} صاحب، آپ کی طرف سے کچھ دنوں سے پانی کا آرڈر نہیں آیا۔ کیا آپ کو ڈیلیوری چاہیے؟ شکریہ`
+                      const msg = encodeURIComponent(`${msgUr}\n\n${msgEn}`)
+                      return `https://wa.me/${phone}?text=${msg}`
+                    })()} target="_blank" rel="noreferrer"
+                      style={{ padding: '6px 12px', background: '#e8f5e9', color: '#1a7a4a', borderRadius: 6, fontSize: 12, fontWeight: 700, textDecoration: 'none' }}>
+                      💬 WhatsApp
+                    </a>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function BulkWhatsAppShare({ tenantId }) {
   const [customers, setCustomers] = useState([])
   const [selected, setSelected] = useState({})
