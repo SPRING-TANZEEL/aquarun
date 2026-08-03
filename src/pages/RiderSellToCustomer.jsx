@@ -18,21 +18,28 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [cashReceived, setCashReceived] = useState('')
   const [bizSettings, setBizSettings] = useState({})
   const [bottlesReturned, setBottlesReturned] = useState(0)
+  const [otherBrandsCollected, setOtherBrandsCollected] = useState(0)
+  const [hasChurnIntelligence, setHasChurnIntelligence] = useState(false)
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [step, setStep] = useState(1)
 
   // Products from DB
-  const [bottleProducts, setBottleProducts] = useState([]) // half_litre, 1_5l
-  const [extraProducts, setExtraProducts] = useState([])   // trading items
-  const [quantities, setQuantities] = useState({})
+  const [bottleProducts, setBottleProducts] = useState([])
+  const [extraProducts, setExtraProducts]   = useState([])
+  const [quantities, setQuantities]         = useState({})
 
   // Payment receipt state
-  const [paySearch, setPaySearch] = useState('')
+  const [paySearch, setPaySearch]   = useState('')
   const [payResults, setPayResults] = useState([])
   const [payCustomer, setPayCustomer] = useState(null)
-  const [payAmount, setPayAmount] = useState('')
-  const [payMethod, setPayMethod] = useState('cash')
+  const [payAmount, setPayAmount]   = useState('')
+  const [payMethod, setPayMethod]   = useState('cash')
+  const [payNotes, setPayNotes]     = useState('')
+  const [paySuccess, setPaySuccess] = useState(null)
+  const [paySaving, setPaySaving]   = useState(false)
+
+  function t(en, ur) { return lang === 'ur' ? ur : en }
 
   useEffect(() => {
     if (!tenantId) return
@@ -41,29 +48,21 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       data?.forEach(s => { map[s.setting_key] = s.setting_value })
       setBizSettings(map)
     })
-  }, [tenantId])
-  const [payNotes, setPayNotes] = useState('')
-  const [paySuccess, setPaySuccess] = useState(null)
-  const [paySaving, setPaySaving] = useState(false)
-
-  function t(en, ur) { return lang === 'ur' ? ur : en }
-
-  useEffect(() => {
-    if (tenantId) {
-      fetchProducts()
-      fetchAndCacheCustomers()
-    }
+    supabase.from('tenants').select('has_churn_intelligence').eq('id', tenantId).maybeSingle().then(({ data }) => {
+      setHasChurnIntelligence(data?.has_churn_intelligence || false)
+    })
   }, [tenantId])
 
   useEffect(() => {
-    // Load cached customers when going offline
+    if (tenantId) { fetchProducts(); fetchAndCacheCustomers() }
+  }, [tenantId])
+
+  useEffect(() => {
     if (!isOnline) {
       try {
         const cached = localStorage.getItem('cached_customers_' + tenantId)
         if (cached) setCustomers(JSON.parse(cached))
-      } catch (err) {
-        console.error('Cache parse error:', err)
-      }
+      } catch (err) { console.error('Cache parse error:', err) }
     } else {
       fetchAndCacheCustomers()
     }
@@ -92,7 +91,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const { data } = await supabase.from('products')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true).eq('is_saleable', true).order('name')
     const bottle = (data || []).filter(p => p.bottle_type === 'half_litre' || p.bottle_type === '1_5l')
-    const extra = (data || []).filter(p => !p.bottle_type)
+    const extra  = (data || []).filter(p => !p.bottle_type)
     setBottleProducts(bottle)
     setExtraProducts(extra)
     const q = {}
@@ -103,7 +102,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   async function searchCustomer(val) {
     setSearch(val)
     if (val.length < 2) { setSearchResults([]); return }
-
     if (!isOnline) {
       const filtered = (customers || []).filter(c =>
         c.full_name?.toLowerCase().includes(val.toLowerCase()) ||
@@ -113,7 +111,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       setSearchResults(filtered)
       return
     }
-
     const { data } = await supabase.from('customer_balances')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true)
       .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
@@ -138,12 +135,19 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setPayResults(data || [])
   }
 
-  function selectCustomer(c) {
+  async function selectCustomer(c) {
+    // Fetch other_brand_bottles_held separately as it's not in customer_balances view
+    if (isOnline) {
+      const { data: custExtra } = await supabase.from('customers')
+        .select('other_brand_bottles_held').eq('id', c.id).maybeSingle()
+      c = { ...c, other_brand_bottles_held: custExtra?.other_brand_bottles_held || 0 }
+    }
     setSelectedCustomer(c)
     setSelectedRate(c.rate_19l || 100)
     setSearch('')
     setSearchResults([])
     setBottlesReturned(0)
+    setOtherBrandsCollected(0)
     setStep(2)
   }
 
@@ -165,24 +169,24 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
   function totalAmount() {
     const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * getBottleRate(p), 0)
-    const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
-    const subTotal = (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
-    const taxRate = selectedCustomer?.is_tax_applicable ? Number(selectedCustomer?.tax_rate || 16) : 0
-    const taxAmount = Math.round(subTotal * taxRate / 100)
+    const extraTotal  = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+    const subTotal    = (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
+    const taxRate     = selectedCustomer?.is_tax_applicable ? Number(selectedCustomer?.tax_rate || 16) : 0
+    const taxAmount   = Math.round(subTotal * taxRate / 100)
     return subTotal + taxAmount
   }
 
   function taxAmount() {
     const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * getBottleRate(p), 0)
-    const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
-    const subTotal = (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
-    const taxRate = selectedCustomer?.is_tax_applicable ? Number(selectedCustomer?.tax_rate || 16) : 0
+    const extraTotal  = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+    const subTotal    = (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
+    const taxRate     = selectedCustomer?.is_tax_applicable ? Number(selectedCustomer?.tax_rate || 16) : 0
     return Math.round(subTotal * taxRate / 100)
   }
 
   function subTotal() {
     const bottleTotal = bottleProducts.reduce((s, p) => s + (quantities[p.id] || 0) * getBottleRate(p), 0)
-    const extraTotal = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
+    const extraTotal  = extraProducts.reduce((s, p) => s + (quantities[p.id] || 0) * Number(p.sale_price || 0), 0)
     return (qty19l * (selectedRate || 0)) + bottleTotal + extraTotal
   }
 
@@ -192,62 +196,50 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     if (!payAmount || Number(payAmount) <= 0) return alert('Please enter payment amount')
     setPaySaving(true)
 
-    const amount = Number(payAmount)
-    const isJazz = payMethod === 'jazzcash'
+    const amount  = Number(payAmount)
+    const isJazz  = payMethod === 'jazzcash'
+    const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(payMethod)
 
     if (!isOnline) {
-      // Save payment to localStorage for later sync
       const offlinePayments = JSON.parse(localStorage.getItem('offline_payments_' + tenantId) || '[]')
       offlinePayments.push({
-        tenant_id: tenantId,
-        customer_id: payCustomer.id,
-        rider_id: rider.id,
-        amount,
-        payment_method: payMethod,
+        tenant_id: tenantId, customer_id: payCustomer.id, rider_id: rider.id,
+        amount, payment_method: payMethod,
         payment_date: new Date().toISOString().split('T')[0],
-        jazzcash_confirmed: !['jazzcash', 'easypaisa', 'bank'].includes(payMethod),
+        jazzcash_confirmed: !isPending,
         notes: payNotes || `Payment received by rider ${rider.full_name}`,
         is_voided: false,
-        _offlineId: 'offline-' + Date.now(),
-        _savedAt: new Date().toISOString()
+        _offlineId: 'offline-' + Date.now(), _savedAt: new Date().toISOString()
       })
       localStorage.setItem('offline_payments_' + tenantId, JSON.stringify(offlinePayments))
-
-      // Update cached customer balance
-      if (payMethod !== 'jazzcash') {
+      if (!isPending) {
         const cached = JSON.parse(localStorage.getItem('cached_customers_' + tenantId) || '[]')
         const updated = cached.map(c => c.id === payCustomer.id ? { ...c, balance: Number(c.balance || 0) - amount } : c)
         localStorage.setItem('cached_customers_' + tenantId, JSON.stringify(updated))
         setCustomers(updated)
       }
-
-      setPaySuccess({ name: payCustomer.full_name, amount, method: payMethod, newBalance: Number(payCustomer.balance || 0) - amount, jazzPending: payMethod === 'jazzcash', savedOffline: true })
+      setPaySuccess({ name: payCustomer.full_name, amount, method: payMethod, newBalance: Number(payCustomer.balance || 0) - amount, jazzPending: isPending, savedOffline: true })
       setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
       setPaySaving(false)
       return
     }
 
     const { data: savedPayment, error } = await supabase.from('payments').insert([{
-      tenant_id: tenantId,
-      customer_id: payCustomer.id,
-      rider_id: rider.id,
-      amount,
-      payment_method: payMethod,
+      tenant_id: tenantId, customer_id: payCustomer.id, rider_id: rider.id,
+      amount, payment_method: payMethod,
       payment_date: new Date().toISOString().split('T')[0],
-      jazzcash_confirmed: !isJazz && payMethod !== 'easypaisa' && payMethod !== 'bank',
+      jazzcash_confirmed: !isPending,
       notes: payNotes || `Payment received by rider ${rider.full_name}`,
       is_voided: false
     }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setPaySaving(false); return }
 
-    if (!isJazz) {
-      // Cash — reduce customer balance immediately
+    if (!isPending) {
       const newBalance = Number(payCustomer.balance || 0) - amount
       await supabase.from('customers').update({ balance: newBalance }).eq('id', payCustomer.id).eq('tenant_id', tenantId)
     }
 
-    // Post journal — isRiderEntry=true → DR 1101 Receivable from Riders (cash) or DR 1102 Clearing (jazz)
     try {
       const { postPaymentJournal } = AccountingEngine
       await postPaymentJournal(savedPayment, tenantId, true)
@@ -255,8 +247,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
     setPaySuccess({
       name: payCustomer.full_name, amount, method: payMethod,
-      newBalance: !isJazz ? Number(payCustomer.balance || 0) - amount : payCustomer.balance,
-      jazzPending: isJazz
+      newBalance: !isPending ? Number(payCustomer.balance || 0) - amount : payCustomer.balance,
+      jazzPending: isPending
     })
     setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
     setPaySaving(false)
@@ -278,8 +270,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     }
 
     setSaving(true)
-    const isCash = paymentMethod === 'cash'
-    const isJazz = paymentMethod === 'jazzcash'
+    const isCash   = paymentMethod === 'cash'
+    const isJazz   = paymentMethod === 'jazzcash'
     const isCredit = paymentMethod === 'credit'
     const received = isCash ? Number(cashReceived) : 0
     const creditPortion = isCredit ? total : isCash ? (total - received) : 0
@@ -315,7 +307,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       is_voided: false,
       delivery_lat: deliveryLat,
       delivery_lng: deliveryLng,
-      bottles_returned: bottlesReturned
+      bottles_returned: bottlesReturned,
+      other_brand_bottles: otherBrandsCollected,
     }
 
     if (isOnline) {
@@ -326,10 +319,16 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         await supabase.from('customers').update({ balance: Number(selectedCustomer.balance) + creditPortion }).eq('id', selectedCustomer.id)
       }
 
-      // Update bottles placed
-      const currentBottles = Number(selectedCustomer.our_bottles_placed || 0)
+      // Update bottles placed — our bottles and other brand bottles
+      const currentBottles      = Number(selectedCustomer.our_bottles_placed || 0)
+      const currentOtherBrands  = Number(selectedCustomer.other_brand_bottles_held || 0)
+      const newOurBottles       = Math.max(0, currentBottles + qty19l - bottlesReturned)
+      const newOtherBrandsHeld  = Math.max(0, currentOtherBrands - otherBrandsCollected)
       await supabase.from('customers')
-        .update({ our_bottles_placed: Math.max(0, currentBottles + qty19l - bottlesReturned) })
+        .update({
+          our_bottles_placed: newOurBottles,
+          other_brand_bottles_held: newOtherBrandsHeld,
+        })
         .eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
 
       // Deduct stock + COGS for all sold products
@@ -340,7 +339,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           .update({ current_stock: Math.max(0, Number(p.current_stock || 0) - qtySold) })
           .eq('id', p.id).eq('tenant_id', tenantId)
         if (p.product_type === 'finished_good' || p.product_type === 'trading') {
-          const avgCost = Number(p.average_cost || p.purchase_price || 0)
+          const avgCost  = Number(p.average_cost || p.purchase_price || 0)
           const cogsCost = qtySold * avgCost
           if (cogsCost > 0) {
             try {
@@ -352,10 +351,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               if (je) {
                 const saleAmount = Number(p.selling_price || p.unit_cost || 0) * qtySold
                 await supabase.from('journal_entry_lines').insert([
-                  // COGS entry
                   { tenant_id: tenantId, journal_entry_id: je.id, account_code: '5003', account_name: 'Cost of Goods Sold', debit: cogsCost, credit: 0 },
                   { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost },
-                  // Revenue entry
                   { tenant_id: tenantId, journal_entry_id: je.id, account_code: '1001', account_name: 'Cash in Hand', debit: saleAmount, credit: 0 },
                   { tenant_id: tenantId, journal_entry_id: je.id, account_code: '4004', account_name: 'Other Product Sales', debit: 0, credit: saleAmount },
                 ])
@@ -365,7 +362,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         }
       }
 
-      // Save line items to delivery_items
+      // Save line items
       const sellItems = []
       if (qty19l > 0) sellItems.push({
         tenant_id: tenantId, delivery_id: savedDelivery.id,
@@ -376,28 +373,17 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       bottleProducts.forEach(p => {
         if ((quantities[p.id] || 0) > 0) {
           const rate = getBottleRate(p)
-          sellItems.push({
-            tenant_id: tenantId, delivery_id: savedDelivery.id,
-            product_id: p.id, product_name: p.name,
-            bottle_type: p.bottle_type, qty: quantities[p.id],
-            rate, amount: quantities[p.id] * rate
-          })
+          sellItems.push({ tenant_id: tenantId, delivery_id: savedDelivery.id, product_id: p.id, product_name: p.name, bottle_type: p.bottle_type, qty: quantities[p.id], rate, amount: quantities[p.id] * rate })
         }
       })
       extraProducts.forEach(p => {
         if ((quantities[p.id] || 0) > 0) {
           const rate = Number(p.sale_price || 0)
-          sellItems.push({
-            tenant_id: tenantId, delivery_id: savedDelivery.id,
-            product_id: p.id, product_name: p.name,
-            bottle_type: null, qty: quantities[p.id],
-            rate, amount: quantities[p.id] * rate
-          })
+          sellItems.push({ tenant_id: tenantId, delivery_id: savedDelivery.id, product_id: p.id, product_name: p.name, bottle_type: null, qty: quantities[p.id], rate, amount: quantities[p.id] * rate })
         }
       })
       if (sellItems.length > 0) await supabase.from('delivery_items').insert(sellItems)
 
-      // Post delivery journal — isRiderEntry=true → DR 1101 Receivable from Riders
       try {
         const { postDeliveryJournal } = AccountingEngine
         await postDeliveryJournal(savedDelivery, selectedCustomer.id, tenantId, true)
@@ -408,8 +394,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         const year = new Date().getFullYear()
         const counterKey = `invoice_counter_${year}`
         const { data: counterRows } = await supabase.from('business_settings')
-        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey)
-      const counter = Number(counterRows?.[0]?.setting_value || 0) + 1
+          .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey)
+        const counter = Number(counterRows?.[0]?.setting_value || 0) + 1
         const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
         const code = tenantData?.tenant_code || 'INV'
         const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
@@ -420,7 +406,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
       } catch (err) { console.error('Invoice number error:', err) }
 
-      // Save GPS to customer on first delivery
+      // Save GPS on first delivery
       if (deliveryLat && deliveryLng) {
         const { data: cust } = await supabase.from('customers')
           .select('latitude, longitude').eq('id', selectedCustomer.id).eq('tenant_id', tenantId).single()
@@ -439,8 +425,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, bottlesReturned, savedOffline: !isOnline })
     setSelectedCustomer(null)
     setQty19l(1); setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
-    setBottlesReturned(0); setStep(1)
-    // Reset product quantities
+    setBottlesReturned(0); setOtherBrandsCollected(0); setStep(1)
     const q = {}; [...bottleProducts, ...extraProducts].forEach(p => { q[p.id] = 0 }); setQuantities(q)
     await fetchProducts()
     if (onClearPreSelected) onClearPreSelected()
@@ -531,8 +516,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   <p style={{ fontWeight: '700', fontSize: '15px', margin: '0 0 2px', color: '#0f4c81' }}>{payCustomer.full_name}</p>
                   <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>{payCustomer.mobile}</p>
                   {payCustomer.address && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px' }}>📍 {payCustomer.address}</p>}
-                  <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(payCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}></p>
-                  <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(payCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}></p>
                   <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(payCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}>
                     {t('Outstanding', 'باقی')}: Rs. {Math.abs(Number(payCustomer.balance || 0)).toLocaleString()}
                     {Number(payCustomer.balance) <= 0 && ' ✅'}
@@ -547,184 +530,168 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   placeholder={t('Name, mobile or customer ID...', 'نام، موبائل یا ID...')}
                   style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
                 {payResults.map(c => (
-                  <div key={c.id} onClick={() => { setPayCustomer(c); setPayResults([]); setPaySearch(''); if (c.balance > 0) setPayAmount(String(c.balance)) }}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}>
-                    <div>
-                      <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{c.full_name}</p>
-                      <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile}</p>
-                    </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <p style={{ fontSize: '14px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: 0 }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
-                      <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{Number(c.balance) > 0 ? t('owes', 'باقی') : t('advance', 'ایڈوانس')}</p>
-                    </div>
+                  <div key={c.id} onClick={() => { setPayCustomer(c); setPaySearch(''); setPayResults([]) }}
+                    style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', background: 'white' }}>
+                    <p style={{ fontWeight: '700', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
+                    <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · Balance: Rs. {Number(c.balance || 0).toLocaleString()}</p>
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Payment Method */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Payment Method', 'ادائیگی کا طریقہ')}</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              {[
-                { key: 'cash', label: t('نقد Cash', 'نقد'), sublabel: t('Cash — goes to rider', 'نقد — رائیڈر کے پاس'), color: '#1a7a4a' },
-                { key: 'jazzcash', label: t('جیز کیش', 'جیز کیش'), sublabel: t('JazzCash — goes to admin', 'جیز کیش — ایڈمن کو'), color: '#9c27b0' },
-                ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: t('ایزی پیسہ', 'ایزی پیسہ'), sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
-                ...(bizSettings?.bank_name ? [{ key: 'bank', label: t('بینک', 'بینک'), sublabel: 'Bank Transfer', color: '#0f4c81' }] : []),
-              ].map(pm => (
-                <button key={pm.key} onClick={() => setPayMethod(pm.key)}
-                  style={{ flex: 1, padding: '14px 8px', border: '2px solid', borderColor: payMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: payMethod === pm.key ? pm.color : 'white', color: payMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                  <span>{pm.label}</span>
-                  <span style={{ fontSize: '10px', opacity: 0.8, textAlign: 'center' }}>{pm.sublabel}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Amount */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Amount Received (Rs.)', 'موصول شدہ رقم (Rs.)')}</p>
-            <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)} placeholder="0"
-              style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '28px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333', caretColor: '#0f4c81' }} />
-            {payCustomer && Number(payCustomer.balance) > 0 && (
-              <button onClick={() => setPayAmount(String(payCustomer.balance))}
-                style={{ marginTop: '8px', width: '100%', padding: '8px', background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#0f4c81', fontWeight: '600' }}>
-                {t('Full Balance', 'پورا بیلنس')}: Rs. {Number(payCustomer.balance).toLocaleString()}
-              </button>
-            )}
-          </div>
-
-          {/* Notes */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>{t('Notes (optional)', 'نوٹس (اختیاری)')}</p>
-            <input value={payNotes} onChange={e => setPayNotes(e.target.value)} placeholder={t('e.g. Monthly payment...', 'مثلاً ماہانہ ادائیگی...')}
-              style={{ width: '100%', padding: '10px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
-          </div>
-
-          {/* Submit */}
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            {payCustomer && payAmount && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', padding: '12px', background: '#f0f7ff', borderRadius: '8px' }}>
-                <span style={{ fontSize: '15px', fontWeight: '700', color: '#333' }}>{t('Amount', 'رقم')}</span>
-                <span style={{ fontSize: '28px', fontWeight: '800', color: '#0f4c81' }}>Rs. {Number(payAmount).toLocaleString()}</span>
+          {payCustomer && (
+            <div>
+              {/* Amount */}
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Amount', 'رقم')}</p>
+                <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
+                  placeholder="0"
+                  style={{ width: '100%', padding: '14px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333' }} />
+                {Number(payCustomer.balance) > 0 && (
+                  <button onClick={() => setPayAmount(String(payCustomer.balance))}
+                    style={{ marginTop: '8px', padding: '6px 14px', background: '#e3f0ff', border: '1px solid #c8d8ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
+                    {t('Full Balance', 'پوری رقم')}: Rs. {Number(payCustomer.balance).toLocaleString()}
+                  </button>
+                )}
               </div>
-            )}
-            <button onClick={receivePayment} disabled={paySaving}
-              style={{ width: '100%', padding: '16px', background: payMethod === 'cash' ? '#1a7a4a' : '#9c27b0', color: 'white', border: 'none', borderRadius: '10px', cursor: paySaving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700' }}>
-              {paySaving ? t('Saving...', 'محفوظ ہو رہا ہے...') : `✓ ${payMethod === 'cash' ? '💵 ' + t('Receive Cash', 'نقد وصول') : '📱 Record JazzCash'} — Rs. ${Number(payAmount || 0).toLocaleString()}`}
-            </button>
-          </div>
+
+              {/* Payment Method */}
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Payment Method', 'ادائیگی کا طریقہ')}</p>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'cash',      label: t('نقد', 'نقد'),       sublabel: 'Cash',      color: '#1a7a4a' },
+                    { key: 'jazzcash',  label: t('جیز کیش', 'جیز کیش'), sublabel: 'JazzCash',  color: '#9c27b0' },
+                    ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: t('ایزی پیسہ', 'ایزی پیسہ'), sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
+                    ...(bizSettings?.bank_name ? [{ key: 'bank', label: t('بینک', 'بینک'), sublabel: 'Bank', color: '#0f4c81' }] : []),
+                  ].map(pm => (
+                    <button key={pm.key} onClick={() => setPayMethod(pm.key)}
+                      style={{ flex: 1, padding: '10px 6px', border: '2px solid', borderColor: payMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: payMethod === pm.key ? pm.color : 'white', color: payMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                      <span>{pm.label}</span>
+                      <span style={{ fontSize: '10px', opacity: 0.8 }}>{pm.sublabel}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <input value={payNotes} onChange={e => setPayNotes(e.target.value)}
+                  placeholder={t('Notes (optional)', 'نوٹ (اختیاری)')}
+                  style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
+              </div>
+
+              <button onClick={receivePayment} disabled={paySaving}
+                style={{ width: '100%', padding: '14px', background: paySaving ? '#e0e0e0' : '#f59e0b', color: 'white', border: 'none', borderRadius: '10px', cursor: paySaving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700' }}>
+                {paySaving ? t('Saving...', 'محفوظ ہو رہا ہے...') : '✓ ' + t('Receive Payment', 'ادائیگی وصول کریں')}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* ── SELL TO CUSTOMER TAB ── */}
       {subTab === 'customer' && (
         <div>
-          {!isOnline && (
-            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
-              <p style={{ fontSize: '12px', color: '#ea580c', fontWeight: '600', margin: 0 }}>📵 {t('Offline — sale will sync when internet is available', 'آف لائن — انٹرنیٹ آنے پر مطابق ہوگا')}</p>
-            </div>
-          )}
-
           {success && (
             <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
-              <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ {t('Sale Complete!', 'فروخت مکمل!')}</p>
-              <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Rs. {success.total.toLocaleString()}</p>
-              {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{t('Cash', 'نقد')}: Rs. {success.received.toLocaleString()}</p>}
-              {success.creditPortion > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: '0 0 2px' }}>{t('Credit', 'ادھار')}: Rs. {success.creditPortion.toLocaleString()}</p>}
+              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ {t('Sale Complete!', 'فروخت مکمل!')}</p>
+              <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.customer}</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>Rs. {success.total.toLocaleString()} — {success.paymentMethod}</p>
               {success.bottlesReturned > 0 && <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>🫙 {success.bottlesReturned} {t('empty bottles returned', 'خالی بوتلیں واپس')}</p>}
-              {success.savedOffline && <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>📵 {t('Saved offline — will sync later', 'آف لائن محفوظ — بعد میں مطابق ہوگا')}</p>}
+              {success.savedOffline && <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>📵 {t('Saved offline — will sync when online', 'آف لائن محفوظ — آن لائن ہونے پر سنک ہوگا')}</p>}
               <button onClick={() => setSuccess(null)}
                 style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
-                {t('New Sale', 'نئی فروخت')}
+                + {t('New Sale', 'نئی فروخت')}
               </button>
             </div>
           )}
 
-          {/* Step 1 — Search */}
           {step === 1 && (
-            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Search Customer', 'کسٹمر تلاش کریں')}</p>
-              <input value={search} onChange={e => searchCustomer(e.target.value)}
-                placeholder={t('Name, mobile or customer ID...', 'نام، موبائل یا ID...')}
-                style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
-              {(searchResults || []).map(c => (
-                <div key={c.id} onClick={() => selectCustomer(c)}
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}>
-                  <div>
-                    <p style={{ fontWeight: '600', fontSize: '14px', margin: '0 0 2px' }}>{c.full_name}</p>
-                    <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
-                    {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <p style={{ fontSize: '13px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#4caf50', margin: '0 0 2px' }}>
-                      Rs. {Math.abs(Number(c.balance)).toLocaleString()}
+            <div>
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Search Customer', 'کسٹمر تلاش کریں')}</p>
+                <input value={search} onChange={e => searchCustomer(e.target.value)}
+                  placeholder={t('Name, mobile or customer ID...', 'نام، موبائل یا ID...')}
+                  style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '15px', outline: 'none', boxSizing: 'border-box', color: '#333' }} />
+                {searchResults.map(c => (
+                  <div key={c.id} onClick={() => selectCustomer(c)}
+                    style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}>
+                    <p style={{ fontWeight: '700', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
+                    <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
+                      {c.mobile} · Rs. {Number(c.rate_19l || 0)}/bottle
+                      {Number(c.balance) > 0 && ` · Balance: Rs. ${Number(c.balance).toLocaleString()}`}
                     </p>
                     {Number(c.our_bottles_placed) > 0 && (
                       <p style={{ fontSize: '10px', color: '#e65100', margin: 0 }}>🫙 {c.our_bottles_placed} {t('bottles', 'بوتلیں')}</p>
                     )}
                   </div>
-                </div>
-              ))}
-              {!isOnline && customers.length === 0 && (
-                <p style={{ fontSize: '12px', color: '#aaa', textAlign: 'center', margin: '12px 0 0' }}>{t('No cached customers — please connect to internet first', 'پہلے انٹرنیٹ سے جڑیں')}</p>
-              )}
+                ))}
+              </div>
             </div>
           )}
 
-          {/* Step 2 — Sale Form */}
           {step === 2 && selectedCustomer && (
             <div>
-              {/* Customer header */}
-              <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 2px' }}>{selectedCustomer.full_name}</p>
-                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>{selectedCustomer.mobile} · {selectedCustomer.customer_code}</p>
-                  {selectedCustomer.address && <p style={{ fontSize: '11px', opacity: 0.7, margin: 0 }}>📍 {selectedCustomer.address}</p>}
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 2px' }}>{t('Balance', 'بیلنس')}</p>
-                  <p style={{ fontSize: '16px', fontWeight: '700', margin: '0 0 4px', color: selectedCustomer.balance > 0 ? '#ffcdd2' : '#c8e6c9' }}>
-                    Rs. {Number(selectedCustomer.balance || 0).toLocaleString()}
-                  </p>
-                  {Number(selectedCustomer.our_bottles_placed) > 0 && (
-                    <p style={{ fontSize: '11px', opacity: 0.8, margin: 0 }}>🫙 {selectedCustomer.our_bottles_placed} {t('our bottles', 'ہماری بوتلیں')}</p>
-                  )}
+              {/* Customer Header */}
+              <div style={{ background: '#0f4c81', color: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 4px' }}>{selectedCustomer.full_name}</p>
+                    <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>{selectedCustomer.mobile}</p>
+                    {selectedCustomer.address && <p style={{ fontSize: '11px', opacity: 0.7, margin: '0 0 4px' }}>📍 {selectedCustomer.address}</p>}
+                    {Number(selectedCustomer.our_bottles_placed) > 0 && (
+                      <p style={{ fontSize: '11px', opacity: 0.8, margin: 0 }}>🫙 {selectedCustomer.our_bottles_placed} {t('our bottles', 'ہماری بوتلیں')}</p>
+                    )}
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    {Number(selectedCustomer.balance) !== 0 && (
+                      <p style={{ fontSize: '14px', fontWeight: '700', margin: 0, color: Number(selectedCustomer.balance) > 0 ? '#ff8a80' : '#b9f6ca' }}>
+                        {Number(selectedCustomer.balance) > 0 ? t('Owes', 'واجب') : t('Advance', 'ایڈوانس')}: Rs. {Math.abs(Number(selectedCustomer.balance)).toLocaleString()}
+                      </p>
+                    )}
+                    <button onClick={() => { setStep(1); setSelectedCustomer(null); if (onClearPreSelected) onClearPreSelected() }}
+                      style={{ marginTop: '6px', padding: '4px 10px', background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', borderRadius: '6px', cursor: 'pointer', fontSize: '11px' }}>
+                      ← {t('Change', 'تبدیل')}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* 19L — hardcoded */}
+              {/* 19L Bottles */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '14px' }}>{t('Bottles', 'بوتلیں')}</p>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <p style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>19 {t('Litre', 'لیٹر')}</p>
-                  {numBtn(qty19l, setQty19l)}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: 0 }}>🫙 {t('19L Bottles', '19 لیٹر بوتلیں')}</p>
+                  {numBtn(qty19l, setQty19l, 0)}
                 </div>
+              </div>
 
-                {/* Bottle products from DB */}
-                {bottleProducts.map(p => {
-                  const rate = getBottleRate(p)
-                  if (rate <= 0 && (quantities[p.id] || 0) === 0) return null
-                  return (
-                    <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                      <p style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>{p.name}</p>
-                      {numBtn(quantities[p.id] || 0, v => setQuantities(q => ({ ...q, [p.id]: v })))}
-                    </div>
-                  )
-                })}
-
-                {/* Extra products */}
-                {extraProducts.filter(p => (quantities[p.id] || 0) > 0 || Number(p.sale_price) > 0).map(p => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              {/* Other bottle products */}
+              {bottleProducts.map(p => (
+                <div key={p.id} style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{p.name}</p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Rs. {p.sale_price} · {t('Stock', 'اسٹاک')}: {p.current_stock}</p>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: '0 0 2px' }}>{p.name}</p>
+                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Rs. {getBottleRate(p)}/unit</p>
                     </div>
                     {numBtn(quantities[p.id] || 0, v => setQuantities(q => ({ ...q, [p.id]: v })))}
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}
+
+              {/* Extra products */}
+              {extraProducts.map(p => (
+                <div key={p.id} style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: '0 0 2px' }}>{p.name}</p>
+                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Rs. {p.sale_price}/unit · Stock: {p.current_stock}</p>
+                    </div>
+                    {numBtn(quantities[p.id] || 0, v => setQuantities(q => ({ ...q, [p.id]: v })))}
+                  </div>
+                </div>
+              ))}
 
               {/* Empty Bottles Returned */}
               <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
@@ -749,6 +716,33 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   </div>
                 </div>
               </div>
+
+              {/* Other Brand Bottles Collected — Premium */}
+              {hasChurnIntelligence ? (
+                <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🔄 {t('Other Brand Bottles Collected', 'دوسرے برانڈ کی بوتلیں')}</p>
+                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{t('Competitor bottles collected from customer', 'گاہک سے دوسرے برانڈ کی بوتلیں واپس لی')}</p>
+                      {Number(selectedCustomer.other_brand_bottles_held || 0) > 0 && (
+                        <p style={{ fontSize: '11px', color: '#7b1fa2', margin: '3px 0 0' }}>⚠️ {t('Customer has', 'گاہک کے پاس')} {selectedCustomer.other_brand_bottles_held} {t('competitor bottles', 'دوسرے برانڈ کی بوتلیں')}</p>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button onClick={() => setOtherBrandsCollected(Math.max(0, otherBrandsCollected - 1))}
+                        style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
+                      <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: otherBrandsCollected > 0 ? '#0f4c81' : '#ccc' }}>{otherBrandsCollected}</span>
+                      <button onClick={() => setOtherBrandsCollected(otherBrandsCollected + 1)}
+                        style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 12, border: '1.5px dashed #ddd', textAlign: 'center' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>🔒 {t('Competitor Bottle Tracking', 'دوسرے برانڈ کی ٹریکنگ')}</p>
+                  <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>{t('Premium feature — contact admin to enable', 'پریمیم فیچر — فعال کرنے کے لیے ایڈمن سے رابطہ کریں')}</p>
+                </div>
+              )}
 
               {/* Rate for 19L */}
               {qty19l > 0 && (
@@ -779,11 +773,11 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>{t('Payment Method', 'ادائیگی کا طریقہ')}</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
                   {[
-                    { key: 'cash', label: t('نقد', 'نقد'), sublabel: t('Cash', 'Cash'), color: '#1a7a4a' },
-                    { key: 'jazzcash', label: t('جیز کیش', 'جیز کیش'), sublabel: 'JazzCash', color: '#9c27b0' },
+                    { key: 'cash',     label: t('نقد', 'نقد'),         sublabel: t('Cash', 'Cash'),     color: '#1a7a4a' },
+                    { key: 'jazzcash', label: t('جیز کیش', 'جیز کیش'), sublabel: 'JazzCash',             color: '#9c27b0' },
                     ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: t('ایزی پیسہ', 'ایزی پیسہ'), sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
                     ...(bizSettings?.bank_name ? [{ key: 'bank', label: t('بینک', 'بینک'), sublabel: 'Bank', color: '#0f4c81' }] : []),
-                    { key: 'credit', label: t('ادھار', 'ادھار'), sublabel: t('Credit', 'Credit'), color: '#f44336' },
+                    { key: 'credit',   label: t('ادھار', 'ادھار'),     sublabel: t('Credit', 'Credit'), color: '#f44336' },
                   ].map(pm => (
                     <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); setCashReceived('') }}
                       style={{ flex: 1, padding: '14px 8px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -838,7 +832,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 </div>
                 {!isOnline && <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>📵 {t('Will save offline', 'آف لائن محفوظ ہوگا')}</p>}
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => { setStep(1); setSelectedCustomer(null); setBottlesReturned(0); if (onClearPreSelected) onClearPreSelected() }}
+                  <button onClick={() => { setStep(1); setSelectedCustomer(null); setBottlesReturned(0); setOtherBrandsCollected(0); if (onClearPreSelected) onClearPreSelected() }}
                     style={{ flex: 1, padding: '14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
                     ← {t('Back', 'واپس')}
                   </button>
@@ -855,4 +849,3 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     </div>
   )
 }
-
