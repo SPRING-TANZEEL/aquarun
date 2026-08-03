@@ -4,6 +4,14 @@ import InvoiceModal from '../components/InvoiceModal'
 
 export default function Reports({ tenantId }) {
   const [activeTab, setActiveTab] = useState('daily')
+  const [hasPremiumReports, setHasPremiumReports] = useState(false)
+
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('tenants').select('has_premium_reports').eq('id', tenantId).maybeSingle().then(({ data }) => {
+      setHasPremiumReports(data?.has_premium_reports || false)
+    })
+  }, [tenantId])
   const tabs = [
     { key: 'daily', label: '💵 Cash Flow' },
     { key: 'ledger', label: '📒 Customer Ledger' },
@@ -38,8 +46,22 @@ export default function Reports({ tenantId }) {
       {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
       {activeTab === 'tax' && <SalesTaxReport tenantId={tenantId} />}
-      {activeTab === 'executive' && <ExecutiveSummary tenantId={tenantId} />}
-      {activeTab === 'churn' && <ChurnRisk tenantId={tenantId} />}
+      {activeTab === 'executive' && (hasPremiumReports
+        ? <ExecutiveSummary tenantId={tenantId} />
+        : <div style={{ background: 'white', borderRadius: 12, padding: 60, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: 40, margin: '0 0 12px' }}>🔒</p>
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#555', margin: '0 0 8px' }}>Premium Feature</p>
+            <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Executive Summary is available in the Premium Reports package. Contact your admin to upgrade.</p>
+          </div>
+      )}
+      {activeTab === 'churn' && (hasPremiumReports
+        ? <ChurnRisk tenantId={tenantId} />
+        : <div style={{ background: 'white', borderRadius: 12, padding: 60, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: 40, margin: '0 0 12px' }}>🔒</p>
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#555', margin: '0 0 8px' }}>Premium Feature</p>
+            <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Churn Risk Report is available in the Premium Reports package. Contact your admin to upgrade.</p>
+          </div>
+      )}
       {activeTab === 'collection' && <CollectionAnalysis tenantId={tenantId} />}
       {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
       {activeTab === 'custsales' && <CustomerSales tenantId={tenantId} />}

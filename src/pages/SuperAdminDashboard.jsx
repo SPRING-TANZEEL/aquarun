@@ -388,6 +388,11 @@ export default function SuperAdminDashboard({ onLogout }) {
                               onToggle={() => toggleFeature(t, 'has_churn_intelligence')}
                               icon="🔍" label="Churn Intelligence"
                             />
+                            <FeatureToggle
+                              active={t.has_premium_reports || false}
+                              onToggle={() => toggleFeature(t, 'has_premium_reports')}
+                              icon="📋" label="Premium Reports"
+                            />
                           </div>
                         </td>
 
