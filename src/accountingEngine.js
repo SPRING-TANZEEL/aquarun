@@ -142,9 +142,35 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
         lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
       }
     } else if (paymentMethod === 'jazzcash') {
-      lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: grandTotal })
+      if (cashReceived > 0) {
+        lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: cashReceived })
+      }
+      if (creditPortion > 0) {
+        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
+      }
+      if (cashReceived === 0 && creditPortion === 0) {
+        lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: grandTotal })
+      }
     } else if (paymentMethod === 'easypaisa') {
-      lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: grandTotal })
+      if (cashReceived > 0) {
+        lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: cashReceived })
+      }
+      if (creditPortion > 0) {
+        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
+      }
+      if (cashReceived === 0 && creditPortion === 0) {
+        lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: grandTotal })
+      }
+    } else if (paymentMethod === 'bank') {
+      if (cashReceived > 0) {
+        lines.push({ account_code: '1105', account_name: 'Bank Transfer Clearing - Pending', debit: cashReceived })
+      }
+      if (creditPortion > 0) {
+        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
+      }
+      if (cashReceived === 0 && creditPortion === 0) {
+        lines.push({ account_code: '1105', account_name: 'Bank Transfer Clearing - Pending', debit: grandTotal })
+      }
     } else if (paymentMethod === 'credit') {
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
