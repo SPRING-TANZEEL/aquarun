@@ -135,7 +135,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     setPayResults(data || [])
   }
 
-  async function selectCustomer(c) {
+  async function selectCustomer(customer) {
+    let c = customer
     // Fetch other_brand_bottles_held separately as it's not in customer_balances view
     if (isOnline) {
       const { data: custExtra } = await supabase.from('customers')
