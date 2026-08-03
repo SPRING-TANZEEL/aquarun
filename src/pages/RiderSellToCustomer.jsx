@@ -263,18 +263,19 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     if (qty19l > 0 && !selectedRate) return alert('Please select rate for 19L')
 
     const total = totalAmount()
-    if (paymentMethod === 'cash') {
-      const received = Number(cashReceived)
-      if (!cashReceived || received < 0) return alert('Please enter cash received')
-      if (received > total) return alert('Cash received cannot exceed total Rs. ' + total.toLocaleString())
+    if (!isCredit) {
+      const recv = Number(cashReceived) || 0
+      if (recv < 0) return alert('Amount received cannot be negative')
+      if (recv > total) return alert('Amount received cannot exceed total Rs. ' + total.toLocaleString())
     }
 
     setSaving(true)
     const isCash   = paymentMethod === 'cash'
     const isJazz   = paymentMethod === 'jazzcash'
     const isCredit = paymentMethod === 'credit'
-    const received = isCash ? Number(cashReceived) : 0
-    const creditPortion = isCredit ? total : isCash ? (total - received) : 0
+    const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
+    const received = isCredit ? 0 : Number(cashReceived) || 0
+    const creditPortion = isCredit ? total : Math.max(0, total - received)
     const now = new Date().toISOString()
 
     let deliveryLat = null, deliveryLng = null
@@ -300,7 +301,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       tax_amount: tax,
       total_with_tax: total,
       payment_method: paymentMethod,
-      amount_received: isJazz ? 0 : received,
+      amount_received: isPending ? 0 : received,
       credit_amount: creditPortion,
       jazzcash_confirmed: false,
       delivered_at: now,
@@ -761,13 +762,15 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   ))}
                 </div>
 
-                {paymentMethod === 'cash' && total > 0 && (
+                {paymentMethod && paymentMethod !== 'credit' && total > 0 && (
                   <div style={{ marginTop: '14px', background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                       <span style={{ fontSize: '13px', color: '#555' }}>{t('Total', 'کل')}</span>
                       <span style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81' }}>Rs. {total.toLocaleString()}</span>
                     </div>
-                    <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>{t('Cash Received', 'موصول نقد')}</label>
+                    <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
+                      {isCash ? t('Cash Received', 'موصول نقد') : t('Amount Received (partial allowed)', 'موصول رقم (جزوی ممکن ہے)')}
+                    </label>
                     <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)}
                       placeholder={total.toString()}
                       style={{ width: '100%', padding: '12px', border: '2px solid #c8e0ff', borderRadius: '8px', fontSize: '20px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333' }} />
@@ -778,7 +781,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     {cashReceived && cashReceivedNum < total && cashReceivedNum >= 0 && (
                       <div style={{ marginTop: '10px', padding: '10px', background: '#ffebee', borderRadius: '8px', border: '1px solid #ffcdd2' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                          <span style={{ fontSize: '13px', color: '#c62828', fontWeight: '600' }}>{t('Credit Portion', 'ادھار حصہ')}</span>
+                          <span style={{ fontSize: '13px', color: '#c62828', fontWeight: '600' }}>{t('Remaining (Credit)', 'باقی ادھار')}</span>
                           <span style={{ fontSize: '14px', fontWeight: '700', color: '#c62828' }}>Rs. {(total - cashReceivedNum).toLocaleString()}</span>
                         </div>
                         <p style={{ fontSize: '11px', color: '#e57373', margin: '4px 0 0' }}>{t('Will be added to customer balance', 'گاہک کے بیلنس میں شامل ہوگا')}</p>
@@ -787,6 +790,11 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     {cashReceived && cashReceivedNum >= total && (
                       <div style={{ marginTop: '10px', padding: '8px 10px', background: '#e8f5e9', borderRadius: '8px' }}>
                         <p style={{ fontSize: '12px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>✅ {t('Full payment received', 'پوری ادائیگی موصول')}</p>
+                      </div>
+                    )}
+                    {!cashReceived && (
+                      <div style={{ marginTop: '8px', padding: '8px 10px', background: '#fff8e1', borderRadius: '8px' }}>
+                        <p style={{ fontSize: '11px', color: '#b45309', margin: 0 }}>⚠️ {t('Leave empty or enter 0 to add full amount to credit', 'خالی چھوڑیں یا 0 لکھیں تو پوری رقم ادھار میں جائے گی')}</p>
                       </div>
                     )}
                   </div>
