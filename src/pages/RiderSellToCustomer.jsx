@@ -718,33 +718,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 </div>
               </div>
 
-              {/* Other Brand Bottles Collected — Premium */}
-              {hasChurnIntelligence ? (
-                <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🔄 {t('Other Brand Bottles Collected', 'دوسرے برانڈ کی بوتلیں')}</p>
-                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{t('Competitor bottles collected from customer', 'گاہک سے دوسرے برانڈ کی بوتلیں واپس لی')}</p>
-                      {Number(selectedCustomer.other_brand_bottles_held || 0) > 0 && (
-                        <p style={{ fontSize: '11px', color: '#7b1fa2', margin: '3px 0 0' }}>⚠️ {t('Customer has', 'گاہک کے پاس')} {selectedCustomer.other_brand_bottles_held} {t('competitor bottles', 'دوسرے برانڈ کی بوتلیں')}</p>
-                      )}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <button onClick={() => setOtherBrandsCollected(Math.max(0, otherBrandsCollected - 1))}
-                        style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
-                      <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center', color: otherBrandsCollected > 0 ? '#0f4c81' : '#ccc' }}>{otherBrandsCollected}</span>
-                      <button onClick={() => setOtherBrandsCollected(otherBrandsCollected + 1)}
-                        style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 12, border: '1.5px dashed #ddd', textAlign: 'center' }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>🔒 {t('Competitor Bottle Tracking', 'دوسرے برانڈ کی ٹریکنگ')}</p>
-                  <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>{t('Premium feature — contact admin to enable', 'پریمیم فیچر — فعال کرنے کے لیے ایڈمن سے رابطہ کریں')}</p>
-                </div>
-              )}
-
               {/* Rate for 19L */}
               {qty19l > 0 && (
                 <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>

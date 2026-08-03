@@ -645,29 +645,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             </div>
           </div>
 
-          {/* Other Brand Bottles Received */}
-          {hasChurnIntelligence ? (
-          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🔄 Other Brand Bottles Collected</p>
-              <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Competitor bottles collected from customer</p>
-              </div>
-              {numBtn(otherBrands, setOtherBrands)}
-            </div>
-            {otherBrands > 0 && (
-              <p style={{ fontSize: 11, color: '#0f4c81', fontWeight: 600, margin: '8px 0 0' }}>
-                ℹ️ {otherBrands} other brand bottle{otherBrands > 1 ? 's' : ''} received — customer may be buying from competitor
-              </p>
-            )}
-          </div>
-
-          ) : (
-            <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 12, border: '1.5px dashed #ddd', textAlign: 'center' }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>🔒 Competitor Bottle Tracking</p>
-              <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>Premium feature — contact admin to enable</p>
-            </div>
-          )}
 
           {/* Rate */}
           {qty19l > 0 && (
