@@ -15,6 +15,7 @@ export default function Reports({ tenantId }) {
     { key: 'churn', label: '📋 Churn Risk' },
     { key: 'collection', label: '📥 Collections' },
     { key: 'bottles', label: '🫙 Bottles' },
+    { key: 'custsales', label: '👤 Customer Sales' },
     { key: 'bulk', label: '📨 Bulk Share' },
   ]
   return (
@@ -41,6 +42,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'churn' && <ChurnRisk tenantId={tenantId} />}
       {activeTab === 'collection' && <CollectionAnalysis tenantId={tenantId} />}
       {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
+      {activeTab === 'custsales' && <CustomerSales tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
     </div>
   )
@@ -1268,6 +1270,222 @@ function ChurnRisk({ tenantId }) {
           </div>
         )
       })}
+    </div>
+  )
+}
+
+// ─── CUSTOMER SALES REPORT ─────────────────────────────────────────
+function CustomerSales({ tenantId }) {
+  const today     = new Date().toISOString().split('T')[0]
+  const [dateFrom,  setDateFrom]  = useState(today)
+  const [dateTo,    setDateTo]    = useState(today)
+  const [search,    setSearch]    = useState('')
+  const [data,      setData]      = useState([])
+  const [loading,   setLoading]   = useState(false)
+  const [searched,  setSearched]  = useState(false)
+  const [sortBy,    setSortBy]    = useState('total') // 'total'|'qty'|'name'
+
+  useEffect(() => { if (tenantId) fetchData(today, today) }, [tenantId])
+
+  async function fetchData(from = dateFrom, to = dateTo) {
+    setLoading(true)
+    try {
+      const { data: deliveries } = await supabase.from('deliveries')
+        .select('customer_id, qty_19l, qty_half_litre, qty_1_5l, total_amount, total_with_tax, payment_method, is_voided, customers(full_name, mobile, customer_code, address)')
+        .eq('tenant_id', tenantId)
+        .eq('is_voided', false)
+        .gte('delivered_at', from + 'T00:00:00')
+        .lte('delivered_at', to + 'T23:59:59')
+
+      // Group by customer
+      const map = {}
+      deliveries?.forEach(d => {
+        const id   = d.customer_id
+        const name = d.customers?.full_name || 'Unknown'
+        if (!map[id]) {
+          map[id] = {
+            id, name,
+            mobile:       d.customers?.mobile || '',
+            customer_code: d.customers?.customer_code || '',
+            address:      d.customers?.address || '',
+            qty19l:       0, qtyHalf: 0, qty15l: 0,
+            totalQty:     0, totalSales: 0,
+            cash: 0, credit: 0, jazzcash: 0, easypaisa: 0, bank: 0,
+            deliveries:   0,
+          }
+        }
+        map[id].qty19l    += Number(d.qty_19l || 0)
+        map[id].qtyHalf   += Number(d.qty_half_litre || 0)
+        map[id].qty15l    += Number(d.qty_1_5l || 0)
+        map[id].totalQty  += Number(d.qty_19l || 0) + Number(d.qty_half_litre || 0) + Number(d.qty_1_5l || 0)
+        map[id].totalSales += Number(d.total_with_tax || d.total_amount || 0)
+        map[id].deliveries += 1
+        const pm = d.payment_method || 'cash'
+        if (map[id][pm] !== undefined) map[id][pm] += Number(d.total_with_tax || d.total_amount || 0)
+      })
+
+      setData(Object.values(map))
+      setSearched(true)
+    } catch (err) {
+      console.error('CustomerSales error:', err)
+    }
+    setLoading(false)
+  }
+
+  function applyQuick(from, to) {
+    setDateFrom(from); setDateTo(to)
+    fetchData(from, to)
+  }
+
+  const today2      = new Date().toISOString().split('T')[0]
+  const yesterday   = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+  const firstOfMonth = new Date().toISOString().slice(0, 7) + '-01'
+  const lastMonth1  = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split('T')[0]
+  const lastMonthEnd = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0]
+
+  const filtered = data
+    .filter(c => !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.mobile.includes(search) || c.customer_code.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (sortBy === 'total') return b.totalSales - a.totalSales
+      if (sortBy === 'qty')   return b.totalQty - a.totalQty
+      if (sortBy === 'name')  return a.name.localeCompare(b.name)
+      return 0
+    })
+
+  const grandTotal  = filtered.reduce((s, c) => s + c.totalSales, 0)
+  const grandQty    = filtered.reduce((s, c) => s + c.totalQty, 0)
+  const grand19l    = filtered.reduce((s, c) => s + c.qty19l, 0)
+
+  return (
+    <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+
+      {/* Filter Bar */}
+      <div style={{ background: 'white', borderRadius: 12, padding: '14px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>📅</span>
+        {[
+          { l: 'Today',      f: today2,      t: today2 },
+          { l: 'Yesterday',  f: yesterday,   t: yesterday },
+          { l: 'This Month', f: firstOfMonth, t: today2 },
+          { l: 'Last Month', f: lastMonth1,  t: lastMonthEnd },
+        ].map(p => (
+          <button key={p.l} onClick={() => applyQuick(p.f, p.t)}
+            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+              background: dateFrom === p.f && dateTo === p.t ? '#0f4c81' : '#f0f4f8',
+              color: dateFrom === p.f && dateTo === p.t ? '#fff' : '#555' }}>
+            {p.l}
+          </button>
+        ))}
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        <span style={{ color: '#aaa', fontSize: 12 }}>to</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        <button onClick={() => fetchData(dateFrom, dateTo)}
+          style={{ padding: '7px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+          🔍 Search
+        </button>
+      </div>
+
+      {/* Customer Search */}
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 Filter by customer name, mobile or ID..."
+        style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
+
+      {/* Summary Cards */}
+      {searched && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 14 }}>
+          {[
+            { label: 'Customers',    value: filtered.length + ' customers', color: '#0f4c81', bg: '#e3f0ff' },
+            { label: 'Total Sales',  value: 'Rs. ' + grandTotal.toLocaleString(), color: '#1a7a4a', bg: '#e8f5e9' },
+            { label: '19L Bottles',  value: grand19l.toLocaleString() + ' btls', color: '#b45309', bg: '#fff8e1' },
+            { label: 'Total Units',  value: grandQty.toLocaleString() + ' units', color: '#0f4c81', bg: '#e3f0ff' },
+          ].map(c => (
+            <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '10px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
+              <p style={{ fontSize: 10, color: '#888', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+              <p style={{ fontSize: 15, fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Sort */}
+      {filtered.length > 0 && (
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Sort:</span>
+          {[{ k: 'total', l: 'Highest Sales' }, { k: 'qty', l: 'Most Units' }, { k: 'name', l: 'Name A-Z' }].map(s => (
+            <button key={s.k} onClick={() => setSortBy(s.k)}
+              style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: sortBy === s.k ? '#0f4c81' : '#f0f4f8', color: sortBy === s.k ? '#fff' : '#555' }}>
+              {s.l}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div style={{ padding: 40, textAlign: 'center' }}>
+          <p style={{ color: '#888', fontSize: 14 }}>Loading customer sales...</p>
+        </div>
+      )}
+
+      {/* Table */}
+      {!loading && searched && filtered.length === 0 && (
+        <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+          <p style={{ fontSize: 40, margin: '0 0 12px' }}>📭</p>
+          <p style={{ fontWeight: 700, color: '#888', fontSize: 15 }}>No sales found for this period</p>
+        </div>
+      )}
+
+      {!loading && filtered.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#f8f9fa' }}>
+                {['#', 'Customer', 'Mobile', 'Deliveries', '19L', 'Half L', '1.5L', 'Total Qty', 'Cash', 'Credit', 'Digital', 'Total Sales'].map((h, i) => (
+                  <th key={h} style={{ padding: '10px 12px', textAlign: i >= 3 ? 'right' : 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((c, idx) => {
+                const digital = c.jazzcash + c.easypaisa + c.bank
+                return (
+                  <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                    <td style={{ padding: '10px 12px', fontSize: 11, color: '#aaa' }}>{idx + 1}</td>
+                    <td style={{ padding: '10px 12px' }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', margin: '0 0 1px' }}>{c.name}</p>
+                      <p style={{ fontSize: 10, color: '#aaa', margin: 0 }}>{c.customer_code}</p>
+                    </td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#555' }}>{c.mobile || '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#555', textAlign: 'right' }}>{c.deliveries}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, fontWeight: 600, color: '#0f4c81', textAlign: 'right' }}>{c.qty19l || '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#555', textAlign: 'right' }}>{c.qtyHalf || '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#555', textAlign: 'right' }}>{c.qty15l || '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700, color: '#333', textAlign: 'right' }}>{c.totalQty}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#1a7a4a', textAlign: 'right' }}>{c.cash > 0 ? 'Rs. ' + c.cash.toLocaleString() : '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#c62828', textAlign: 'right' }}>{c.credit > 0 ? 'Rs. ' + c.credit.toLocaleString() : '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#9c27b0', textAlign: 'right' }}>{digital > 0 ? 'Rs. ' + digital.toLocaleString() : '—'}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 14, fontWeight: 800, color: '#1a1a2e', textAlign: 'right' }}>Rs. {c.totalSales.toLocaleString()}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{ background: '#0f4c81' }}>
+                <td colSpan={3} style={{ padding: '11px 12px', fontSize: 13, fontWeight: 700, color: '#fff' }}>TOTAL — {filtered.length} customers</td>
+                <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{filtered.reduce((s,c) => s+c.deliveries, 0)}</td>
+                <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{grand19l}</td>
+                <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{filtered.reduce((s,c) => s+c.qtyHalf, 0)}</td>
+                <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{filtered.reduce((s,c) => s+c.qty15l, 0)}</td>
+                <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{grandQty}</td>
+                <td colSpan={3} style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>—</td>
+                <td style={{ padding: '11px 12px', fontSize: 15, fontWeight: 900, color: '#fff', textAlign: 'right' }}>Rs. {grandTotal.toLocaleString()}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
