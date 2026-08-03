@@ -447,6 +447,9 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
   const total = totalAmount()
   const cashReceivedNum = Number(cashReceived) || 0
+  const isCash = paymentMethod === 'cash'
+  const isCredit = paymentMethod === 'credit'
+  const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
 
   return (
     <div>
