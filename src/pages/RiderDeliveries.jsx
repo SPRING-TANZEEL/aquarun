@@ -275,7 +275,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       const currentBottles = Number(selectedOrder.customers?.our_bottles_placed || 0)
       const currentOtherBrands = Number(selectedOrder.customers?.other_brand_bottles_held || 0)
       const newBottlesWithCustomer = Math.max(0, currentBottles + qty19l - bottlesReturned)
-      const newOtherBrandsHeld = Math.max(0, currentOtherBrands + otherBrands - bottlesReturned)
+      const newOtherBrandsHeld = Math.max(0, currentOtherBrands - otherBrands)
       await supabase.from('customers')
         .update({
           our_bottles_placed: newBottlesWithCustomer,
@@ -650,8 +650,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🔄 Other Brand Bottles Received</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Customer gave back competitor brand bottles</p>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🔄 Other Brand Bottles Collected</p>
+              <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Competitor bottles collected from customer</p>
               </div>
               {numBtn(otherBrands, setOtherBrands)}
             </div>
