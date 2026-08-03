@@ -184,10 +184,10 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     if (qty19l > 0 && !selectedRate) return alert('Please select rate for 19L')
 
     const total = totalAmount()
-    if (paymentMethod === 'cash') {
-      const received = Number(cashReceived)
-      if (!cashReceived || received < 0) return alert('Please enter cash received amount')
-      if (received > total) return alert('Cash received cannot be more than total Rs. ' + total.toLocaleString())
+    if (paymentMethod !== 'credit') {
+      const recv = Number(cashReceived) || 0
+      if (recv < 0) return alert('Amount received cannot be negative')
+      if (recv > total) return alert('Amount received cannot exceed total Rs. ' + total.toLocaleString())
     }
 
     setSaving(true)
@@ -205,8 +205,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     const isJazz = paymentMethod === 'jazzcash'
     const isCredit = paymentMethod === 'credit'
     const isCash = paymentMethod === 'cash'
-    const received = isCash ? Number(cashReceived) : 0
-    const creditPortion = isCredit ? total : isCash ? (total - received) : 0
+    const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
+    const received = isCredit ? 0 : Number(cashReceived) || 0
+    const creditPortion = isCredit ? total : Math.max(0, total - received)
     const now = new Date().toISOString()
 
     const sub = subTotal()
@@ -224,7 +225,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       tax_amount: tax,
       total_with_tax: total,
       payment_method: paymentMethod,
-      amount_received: isJazz ? 0 : received,
+      amount_received: isPending ? 0 : received,
       credit_amount: creditPortion,
       jazzcash_confirmed: false,
       delivered_at: now,
@@ -415,6 +416,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const total = totalAmount()
   const cashReceivedNum = Number(cashReceived) || 0
   const ourBottles = Number(selectedOrder?.customers?.our_bottles_placed || 0)
+  const isCash = paymentMethod === 'cash'
+  const isCredit = paymentMethod === 'credit'
+  const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod || '')
 
   return (
     <div>
@@ -680,13 +684,15 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               ))}
             </div>
 
-            {paymentMethod === 'cash' && total > 0 && (
+            {paymentMethod && paymentMethod !== 'credit' && total > 0 && (
               <div style={{ marginTop: '14px', background: '#f0f7ff', borderRadius: '10px', padding: '14px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
                   <span style={{ fontSize: '13px', color: '#555' }}>Total Amount</span>
                   <span style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81' }}>Rs. {total.toLocaleString()}</span>
                 </div>
-                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>Cash Received</label>
+                <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
+                  {isCash ? 'Cash Received' : 'Amount Received (partial allowed)'}
+                </label>
                 <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)}
                   placeholder={total.toString()}
                   style={{ width: '100%', padding: '12px', border: '2px solid #c8e0ff', borderRadius: '8px', fontSize: '20px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333' }} />
@@ -708,11 +714,16 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                     <p style={{ fontSize: '12px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>✅ Full payment — no credit</p>
                   </div>
                 )}
+                {!cashReceived && (
+                  <div style={{ marginTop: '8px', padding: '8px 10px', background: '#fff8e1', borderRadius: '8px' }}>
+                    <p style={{ fontSize: '11px', color: '#b45309', margin: 0 }}>⚠️ Leave empty or enter 0 to add full amount to credit</p>
+                  </div>
+                )}
               </div>
             )}
-            {paymentMethod === 'jazzcash' && (
+            {isPending && (
               <div style={{ marginTop: '10px', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
-                <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ JazzCash goes directly to office. Admin will confirm.</p>
+                <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Digital payment goes to office — admin will confirm.</p>
               </div>
             )}
           </div>
