@@ -422,7 +422,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       }
     }
 
-    setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, bottlesReturned, savedOffline: !isOnline })
+    setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline })
     setSelectedCustomer(null)
     setQty19l(1); setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
     setBottlesReturned(0); setOtherBrandsCollected(0); setStep(1)
@@ -599,7 +599,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ {t('Sale Complete!', 'فروخت مکمل!')}</p>
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.customer}</p>
               <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>Rs. {success.total.toLocaleString()} — {success.paymentMethod}</p>
-              {success.bottlesReturned > 0 && <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>🫙 {success.bottlesReturned} {t('empty bottles returned', 'خالی بوتلیں واپس')}</p>}
+              {success.bottlesReturned > 0 && <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>🫙 {success.bottlesReturned} {t('our bottles returned', 'ہماری بوتلیں واپس')}</p>}
+      {success.otherBrandsCollected > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', margin: '0 0 2px' }}>🔄 {success.otherBrandsCollected} {t('competitor bottles collected', 'دوسرے برانڈ کی بوتلیں واپس لی')}</p>}
               {success.savedOffline && <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>📵 {t('Saved offline — will sync when online', 'آف لائن محفوظ — آن لائن ہونے پر سنک ہوگا')}</p>}
               <button onClick={() => setSuccess(null)}
                 style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
