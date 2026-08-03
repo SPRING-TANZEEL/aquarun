@@ -271,12 +271,12 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     }
 
     setSaving(true)
-    const isCash   = paymentMethod === 'cash'
+    const isCash2   = paymentMethod === 'cash'
     const isJazz   = paymentMethod === 'jazzcash'
-    const isCredit = paymentMethod === 'credit'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
     const received = isCredit ? 0 : Number(cashReceived) || 0
     const creditPortion = isCredit ? total : Math.max(0, total - received)
+    const isCash = isCash2
     const now = new Date().toISOString()
 
     let deliveryLat = null, deliveryLng = null
