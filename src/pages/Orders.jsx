@@ -543,7 +543,11 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
       .lte('delivery_date', dateTo)
       .order('is_priority', { ascending: false })
       .order('created_at', { ascending: false })
-    if (filter !== 'all' && filter !== 'bulk') q = q.eq('status', filter)
+    if (filter === 'review') {
+      q = q.eq('admin_review_required', true).eq('status', 'assigned')
+    } else if (filter !== 'all' && filter !== 'bulk') {
+      q = q.eq('status', filter)
+    }
     const { data } = await q
     setOrders(data || [])
     setSelectedOrders([])
@@ -1053,6 +1057,7 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
         {[
           { key: 'pending',   label: '⏳ Pending'      },
           { key: 'assigned',  label: '🚴 Assigned'     },
+          { key: 'review',    label: '🔴 Needs Review'  },
           { key: 'completed', label: '✅ Completed'    },
           { key: 'cancelled', label: '✕ Cancelled'     },
           { key: 'all',       label: '📋 All'           },
@@ -1060,7 +1065,7 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
         ].map(f => (
           <button key={f.key} onClick={() => { setFilter(f.key); setShowAddForm(false) }} style={{
             padding: '9px 16px', border: 'none', borderRadius: 8, cursor: 'pointer', whiteSpace: 'nowrap',
-            background: filter === f.key ? (f.key === 'bulk' ? '#1a7a4a' : '#0f4c81') : '#f0f4f8',
+            background: filter === f.key ? (f.key === 'bulk' ? '#1a7a4a' : f.key === 'review' ? '#c62828' : '#0f4c81') : '#f0f4f8',
             color: filter === f.key ? 'white' : '#555',
             fontWeight: filter === f.key ? 700 : 500, fontSize: 13, flexShrink: 0,
             boxShadow: filter === f.key ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
@@ -1421,7 +1426,18 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                         {o.riders && <span style={{ color: '#0f4c81', fontWeight: 600 }}>🚴 {o.riders.full_name}</span>}
                       </div>
                       {o.customers?.balance > 0 && <p style={{ fontSize: 11, color: '#f44336', margin: '5px 0 0', fontWeight: 600 }}>⚠️ Outstanding: Rs. {Number(o.customers.balance).toLocaleString()}</p>}
-                      {o.notes && <p style={{ fontSize: 11, color: '#7c3aed', margin: '4px 0 0' }}>📝 {o.notes}</p>}
+                      {o.admin_review_required && (
+            <p style={{ fontSize: 11, color: '#c62828', fontWeight: 700, margin: '4px 0 0', background: '#ffebee', padding: '3px 8px', borderRadius: 6, display: 'inline-block' }}>
+              🔴 {o.delivery_attempts || 0} failed attempts — Admin review needed
+              {o.reschedule_reason && ` · Last: ${o.reschedule_reason.replace(/_/g, ' ')}`}
+            </p>
+          )}
+          {!o.admin_review_required && o.delivery_attempts > 0 && (
+            <p style={{ fontSize: 11, color: '#e65100', margin: '4px 0 0' }}>
+              ⚠️ Attempt {o.delivery_attempts}/3 · {o.reschedule_reason?.replace(/_/g, ' ')}
+            </p>
+          )}
+          {o.notes && <p style={{ fontSize: 11, color: '#7c3aed', margin: '4px 0 0' }}>📝 {o.notes}</p>}
                       {o.customers?.delivery_notes && !o.notes && <p style={{ fontSize: 11, color: '#7c3aed', margin: '4px 0 0' }}>📝 {o.customers.delivery_notes}</p>}
                       <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
                         {o.status !== 'completed' && o.status !== 'cancelled' && (

@@ -280,7 +280,13 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
     const totalCustomers = customers?.length || 0
     const totalBottlesOut = customers?.reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0) || 0
 
-    setAlerts({ pendingOrders, pendingCashTransfers, pendingJazz, pendingSalaryRequests, totalReceivable, totalCustomers, totalBottlesOut })
+    const { count: ordersNeedingReview } = await supabase.from('orders')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('admin_review_required', true)
+      .eq('status', 'assigned')
+
+    setAlerts({ pendingOrders, pendingCashTransfers, pendingJazz, pendingSalaryRequests, totalReceivable, totalCustomers, totalBottlesOut, ordersNeedingReview: ordersNeedingReview || 0 })
 
     const chart = []
     for (let i = 6; i >= 0; i--) {
@@ -522,6 +528,9 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
               )}
               {item.key === 'orders' && alerts.pendingOrders > 0 && (
                 <span style={{ background: '#f59e0b', color: 'white', fontSize: '9px', padding: '2px 5px', borderRadius: '10px', fontWeight: '700' }}>{alerts.pendingOrders}</span>
+              )}
+              {item.key === 'orders' && alerts.ordersNeedingReview > 0 && (
+                <span style={{ background: '#ef4444', color: 'white', fontSize: '9px', padding: '2px 5px', borderRadius: '10px', fontWeight: '700' }}>🔴{alerts.ordersNeedingReview}</span>
               )}
             </button>
           ))}

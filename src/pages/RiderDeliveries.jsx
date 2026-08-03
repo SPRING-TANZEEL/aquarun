@@ -8,6 +8,17 @@ import {
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
+const REMARK_TYPES = [
+  { key: 'not_home',      labelEn: 'Not at Home',    labelUr: 'گھر پر نہیں',     icon: '🏠' },
+  { key: 'has_water',     labelEn: 'Has Water',       labelUr: 'پانی موجود ہے',   icon: '💧' },
+  { key: 'wont_purchase', labelEn: "Won't Buy",       labelUr: 'نہیں خریدیں گے', icon: '🚫' },
+  { key: 'shifted',       labelEn: 'Shifted House',   labelUr: 'گھر بدل لیا',    icon: '🏚️' },
+  { key: 'vacation',      labelEn: 'On Vacation',     labelUr: 'چھٹی پر ہیں',    icon: '✈️' },
+  { key: 'no_response',   labelEn: 'No Response',     labelUr: 'کوئی جواب نہیں', icon: '📵' },
+  { key: 'office_closed', labelEn: 'Office Closed',   labelUr: 'دفتر بند',        icon: '🏢' },
+  { key: 'other',         labelEn: 'Other',           labelUr: 'دیگر',            icon: '💬' },
+]
+
 export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, salesTaxRate = 16 }) {
   const [orders, setOrders] = useState([])
   const [loading, setLoading] = useState(true)
@@ -35,7 +46,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [generatingSchedule, setGeneratingSchedule] = useState(false)
   const [scheduleGenerated, setScheduleGenerated] = useState(false)
   const [currentOrderIndex, setCurrentOrderIndex] = useState(null)
-  const [navigating, setNavigating] = useState(false)
+  const [navigating,     setNavigating]     = useState(false)
+  const [selectedRemark, setSelectedRemark] = useState(null)
+  const [otherRemarkText, setOtherRemarkText] = useState('')
+  const [remarkSaved,    setRemarkSaved]    = useState(false)
+  const [otherBrands,    setOtherBrands]    = useState(0)
+  const [rescheduling,   setRescheduling]   = useState(false)
 
   useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady, tenantId])
 
@@ -210,7 +226,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       is_voided: false,
       delivery_lat: deliveryLat,
       delivery_lng: deliveryLng,
-      bottles_returned: bottlesReturned
+      bottles_returned: bottlesReturned,
+      other_brand_bottles: otherBrands,
     }
 
     if (isOnline) {
@@ -251,9 +268,14 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       // ✅ Update our_bottles_placed
       // + qty delivered - bottles returned by customer
       const currentBottles = Number(selectedOrder.customers?.our_bottles_placed || 0)
+      const currentOtherBrands = Number(selectedOrder.customers?.other_brand_bottles_held || 0)
       const newBottlesWithCustomer = Math.max(0, currentBottles + qty19l - bottlesReturned)
+      const newOtherBrandsHeld = Math.max(0, currentOtherBrands + otherBrands - bottlesReturned)
       await supabase.from('customers')
-        .update({ our_bottles_placed: newBottlesWithCustomer })
+        .update({
+          our_bottles_placed: newBottlesWithCustomer,
+          other_brand_bottles_held: newOtherBrandsHeld,
+        })
         .eq('id', selectedOrder.customer_id)
         .eq('tenant_id', tenantId)
 
@@ -302,6 +324,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     setPaymentMethod(null)
     setCashReceived('')
     setBottlesReturned(0)
+    setOtherBrands(0)
+    setSelectedRemark(null)
+    setOtherRemarkText('')
     setSaving(false)
 
     // Auto-advance to next order
@@ -320,6 +345,53 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       }
     } else {
       setCurrentOrderIndex(null)
+    }
+  }
+
+  async function saveRemark(remarkType, customText = '') {
+    if (!selectedOrder || !rider) return
+    const remarkText = remarkType === 'other' ? customText : ''
+    await supabase.from('customer_visit_remarks').insert([{
+      tenant_id: tenantId,
+      customer_id: selectedOrder.customer_id,
+      rider_id: rider.id,
+      order_id: selectedOrder.id,
+      remark_type: remarkType,
+      remark_text: remarkText,
+      visit_date: new Date().toISOString().split('T')[0],
+    }])
+    setSelectedRemark(remarkType)
+    setRemarkSaved(true)
+    setTimeout(() => setRemarkSaved(false), 2000)
+  }
+
+  async function rescheduleOrder() {
+    if (!selectedOrder) return
+    setRescheduling(true)
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    const tomorrowStr = tomorrow.toISOString().split('T')[0]
+    const newAttempts = (selectedOrder.delivery_attempts || 0) + 1
+    const needsReview = newAttempts >= 3
+
+    await supabase.from('orders').update({
+      delivery_date: tomorrowStr,
+      delivery_attempts: newAttempts,
+      last_attempt_date: new Date().toISOString().split('T')[0],
+      reschedule_reason: selectedRemark || 'not_home',
+      admin_review_required: needsReview,
+    }).eq('id', selectedOrder.id).eq('tenant_id', tenantId)
+
+    setRescheduling(false)
+    setSelectedOrder(null)
+    setSelectedRemark(null)
+    setOtherRemarkText('')
+    await fetchOrders()
+
+    if (needsReview) {
+      alert(`⚠️ 3 attempts failed for ${selectedOrder.customers?.full_name}. Admin has been notified.`)
+    } else {
+      alert(`✅ Order rescheduled to tomorrow (Attempt ${newAttempts}/3)`)
     }
   }
 
@@ -463,6 +535,55 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             )}
           </div>
 
+          {/* Visit Remark */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>
+              📝 Visit Remark <span style={{ fontSize: 11, color: '#aaa', fontWeight: 400 }}>(optional)</span>
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: selectedRemark === 'other' ? 10 : 0 }}>
+              {REMARK_TYPES.map(r => (
+                <button key={r.key} onClick={() => { setSelectedRemark(r.key); if (r.key !== 'other') saveRemark(r.key) }}
+                  style={{ padding: '8px 12px', border: '1.5px solid', borderColor: selectedRemark === r.key ? '#0f4c81' : '#e0e0e0', borderRadius: 8, cursor: 'pointer', background: selectedRemark === r.key ? '#e3f0ff' : 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, minWidth: 72 }}>
+                  <span style={{ fontSize: 18 }}>{r.icon}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: selectedRemark === r.key ? '#0f4c81' : '#555', lineHeight: 1.2 }}>{r.labelEn}</span>
+                  <span style={{ fontSize: 9, color: '#888' }}>{r.labelUr}</span>
+                </button>
+              ))}
+            </div>
+            {selectedRemark === 'other' && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <input value={otherRemarkText} onChange={e => setOtherRemarkText(e.target.value)}
+                  placeholder="Type remark..."
+                  style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+                <button onClick={() => saveRemark('other', otherRemarkText)} disabled={!otherRemarkText.trim()}
+                  style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                  Save
+                </button>
+              </div>
+            )}
+            {remarkSaved && (
+              <p style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 700, margin: '6px 0 0' }}>✅ Remark saved</p>
+            )}
+
+            {/* Reschedule button — shown when remark selected */}
+            {selectedRemark && selectedRemark !== 'vacation' && selectedRemark !== 'has_water' && (
+              <div style={{ marginTop: 12, padding: '10px 12px', background: '#fff3e0', borderRadius: 8, border: '1px solid #ffcc80' }}>
+                <p style={{ fontSize: 12, color: '#e65100', fontWeight: 600, margin: '0 0 8px' }}>
+                  Customer not available — reschedule this order?
+                  {(selectedOrder.delivery_attempts || 0) > 0 && (
+                    <span style={{ marginLeft: 6, fontSize: 11, background: '#e65100', color: 'white', padding: '1px 7px', borderRadius: 10 }}>
+                      Attempt {(selectedOrder.delivery_attempts || 0) + 1}/3
+                    </span>
+                  )}
+                </p>
+                <button onClick={rescheduleOrder} disabled={rescheduling}
+                  style={{ width: '100%', padding: '10px', background: rescheduling ? '#e0e0e0' : '#e65100', color: 'white', border: 'none', borderRadius: 8, cursor: rescheduling ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}>
+                  {rescheduling ? '⏳ Rescheduling...' : '📅 Reschedule to Tomorrow'}
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Bottles to deliver */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '14px' }}>Bottles to Deliver</p>
@@ -509,6 +630,22 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               </div>
               {numBtn(bottlesReturned, setBottlesReturned)}
             </div>
+          </div>
+
+          {/* Other Brand Bottles Received */}
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>🔄 Other Brand Bottles Received</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Customer gave back competitor brand bottles</p>
+              </div>
+              {numBtn(otherBrands, setOtherBrands)}
+            </div>
+            {otherBrands > 0 && (
+              <p style={{ fontSize: 11, color: '#0f4c81', fontWeight: 600, margin: '8px 0 0' }}>
+                ℹ️ {otherBrands} other brand bottle{otherBrands > 1 ? 's' : ''} received — customer may be buying from competitor
+              </p>
+            )}
           </div>
 
           {/* Rate */}
