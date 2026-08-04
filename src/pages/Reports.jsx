@@ -3349,14 +3349,14 @@ function SalesSummary({ tenantId }) {
   return (
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📊 Sales Summary</h3>
-      <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: '#888', fontWeight: 600, whiteSpace: 'nowrap' }}>📅</span>
+      <div style={{ background: 'white', borderRadius: 10, padding: '10px 12px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 5, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#888', fontWeight: 600, flexShrink: 0 }}>📅</span>
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          style={{ flex: 1, padding: '6px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
-        <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+          style={{ flex: 1, padding: '6px 4px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none', minWidth: 0 }} />
+        <span style={{ color: '#aaa', fontSize: 10, flexShrink: 0 }}>—</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          style={{ flex: 1, padding: '6px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
-        <button onClick={fetchSales} style={{ padding: '7px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>🔍 Search</button>
+          style={{ flex: 1, padding: '6px 4px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none', minWidth: 0 }} />
+        <button onClick={fetchSales} style={{ padding: '6px 12px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>🔍</button>
       </div>
       {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : data && (
         <div>
