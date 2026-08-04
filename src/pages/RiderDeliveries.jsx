@@ -500,7 +500,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               width: `${completedCount + orders.length > 0 ? (completedCount / (completedCount + orders.length)) * 100 : 0}%`,
               background: 'linear-gradient(90deg, #1a7a4a, #4caf50)',
               borderRadius: 4,
-              transition: 'width 0.5s ease'
+              transition: 'width 0.5s ease',
+              boxShadow: '0 0 8px rgba(76, 175, 80, 0.6)'
             }} />
           </div>
           {completedCount + orders.length > 0 && (
