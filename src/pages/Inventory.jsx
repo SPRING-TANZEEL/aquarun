@@ -64,64 +64,108 @@ export default function Inventory({ tenantId }) {
 
 // ─── STOCK DASHBOARD ───────────────────────────────────────────────
 function StockDashboard({ products, loading, rawMaterials, finishedGoods, tradingItems }) {
-  if (loading) return <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
+  if (loading) return (
+    <div style={{ padding: 60, textAlign: 'center' }}>
+      <p style={{ fontSize: 32, margin: '0 0 12px' }}>🏭</p>
+      <p style={{ color: '#888', fontSize: 14 }}>Loading inventory...</p>
+    </div>
+  )
+
+  const totalProducts   = products.length
+  const lowStockCount   = products.filter(p => p.current_stock < 10).length
+  const totalStockValue = products.reduce((s, p) => s + Number(p.current_stock || 0) * Number(p.average_cost || p.purchase_price || 0), 0)
 
   function StockCard({ product }) {
-    const isLow = product.current_stock < 10
+    const isLow          = product.current_stock < 10
     const isShrinkingPaper = product.name === 'Shrinking Paper'
+    const stockValue     = Number(product.current_stock || 0) * Number(product.average_cost || product.purchase_price || 0)
+    const pct            = product.opening_stock > 0 ? Math.min(100, Math.round((product.current_stock / product.opening_stock) * 100)) : null
+
     return (
       <div style={{
-        background: 'white', borderRadius: '12px', padding: '16px',
+        background: 'white', borderRadius: 12, padding: '14px 16px',
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        borderLeft: `4px solid ${isLow ? '#f44336' : '#1a7a4a'}`
+        borderTop: `3px solid ${isLow ? '#f44336' : '#1a7a4a'}`,
+        position: 'relative', overflow: 'hidden',
       }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-          <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: 0, flex: 1 }}>{product.name}</p>
-          {isLow && <span style={{ fontSize: '10px', background: '#ffebee', color: '#c62828', padding: '2px 6px', borderRadius: '10px', fontWeight: '700', whiteSpace: 'nowrap' }}>Low Stock</span>}
+        {/* Low stock badge */}
+        {isLow && (
+          <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, background: '#ffebee', color: '#c62828', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>
+            ⚠️ Low
+          </span>
+        )}
+        {/* Name */}
+        <p style={{ fontSize: 12, fontWeight: 700, color: '#555', margin: '0 0 8px', paddingRight: isLow ? 50 : 0 }}>{product.name}</p>
+        {/* Stock count */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
+          <p style={{ fontSize: 26, fontWeight: 900, color: isLow ? '#f44336' : '#0f4c81', margin: 0, letterSpacing: '-0.5px' }}>
+            {Number(product.current_stock).toLocaleString()}
+          </p>
+          <span style={{ fontSize: 11, color: '#aaa' }}>pcs</span>
         </div>
-        <p style={{ fontSize: '28px', fontWeight: '700', color: isLow ? '#f44336' : '#0f4c81', margin: '0 0 4px' }}>
-          {Number(product.current_stock).toLocaleString()}
-          <span style={{ fontSize: '13px', color: '#888', fontWeight: '400', marginLeft: '4px' }}>pcs</span>
-        </p>
+        {/* Shrinking Paper KG */}
         {isShrinkingPaper && (
-          <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
+          <p style={{ fontSize: 11, color: '#888', margin: '0 0 4px' }}>
             {Number(product.current_stock_kg || 0).toFixed(2)} kg remaining
           </p>
         )}
-        {product.sale_price > 0 && (
-          <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '4px 0 0', fontWeight: '600' }}>
-            Sale: Rs. {Number(product.sale_price).toLocaleString()}
+        {/* Progress bar */}
+        {pct !== null && (
+          <div style={{ height: 4, background: '#f0f0f0', borderRadius: 2, margin: '6px 0', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: isLow ? '#f44336' : '#1a7a4a', borderRadius: 2 }} />
+          </div>
+        )}
+        {/* Value */}
+        {stockValue > 0 && (
+          <p style={{ fontSize: 11, color: '#1a7a4a', margin: '4px 0 0', fontWeight: 600 }}>
+            Rs. {stockValue.toLocaleString()} value
           </p>
         )}
-        {product.opening_stock > 0 && (
-          <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>
-            Opening: {Number(product.opening_stock).toLocaleString()} pcs
+        {/* Sale price */}
+        {product.sale_price > 0 && (
+          <p style={{ fontSize: 10, color: '#888', margin: '2px 0 0' }}>
+            Sale: Rs. {Number(product.sale_price).toLocaleString()}
           </p>
         )}
       </div>
     )
   }
 
+  function Section({ icon, title, color, items }) {
+    if (items.length === 0) return null
+    return (
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <div style={{ width: 3, height: 16, background: color, borderRadius: 2 }} />
+          <p style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: 0.8, margin: 0 }}>{icon} {title}</p>
+          <span style={{ fontSize: 10, color: '#aaa', background: '#f0f0f0', padding: '1px 8px', borderRadius: 10 }}>{items.length}</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+          {items.map(p => <StockCard key={p.id} product={p} />)}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div>
-      <p style={{ fontSize: '12px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>🧪 Raw Materials</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-        {rawMaterials.map(p => <StockCard key={p.id} product={p} />)}
-      </div>
-
-      <p style={{ fontSize: '12px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>✅ Finished Goods</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
-        {finishedGoods.map(p => <StockCard key={p.id} product={p} />)}
-      </div>
-
-      {tradingItems.length > 0 && (
-        <>
-          <p style={{ fontSize: '12px', fontWeight: '700', color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>🛒 Trading Items</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-            {tradingItems.map(p => <StockCard key={p.id} product={p} />)}
+      {/* Summary bar */}
+      <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', gap: 0, flexWrap: 'wrap' }}>
+        {[
+          { label: 'Total Products', value: totalProducts, color: '#93c5fd' },
+          { label: 'Low Stock',      value: lowStockCount,  color: lowStockCount > 0 ? '#fca5a5' : '#6ee7b7' },
+          { label: 'Total Value',    value: `Rs. ${totalStockValue.toLocaleString()}`, color: '#6ee7b7', wide: true },
+        ].map((s, i) => (
+          <div key={s.label} style={{ flex: s.wide ? 2 : 1, padding: '4px 16px', borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', minWidth: s.wide ? 160 : 80 }}>
+            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</p>
+            <p style={{ fontSize: 16, fontWeight: 800, color: s.color, margin: 0 }}>{s.value}</p>
           </div>
-        </>
-      )}
+        ))}
+      </div>
+
+      <Section icon="🧪" title="Raw Materials"  color="#9c27b0" items={rawMaterials}  />
+      <Section icon="✅" title="Finished Goods" color="#1a7a4a" items={finishedGoods} />
+      <Section icon="🛒" title="Trading Items"  color="#0f4c81" items={tradingItems}  />
     </div>
   )
 }
