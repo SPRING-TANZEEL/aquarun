@@ -234,36 +234,36 @@ export default function SalaryManagement({ adminUser, tenantId }) {
               border: r.is_main_rider ? '2px solid #ffe082' : '1px solid #eee',
             }}>
               {/* Rider header */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <p style={{ fontSize: 16, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>
-                      {r.is_main_rider ? '⭐ ' : '🚴 '}{r.full_name}
-                    </p>
-                    <StatusBadge remaining={r.remaining} totalPaid={r.totalPaid} />
-                  </div>
-                  <span style={{
-                    padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                    background: r.salary_type === 'commission' ? '#e8f5e9' : r.salary_type === 'fixed_commission' ? '#e3f0ff' : '#f3e5f5',
-                    color: r.salary_type === 'commission' ? '#1a7a4a' : r.salary_type === 'fixed_commission' ? '#0f4c81' : '#7b1fa2',
-                  }}>
-                    {r.salary_type === 'commission' ? '📦 Commission' : r.salary_type === 'fixed_commission' ? '💰+📦 Fixed + Commission' : '💰 Fixed Salary'}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+              {/* Row 1 — Name + Status badge */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>
+                  {r.is_main_rider ? '⭐ ' : '🚴 '}{r.full_name}
+                </p>
+                <StatusBadge remaining={r.remaining} totalPaid={r.totalPaid} />
+              </div>
+              {/* Row 2 — Salary type + Action buttons in one line */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <span style={{
+                  padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
+                  background: r.salary_type === 'commission' ? '#e8f5e9' : r.salary_type === 'fixed_commission' ? '#e3f0ff' : '#f3e5f5',
+                  color: r.salary_type === 'commission' ? '#1a7a4a' : r.salary_type === 'fixed_commission' ? '#0f4c81' : '#7b1fa2',
+                }}>
+                  {r.salary_type === 'commission' ? '📦 Commission' : r.salary_type === 'fixed_commission' ? '💰+📦 Fixed+Comm' : '💰 Fixed'}
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
                   <button onClick={() => openPayForm(r, 'advance')}
-                    style={{ padding: '8px 14px', background: '#fff3e0', color: '#e65100', border: '1.5px solid #ffcc80', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                    style={{ padding: '7px 12px', background: '#fff3e0', color: '#e65100', border: '1.5px solid #ffcc80', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
                     💰 Advance
                   </button>
                   <button onClick={() => openPayForm(r, 'salary')}
                     disabled={r.remaining <= 0}
                     style={{
-                      padding: '8px 14px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700,
+                      padding: '7px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                       background: r.remaining <= 0 ? '#e0e0e0' : '#1a7a4a',
                       color: r.remaining <= 0 ? '#aaa' : 'white',
                       cursor: r.remaining <= 0 ? 'not-allowed' : 'pointer',
                     }}>
-                    {r.remaining <= 0 ? '✅ Paid' : '💵 Pay Salary'}
+                    {r.remaining <= 0 ? '✅ Paid' : '💵 Pay'}
                   </button>
                 </div>
               </div>
