@@ -1715,12 +1715,12 @@ function BottleBalance({ tenantId }) {
     <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 12, padding: '18px 22px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ background: 'linear-gradient(135deg,#0f4c81,#1a6bad)', borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: '0 0 3px' }}>🫙 Bottle Balance Report</p>
-          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0 }}>Our bottles currently placed with customers · Rs. {bottleCost}/bottle replacement cost</p>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, margin: '0 0 3px' }}>🫙 Bottle Balance Report</p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: 0 }}>Our bottles currently placed with customers · Rs. {bottleCost}/bottle replacement cost</p>
         </div>
-        <button onClick={printReport} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🖨️ Print / PDF</button>
+        <button onClick={printReport} style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🖨️ Print / PDF</button>
       </div>
 
       {/* Summary Cards */}
@@ -1763,8 +1763,8 @@ function BottleBalance({ tenantId }) {
           <p style={{ color: '#888', fontSize: 13, margin: 0 }}>All bottles have been returned</p>
         </div>
       ) : (
-        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
                 {['#', 'Customer', 'Mobile', 'ID', 'Address', 'Bottles', 'Value at Risk'].map((h, i) => (
