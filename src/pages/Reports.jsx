@@ -432,7 +432,7 @@ function DailyCashReport({ tenantId }) {
       ) : data && (
         <>
           {/* Summary Cards */}
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(180px,1fr))', gap:12, marginBottom:16 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, marginBottom:16 }}>
             {[
               { label:'Total Cash In',  value:data.totalCashIn,  color:'#1a7a4a', bg:'#e8f5e9', icon:'📥' },
               { label:'Total Cash Out', value:data.totalCashOut, color:'#c62828', bg:'#ffebee', icon:'📤' },
@@ -440,8 +440,8 @@ function DailyCashReport({ tenantId }) {
               { label:'Total Sales',    value:data.totalSalesValue, color:'#0f4c81', bg:'#e3f0ff', icon:'📊' },
             ].map(c => (
               <div key={c.label} style={{ background:'white', borderRadius:12, padding:'16px 18px', boxShadow:'0 2px 8px rgba(0,0,0,0.06)', borderLeft:`4px solid ${c.color}` }}>
-                <p style={{ fontSize:11, color:'#888', margin:'0 0 6px', fontWeight:600, textTransform:'uppercase', letterSpacing:.5 }}>{c.icon} {c.label}</p>
-                <p style={{ fontSize:22, fontWeight:900, color:c.color, margin:0, letterSpacing:'-0.5px' }}>Rs. {Math.abs(data[Object.keys(data).find(k => data[k]===c.value)||'netCash']||c.value||0).toLocaleString()}</p>
+                <p style={{ fontSize:10, color:'#888', margin:'0 0 4px', fontWeight:600, textTransform:'uppercase', letterSpacing:.4 }}>{c.icon} {c.label}</p>
+              <p style={{ fontSize:17, fontWeight:900, color:c.color, margin:0, letterSpacing:'-0.3px' }}>Rs. {Math.abs(data[Object.keys(data).find(k => data[k]===c.value)||'netCash']||c.value||0).toLocaleString()}</p>
               </div>
             ))}
           </div>
