@@ -631,6 +631,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                       {c.mobile} · Rs. {Number(c.rate_19l || 0)}/bottle
                       {Number(c.balance) > 0 && ` · Balance: Rs. ${Number(c.balance).toLocaleString()}`}
                     </p>
+                    {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                     {Number(c.our_bottles_placed) > 0 && (
                       <p style={{ fontSize: '10px', color: '#e65100', margin: 0 }}>🫙 {c.our_bottles_placed} {t('bottles', 'بوتلیں')}</p>
                     )}
