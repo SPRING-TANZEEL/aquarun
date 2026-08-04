@@ -79,6 +79,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
   async function fetchAndCacheCustomers() {
     if (!isOnline) return
+    localStorage.removeItem('cached_customers_' + tenantId)
     const { data } = await supabase.from('customer_balances')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('full_name')
     if (data) {
