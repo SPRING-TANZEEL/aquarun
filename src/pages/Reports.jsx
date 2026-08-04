@@ -1252,12 +1252,12 @@ function ChurnRisk({ tenantId }) {
     <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 12, padding: '18px 22px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ background: 'white', borderRadius: 12, padding: '16px 20px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #c62828', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: '0 0 3px' }}>📋 Customer Churn Risk</p>
-          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0 }}>Customers who stopped ordering · Bottle recovery · Competitor tracking</p>
+          <p style={{ color: '#1a1a2e', fontWeight: 800, fontSize: 16, margin: '0 0 3px' }}>📋 Customer Churn Risk</p>
+          <p style={{ color: '#888', fontSize: 12, margin: 0 }}>Customers who stopped ordering · Bottle recovery · Competitor tracking</p>
         </div>
-        <button onClick={fetchData} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
+        <button onClick={fetchData} style={{ padding: '7px 14px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
       </div>
 
       {/* Summary Cards */}
@@ -1324,7 +1324,7 @@ function ChurnRisk({ tenantId }) {
               <div style={{ flex: 1 }}>
                 {/* Name + Risk Badge */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>{c.full_name}</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: '#333', margin: 0 }}>{c.full_name}</p>
                   <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: rc.bg, color: rc.color }}>{rc.label}</span>
                   {c.otherBrands > 0 && <span style={{ padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: '#f3e5f5', color: '#7b1fa2' }}>⚠️ {c.otherBrands} competitor bottle{c.otherBrands > 1 ? 's' : ''}</span>}
                 </div>
@@ -2527,15 +2527,15 @@ function CollectionAnalysis({ tenantId }) {
     <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
 
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,#1a1a2e,#0f3460)', borderRadius: 12, padding: '18px 22px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+      <div style={{ background: 'white', borderRadius: 12, padding: '16px 20px', marginBottom: 18, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #0f4c81', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <p style={{ color: '#fff', fontWeight: 800, fontSize: 17, margin: '0 0 3px' }}>📥 Collection Analysis</p>
-          <p style={{ color: '#93c5fd', fontSize: 12, margin: 0 }}>AR Aging · Collection Source · Days Sales Outstanding</p>
+          <p style={{ color: '#1a1a2e', fontWeight: 800, fontSize: 16, margin: '0 0 3px' }}>📥 Collection Analysis</p>
+          <p style={{ color: '#888', fontSize: 12, margin: 0 }}>AR Aging · Collection Source · Days Sales Outstanding</p>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <p style={{ color: '#93c5fd', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Total Receivable</p>
-          <p style={{ color: '#fff', fontWeight: 900, fontSize: 22, margin: '0 0 2px' }}>Rs. {data.totalAR.toLocaleString()}</p>
-          <p style={{ color: data.dso <= 30 ? '#6ee7b7' : data.dso <= 60 ? '#fde68a' : '#fca5a5', fontSize: 12, fontWeight: 700, margin: 0 }}>
+          <p style={{ color: '#888', fontSize: 11, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Total Receivable</p>
+          <p style={{ color: '#0f4c81', fontWeight: 900, fontSize: 20, margin: '0 0 2px' }}>Rs. {data.totalAR.toLocaleString()}</p>
+          <p style={{ color: data.dso <= 30 ? '#1a7a4a' : data.dso <= 60 ? '#b45309' : '#c62828', fontSize: 12, fontWeight: 700, margin: 0 }}>
             DSO: {data.dso} days {data.dso <= 30 ? '✅' : data.dso <= 60 ? '⚠️' : '🔴'}
           </p>
         </div>
