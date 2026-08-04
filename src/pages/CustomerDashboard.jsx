@@ -646,15 +646,19 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
               style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               💳 {balance > 0 ? 'Pay Your Bill' : 'Pay in Advance'}
             </button>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
-              <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px' }}>Total Deliveries</p>
-                <p style={{ fontSize: '28px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{deliveries.length}</p>
-              </div>
-              <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', textAlign: 'center' }}>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 6px' }}>Bottles Received</p>
-                <p style={{ fontSize: '28px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>{totalBottles19l}</p>
-              </div>
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+              {[
+                { label: 'Total Deliveries', value: deliveries.length, color: '#0f4c81', bg: '#e3f0ff', icon: '📦' },
+                { label: 'Bottles Received', value: totalBottles19l, color: '#1a7a4a', bg: '#e8f5e9', icon: '🫙' },
+                { label: 'Total Spent', value: `Rs. ${totalSpent.toLocaleString()}`, color: '#9c27b0', bg: '#f3e5f5', icon: '💰', small: true },
+                { label: 'Payments Made', value: payments.length, color: '#b45309', bg: '#fff8e1', icon: '✅' },
+              ].map(c => (
+                <div key={c.label} style={{ background: 'white', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 10px rgba(0,0,0,0.07)', textAlign: 'center', flexShrink: 0, minWidth: 120, borderTop: `4px solid ${c.color}`, background: c.bg }}>
+                  <p style={{ fontSize: 22, margin: '0 0 6px' }}>{c.icon}</p>
+                  <p style={{ fontSize: c.small ? '14px' : '24px', fontWeight: 800, color: c.color, margin: '0 0 4px' }}>{c.value}</p>
+                  <p style={{ fontSize: 10, color: '#888', margin: 0, textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
+                </div>
+              ))}
             </div>
             <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 10px', textTransform: 'uppercase' }}>Your Rates</p>
