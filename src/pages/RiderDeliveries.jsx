@@ -67,7 +67,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       if (isOnline) {
         let query = supabase
           .from('orders')
-          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, other_brand_bottles_held, google_maps_link, is_tax_applicable)')
+          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, other_brand_bottles_held, google_maps_link, is_tax_applicable, notes, delivery_notes)')
           .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
@@ -503,9 +503,23 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 {selectedOrder.customers?.address && (
                   <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>📍 {selectedOrder.customers.address}</p>
                 )}
-                <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>📞 {selectedOrder.customers?.mobile}</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 2px' }}>
+                  <p style={{ fontSize: '12px', opacity: 0.8, margin: 0 }}>📞 {selectedOrder.customers?.mobile}</p>
+                  {selectedOrder.customers?.mobile && (
+                    <a href={`tel:${selectedOrder.customers.mobile}`}
+                      style={{ padding: '3px 10px', background: 'rgba(255,255,255,0.25)', color: 'white', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.4)' }}>
+                      📲 Call
+                    </a>
+                  )}
+                </div>
                 {selectedOrder.notes && (
-                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0' }}>📝 {selectedOrder.notes}</p>
+                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', background: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>📝 {selectedOrder.notes}</p>
+                )}
+                {selectedOrder.customers?.delivery_notes && (
+                  <p style={{ fontSize: '11px', opacity: 0.9, margin: '4px 0 0', background: 'rgba(255,165,0,0.3)', padding: '4px 8px', borderRadius: 6 }}>⚠️ {selectedOrder.customers.delivery_notes}</p>
+                )}
+                {selectedOrder.customers?.notes && (
+                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', background: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>💬 {selectedOrder.customers.notes}</p>
                 )}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
