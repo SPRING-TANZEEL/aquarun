@@ -646,17 +646,19 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
               style={{ width: '100%', padding: '14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '12px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
               💳 {balance > 0 ? 'Pay Your Bill' : 'Pay in Advance'}
             </button>
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '16px' }}>
               {[
                 { label: 'Total Deliveries', value: deliveries.length, color: '#0f4c81', bg: '#e3f0ff', icon: '📦' },
                 { label: 'Bottles Received', value: totalBottles19l, color: '#1a7a4a', bg: '#e8f5e9', icon: '🫙' },
-                { label: 'Total Spent', value: `Rs. ${totalSpent.toLocaleString()}`, color: '#9c27b0', bg: '#f3e5f5', icon: '💰', small: true },
+                { label: 'Total Spent', value: `Rs. ${totalSpent.toLocaleString()}`, color: '#9c27b0', bg: '#f3e5f5', icon: '💰' },
                 { label: 'Payments Made', value: payments.length, color: '#b45309', bg: '#fff8e1', icon: '✅' },
               ].map(c => (
-                <div key={c.label} style={{ background: 'white', borderRadius: 14, padding: '16px 18px', boxShadow: '0 2px 10px rgba(0,0,0,0.07)', textAlign: 'center', flexShrink: 0, minWidth: 120, borderTop: `4px solid ${c.color}`, background: c.bg }}>
-                  <p style={{ fontSize: 22, margin: '0 0 6px' }}>{c.icon}</p>
-                  <p style={{ fontSize: c.small ? '14px' : '24px', fontWeight: 800, color: c.color, margin: '0 0 4px' }}>{c.value}</p>
-                  <p style={{ fontSize: 10, color: '#888', margin: 0, textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
+                <div key={c.label} style={{ background: c.bg, borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 24, flexShrink: 0 }}>{c.icon}</span>
+                  <div>
+                    <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
+                    <p style={{ fontSize: 17, fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
+                  </div>
                 </div>
               ))}
             </div>
