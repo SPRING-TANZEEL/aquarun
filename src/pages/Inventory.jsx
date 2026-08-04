@@ -40,16 +40,37 @@ export default function Inventory({ tenantId }) {
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Raw materials, production, finished goods and trading items.</p>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)}
-            style={{
-              padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer',
-              background: activeTab === t.key ? '#0f4c81' : '#f0f0f0',
-              color: activeTab === t.key ? 'white' : '#555',
-              fontWeight: activeTab === t.key ? '700' : '400', fontSize: '13px'
+      <div style={{ background: 'white', borderRadius: 10, padding: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 20 }}>
+        {/* Row 1 — View tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+          {[
+            { key: 'dashboard', label: '📊 Overview' },
+            { key: 'opening',   label: '🗂️ Opening'  },
+            { key: 'purchase',  label: '📥 Purchase'  },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+              flex: 1, padding: '8px 6px', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: activeTab === t.key ? 700 : 500,
+              background: activeTab === t.key ? '#0f4c81' : 'transparent',
+              color: activeTab === t.key ? 'white' : '#666',
             }}>{t.label}</button>
-        ))}
+          ))}
+        </div>
+        {/* Separator */}
+        <div style={{ height: 1, background: '#f0f0f0', margin: '0 2px 4px' }} />
+        {/* Row 2 — Management tabs */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          {[
+            { key: 'production', label: '🏭 Production' },
+            { key: 'products',   label: '📦 Products'   },
+            { key: 'history',    label: '📋 History'    },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+              flex: 1, padding: '8px 6px', border: 'none', borderRadius: 7, cursor: 'pointer', fontSize: 12, fontWeight: activeTab === t.key ? 700 : 500,
+              background: activeTab === t.key ? '#1a7a4a' : 'transparent',
+              color: activeTab === t.key ? 'white' : '#666',
+            }}>{t.label}</button>
+          ))}
+        </div>
       </div>
 
       {activeTab === 'dashboard' && <StockDashboard products={products} loading={loading} rawMaterials={rawMaterials} finishedGoods={finishedGoods} tradingItems={tradingItems} />}
