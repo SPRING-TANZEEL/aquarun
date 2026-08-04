@@ -177,8 +177,8 @@ function ChartOfAccounts({ tenantId }) {
             return (
               <div key={type} style={{ marginBottom: '20px' }}>
                 <p style={{ fontSize: '13px', fontWeight: '700', color: typeColors[type], marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{typeLabels[type]}</p>
-                <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                  <table style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ background: '#f8f9fa' }}>
                         {['Code', 'Account Name', 'Type', 'Description', 'Status', 'Action'].map(h => (
