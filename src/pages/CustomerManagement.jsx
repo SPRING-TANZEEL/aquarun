@@ -402,20 +402,19 @@ export default function CustomerManagement({ tenantId }) {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '16px' }}>
         {[
           { label: 'Total Customers', value: customers.filter(c => c.is_active).length, color: '#0f4c81', icon: '👥' },
-          { label: 'Total Receivable', value: `Rs. ${totalReceivable.toLocaleString()}`, color: '#f44336', icon: '📥', small: true },
-          { label: 'Advance Credits', value: `Rs. ${totalAdvance.toLocaleString()}`, color: '#1a7a4a', icon: '💚', small: true },
+          { label: 'Total Receivable', value: `Rs. ${totalReceivable.toLocaleString()}`, color: '#f44336', icon: '📥' },
+          { label: 'Advance Credits', value: `Rs. ${totalAdvance.toLocaleString()}`, color: '#1a7a4a', icon: '💚' },
           { label: 'Scheduled', value: scheduledCount, color: '#f59e0b', icon: '📅' },
-          { label: 'Inactive', value: customers.filter(c => !c.is_active).length, color: '#888', icon: '❌' },
         ].map(c => (
-          <div key={c.label} style={{ background: 'white', borderRadius: 12, padding: '14px 18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', borderLeft: `4px solid ${c.color}`, flexShrink: 0, minWidth: 130 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <span style={{ fontSize: 16 }}>{c.icon}</span>
-              <p style={{ fontSize: 10, color: '#888', margin: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+          <div key={c.label} style={{ background: 'white', borderRadius: 12, padding: '12px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: `4px solid ${c.color}` }}>
+            <span style={{ fontSize: 22, flexShrink: 0 }}>{c.icon}</span>
+            <div>
+              <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
+              <p style={{ fontSize: 16, fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
             </div>
-            <p style={{ fontSize: c.small ? '16px' : '22px', fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
           </div>
         ))}
       </div>
