@@ -182,30 +182,34 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       </div>
 
       {/* Method filter tabs */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-        {[
-          { key: 'all', label: 'All', icon: '💳', count: entries.length },
-          { key: 'jazzcash', label: 'JazzCash', icon: '📱', count: countByMethod.jazzcash, color: '#9c27b0' },
-          { key: 'easypaisa', label: 'EasyPaisa', icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
-          { key: 'bank', label: 'Bank', icon: '🏦', count: countByMethod.bank, color: '#0f4c81' },
-        ].map(m => (
-          <button key={m.key} onClick={() => setMethodFilter(m.key)} style={{
-            padding: '8px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 700,
-            background: methodFilter === m.key ? (m.color || '#1a1a2e') : 'white',
-            color: methodFilter === m.key ? '#fff' : '#555',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-            display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            {m.icon} {m.label}
-            <span style={{ background: methodFilter === m.key ? 'rgba(255,255,255,0.25)' : '#f0f4f8', color: methodFilter === m.key ? '#fff' : '#555', borderRadius: 10, padding: '1px 7px', fontSize: 11 }}>{m.count}</span>
-          </button>
-        ))}
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+      <div style={{ background: 'white', borderRadius: 10, padding: '12px 14px', marginBottom: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+        {/* Method filter buttons */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+          {[
+            { key: 'all',       label: 'All',       icon: '💳', count: entries.length,             color: '#1a1a2e' },
+            { key: 'jazzcash',  label: 'JazzCash',  icon: '📱', count: countByMethod.jazzcash,  color: '#9c27b0' },
+            { key: 'easypaisa', label: 'EasyPaisa', icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
+            { key: 'bank',      label: 'Bank',      icon: '🏦', count: countByMethod.bank,       color: '#0f4c81' },
+          ].map(m => (
+            <button key={m.key} onClick={() => setMethodFilter(m.key)} style={{
+              padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+              background: methodFilter === m.key ? m.color : '#f0f4f8',
+              color: methodFilter === m.key ? '#fff' : '#555',
+              display: 'flex', alignItems: 'center', gap: 5,
+            }}>
+              {m.icon} {m.label}
+              <span style={{ background: methodFilter === m.key ? 'rgba(255,255,255,0.25)' : '#e0e0e0', color: methodFilter === m.key ? '#fff' : '#555', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{m.count}</span>
+            </button>
+          ))}
+        </div>
+        {/* Date range */}
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>📅 From:</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none' }} />
-          <span style={{ alignSelf: 'center', color: '#888', fontSize: 12 }}>to</span>
+            style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none', flex: 1, minWidth: 120 }} />
+          <span style={{ color: '#aaa', fontSize: 12 }}>to</span>
           <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ padding: '7px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none' }} />
+            style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none', flex: 1, minWidth: 120 }} />
         </div>
       </div>
 
@@ -229,8 +233,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
           <p style={{ color: '#888', fontSize: 13 }}>No pending {methodFilter === 'all' ? 'digital' : METHOD_CONFIG[methodFilter]?.label} payments to confirm</p>
         </div>
       ) : (
-        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width: '100%', minWidth: 700, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
                 {['Date', 'Customer', 'Method', 'Type', 'Details', 'Rider', 'Amount', 'Action'].map(h => (
