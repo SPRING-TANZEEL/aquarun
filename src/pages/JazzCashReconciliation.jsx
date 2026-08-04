@@ -187,8 +187,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
         <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
             {[
               { key: 'all',       label: 'All',  icon: '💳', count: entries.length,            color: '#1a1a2e' },
-              { key: 'jazzcash',  label: 'JZC',  icon: '📱', count: countByMethod.jazzcash,  color: '#9c27b0' },
-              { key: 'easypaisa', label: 'EP',   icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
+              { key: 'jazzcash',  label: 'JazzCash',  icon: '📱', count: countByMethod.jazzcash,  color: '#9c27b0' },
+              { key: 'easypaisa', label: 'EeasyPaisa',   icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
               { key: 'bank',      label: 'Bank', icon: '🏦', count: countByMethod.bank,       color: '#0f4c81' },
             ].map(m => (
               <button key={m.key} onClick={() => setMethodFilter(m.key)} style={{
