@@ -1263,15 +1263,16 @@ function ChurnRisk({ tenantId }) {
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 16 }}>
         {[
-          { label: 'Critical', labelUr: 'انتہائی خطرناک', value: data?.riskCounts.critical || 0, color: '#c62828', bg: '#ffebee', isCount: true },
-          { label: 'High Risk', labelUr: 'زیادہ خطرہ', value: data?.riskCounts.high || 0, color: '#c2410c', bg: '#fff3e0', isCount: true },
-          { label: 'Medium Risk', labelUr: 'درمیانہ', value: data?.riskCounts.medium || 0, color: '#b45309', bg: '#fff8e1', isCount: true },
-          { label: 'Bottle Exposure', labelUr: 'بوتلوں کی مالیت', value: `Rs. ${(data?.totalBottleExposure || 0).toLocaleString()}`, color: '#0f4c81', bg: '#e3f0ff', isCount: false },
+          { label: 'Critical',        value: data?.riskCounts.critical || 0,                         color: '#c62828', bg: '#ffebee', isCount: true },
+          { label: 'High Risk',       value: data?.riskCounts.high || 0,                             color: '#c2410c', bg: '#fff3e0', isCount: true },
+          { label: 'Medium Risk',     value: data?.riskCounts.medium || 0,                           color: '#b45309', bg: '#fff8e1', isCount: true },
+          { label: 'Bottle Exposure', value: `Rs. ${(data?.totalBottleExposure || 0).toLocaleString()}`, color: '#0f4c81', bg: '#e3f0ff', isCount: false },
         ].map(c => (
-          <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
-            <p style={{ fontSize: 10, color: '#888', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
-            <p dir="rtl" style={{ fontSize: 9, color: '#aaa', margin: '0 0 4px', fontFamily: 'serif' }}>{c.labelUr}</p>
-            <p style={{ fontSize: c.isCount ? 22 : 15, fontWeight: 800, color: c.color, margin: 0 }}>{c.isCount ? c.value + ' customers' : c.value}</p>
+          <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 6px rgba(0,0,0,0.06)', display: 'flex', alignItems: 'center', gap: 10, borderLeft: `4px solid ${c.color}` }}>
+            <div>
+              <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
+              <p style={{ fontSize: c.isCount ? 17 : 13, fontWeight: 800, color: c.color, margin: 0 }}>{c.isCount ? c.value : c.value}</p>
+            </div>
           </div>
         ))}
       </div>
