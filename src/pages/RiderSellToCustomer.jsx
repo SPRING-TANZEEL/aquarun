@@ -64,6 +64,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         if (cached) setCustomers(JSON.parse(cached))
       } catch (err) { console.error('Cache parse error:', err) }
     } else {
+      localStorage.removeItem('cached_customers_' + tenantId)
       fetchAndCacheCustomers()
     }
   }, [isOnline, tenantId])
