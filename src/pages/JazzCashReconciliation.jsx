@@ -202,7 +202,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
               </button>
             ))}
           </div>
-          {/* Date range — second line */}
+          <div style={{ height: 1, background: '#f0f0f0', margin: '8px 0' }} />
+        {/* Date range — second line */}
         <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
           <span style={{ fontSize: 11, color: '#888', fontWeight: 600, whiteSpace: 'nowrap' }}>📅</span>
           <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
