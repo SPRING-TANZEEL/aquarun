@@ -97,57 +97,69 @@ function StockDashboard({ products, loading, rawMaterials, finishedGoods, tradin
   const totalStockValue = products.reduce((s, p) => s + Number(p.current_stock || 0) * Number(p.average_cost || p.purchase_price || 0), 0)
 
   function StockCard({ product }) {
-    const isLow          = product.current_stock < 10
+    const isLow            = product.current_stock < 10
     const isShrinkingPaper = product.name === 'Shrinking Paper'
-    const stockValue     = Number(product.current_stock || 0) * Number(product.average_cost || product.purchase_price || 0)
-    const pct            = product.opening_stock > 0 ? Math.min(100, Math.round((product.current_stock / product.opening_stock) * 100)) : null
+    const stockValue       = Number(product.current_stock || 0) * Number(product.average_cost || product.purchase_price || 0)
+    const pct              = product.opening_stock > 0 ? Math.min(100, Math.round((product.current_stock / product.opening_stock) * 100)) : null
 
     return (
       <div style={{
-        background: 'white', borderRadius: 12, padding: '14px 16px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        borderTop: `3px solid ${isLow ? '#f44336' : '#1a7a4a'}`,
-        position: 'relative', overflow: 'hidden',
+        background: 'white', borderRadius: 10,
+        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+        border: `1px solid ${isLow ? '#fecaca' : '#f0f0f0'}`,
+        overflow: 'hidden',
       }}>
-        {/* Low stock badge */}
-        {isLow && (
-          <span style={{ position: 'absolute', top: 10, right: 10, fontSize: 10, background: '#ffebee', color: '#c62828', padding: '2px 7px', borderRadius: 10, fontWeight: 700 }}>
-            ⚠️ Low
-          </span>
-        )}
-        {/* Name */}
-        <p style={{ fontSize: 12, fontWeight: 700, color: '#555', margin: '0 0 8px', paddingRight: isLow ? 50 : 0 }}>{product.name}</p>
-        {/* Stock count */}
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 4 }}>
-          <p style={{ fontSize: 26, fontWeight: 900, color: isLow ? '#f44336' : '#0f4c81', margin: 0, letterSpacing: '-0.5px' }}>
-            {Number(product.current_stock).toLocaleString()}
-          </p>
-          <span style={{ fontSize: 11, color: '#aaa' }}>pcs</span>
-        </div>
-        {/* Shrinking Paper KG */}
-        {isShrinkingPaper && (
-          <p style={{ fontSize: 11, color: '#888', margin: '0 0 4px' }}>
-            {Number(product.current_stock_kg || 0).toFixed(2)} kg remaining
-          </p>
-        )}
-        {/* Progress bar */}
-        {pct !== null && (
-          <div style={{ height: 4, background: '#f0f0f0', borderRadius: 2, margin: '6px 0', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${pct}%`, background: isLow ? '#f44336' : '#1a7a4a', borderRadius: 2 }} />
+        {/* Colored top accent */}
+        <div style={{ height: 3, background: isLow ? 'linear-gradient(90deg,#ef4444,#f97316)' : 'linear-gradient(90deg,#0f4c81,#1a7a4a)' }} />
+        <div style={{ padding: '12px 14px' }}>
+          {/* Name + badge row */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+            <p style={{ fontSize: 11, fontWeight: 700, color: '#374151', margin: 0, lineHeight: 1.3, flex: 1, paddingRight: 4 }}>{product.name}</p>
+            {isLow
+              ? <span style={{ fontSize: 9, background: '#fef2f2', color: '#dc2626', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>LOW</span>
+              : <span style={{ fontSize: 9, background: '#f0fdf4', color: '#16a34a', padding: '2px 6px', borderRadius: 8, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0 }}>OK</span>
+            }
           </div>
-        )}
-        {/* Value */}
-        {stockValue > 0 && (
-          <p style={{ fontSize: 11, color: '#1a7a4a', margin: '4px 0 0', fontWeight: 600 }}>
-            Rs. {stockValue.toLocaleString()} value
-          </p>
-        )}
-        {/* Sale price */}
-        {product.sale_price > 0 && (
-          <p style={{ fontSize: 10, color: '#888', margin: '2px 0 0' }}>
-            Sale: Rs. {Number(product.sale_price).toLocaleString()}
-          </p>
-        )}
+
+          {/* Stock number */}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, marginBottom: 6 }}>
+            <span style={{ fontSize: 22, fontWeight: 900, color: isLow ? '#dc2626' : '#0f4c81', letterSpacing: '-0.5px', lineHeight: 1 }}>
+              {Number(product.current_stock).toLocaleString()}
+            </span>
+            <span style={{ fontSize: 10, color: '#9ca3af', fontWeight: 500 }}>pcs</span>
+          </div>
+
+          {/* Progress bar */}
+          {pct !== null && (
+            <div style={{ marginBottom: 6 }}>
+              <div style={{ height: 3, background: '#f3f4f6', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${pct}%`, background: isLow ? '#ef4444' : '#0f4c81', borderRadius: 2, transition: 'width 0.3s' }} />
+              </div>
+              <p style={{ fontSize: 9, color: '#9ca3af', margin: '2px 0 0' }}>{pct}% of opening</p>
+            </div>
+          )}
+
+          {/* KG for Shrinking Paper */}
+          {isShrinkingPaper && (
+            <p style={{ fontSize: 10, color: '#6b7280', margin: '0 0 4px' }}>
+              {Number(product.current_stock_kg || 0).toFixed(2)} kg
+            </p>
+          )}
+
+          {/* Divider */}
+          <div style={{ height: 1, background: '#f3f4f6', margin: '6px 0' }} />
+
+          {/* Bottom row — value + sale price */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {stockValue > 0
+              ? <p style={{ fontSize: 10, color: '#059669', margin: 0, fontWeight: 700 }}>Rs. {stockValue.toLocaleString()}</p>
+              : <span />
+            }
+            {product.sale_price > 0 && (
+              <p style={{ fontSize: 10, color: '#6b7280', margin: 0 }}>@ Rs. {Number(product.sale_price).toLocaleString()}</p>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
@@ -161,7 +173,7 @@ function StockDashboard({ products, loading, rawMaterials, finishedGoods, tradin
           <p style={{ fontSize: 11, fontWeight: 700, color: '#555', textTransform: 'uppercase', letterSpacing: 0.8, margin: 0 }}>{icon} {title}</p>
           <span style={{ fontSize: 10, color: '#aaa', background: '#f0f0f0', padding: '1px 8px', borderRadius: 10 }}>{items.length}</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8 }}>
           {items.map(p => <StockCard key={p.id} product={p} />)}
         </div>
       </div>
@@ -171,15 +183,19 @@ function StockDashboard({ products, loading, rawMaterials, finishedGoods, tradin
   return (
     <div>
       {/* Summary bar */}
-      <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', gap: 0, flexWrap: 'wrap' }}>
+      <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', alignItems: 'center' }}>
         {[
-          { label: 'Total Products', value: totalProducts, color: '#93c5fd' },
-          { label: 'Low Stock',      value: lowStockCount,  color: lowStockCount > 0 ? '#fca5a5' : '#6ee7b7' },
-          { label: 'Total Value',    value: `Rs. ${totalStockValue.toLocaleString()}`, color: '#6ee7b7', wide: true },
+          { label: 'Total Products', value: totalProducts,                                color: '#93c5fd' },
+          { label: 'Total Value',    value: `Rs. ${totalStockValue.toLocaleString()}`,    color: '#6ee7b7' },
+          { label: 'Low Stock',      value: lowStockCount,                                color: lowStockCount > 0 ? '#fca5a5' : '#6ee7b7' },
         ].map((s, i) => (
-          <div key={s.label} style={{ flex: s.wide ? 2 : 1, padding: '4px 16px', borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.1)' : 'none', minWidth: s.wide ? 160 : 80 }}>
-            <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</p>
-            <p style={{ fontSize: 16, fontWeight: 800, color: s.color, margin: 0 }}>{s.value}</p>
+          <div key={s.label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
+            {/* Golden separator */}
+            {i > 0 && (
+              <div style={{ position: 'absolute', left: 0, top: '10%', height: '80%', width: 1, background: 'linear-gradient(180deg, transparent, #f59e0b, transparent)' }} />
+            )}
+            <p style={{ fontSize: 9, color: 'rgba(255,255,255,0.45)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.8, whiteSpace: 'nowrap' }}>{s.label}</p>
+            <p style={{ fontSize: 17, fontWeight: 900, color: s.color, margin: 0, letterSpacing: '-0.3px' }}>{s.value}</p>
           </div>
         ))}
       </div>
