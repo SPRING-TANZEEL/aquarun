@@ -1380,6 +1380,7 @@ function ChurnRisk({ tenantId }) {
                 </div>
               </div>
             </div>
+            </div>
           </div>
         )
       })}
