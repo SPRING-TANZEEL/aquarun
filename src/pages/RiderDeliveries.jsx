@@ -58,8 +58,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [otherBrands,    setOtherBrands]    = useState(0)
   const [rescheduling,   setRescheduling]   = useState(false)
   const [riderLocation,  setRiderLocation]  = useState(null)
-
-  useEffect(() => { getRiderLocation(); fetchOrders() }, [filter, isOnline, dbReady, tenantId])
+  const [completedCount, setCompletedCount] = useState(0)
 
   function getRiderLocation() {
     if (!navigator.geolocation) return
@@ -78,10 +77,10 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
   }
 
-  function sortByDistance(orders, location) {
-    if (!location) return orders
-    const withCoords = orders.filter(o => o.customers?.latitude && o.customers?.longitude)
-    const withoutCoords = orders.filter(o => !o.customers?.latitude || !o.customers?.longitude)
+  function sortByDistance(orderList, location) {
+    if (!location) return orderList
+    const withCoords    = orderList.filter(o =>  o.customers?.latitude && o.customers?.longitude)
+    const withoutCoords = orderList.filter(o => !o.customers?.latitude || !o.customers?.longitude)
     withCoords.sort((a, b) => {
       const distA = haversineDistance(location.lat, location.lng, Number(a.customers.latitude), Number(a.customers.longitude))
       const distB = haversineDistance(location.lat, location.lng, Number(b.customers.latitude), Number(b.customers.longitude))
@@ -89,6 +88,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     })
     return [...withCoords, ...withoutCoords]
   }
+
+  useEffect(() => { getRiderLocation(); fetchOrders() }, [filter, isOnline, dbReady, tenantId])
 
   async function fetchOrders() {
     setLoading(true)
@@ -106,6 +107,11 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         if (filter === 'today') query = query.lte('delivery_date', today)
         const { data } = await query
         setOrders(sortByDistance(data || [], riderLocation))
+        const { count } = await supabase.from('orders')
+          .select('*', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId).eq('rider_id', rider.id)
+          .eq('status', 'completed').eq('delivery_date', today)
+        setCompletedCount(count || 0)
       } else {
         if (dbReady) {
           const offlineOrders = await getOrdersOffline()
@@ -477,6 +483,34 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           )
         })()}
       </div>
+      {/* Daily Progress Bar */}
+      {(completedCount > 0 || orders.length > 0) && (
+        <div style={{ background: 'white', borderRadius: 10, padding: '12px 14px', marginBottom: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>
+              📦 Today's Progress
+            </span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a' }}>
+              {completedCount} / {completedCount + orders.length} completed
+            </span>
+          </div>
+          <div style={{ height: 8, background: '#e0e0e0', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%',
+              width: `${completedCount + orders.length > 0 ? (completedCount / (completedCount + orders.length)) * 100 : 0}%`,
+              background: 'linear-gradient(90deg, #1a7a4a, #4caf50)',
+              borderRadius: 4,
+              transition: 'width 0.5s ease'
+            }} />
+          </div>
+          {completedCount + orders.length > 0 && (
+            <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>
+              {orders.length} remaining · {Math.round((completedCount / (completedCount + orders.length)) * 100)}% done
+            </p>
+          )}
+        </div>
+      )}
+
       {!isOnline && (
         <p style={{ fontSize: '12px', color: '#ea580c', marginBottom: '12px', background: '#fff7ed', padding: '6px 10px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
           📵 Offline — deliveries will sync when internet is available
