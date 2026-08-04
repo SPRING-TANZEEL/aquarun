@@ -404,7 +404,7 @@ export default function CustomerManagement({ tenantId }) {
       {/* Summary Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px', marginBottom: '16px' }}>
         {[
-          { label: 'Total Customers', value: customers.filter(c => c.is_active).length, color: '#0f4c81', icon: '👥' },
+          { label: 'Total Customers', value: customers.filter(c => c.is_active).length, color: '#0f4c81', icon: '👥', sub: `${customers.filter(c => !c.is_active).length} inactive` },
           { label: 'Total Receivable', value: `Rs. ${totalReceivable.toLocaleString()}`, color: '#f44336', icon: '📥' },
           { label: 'Advance Credits', value: `Rs. ${totalAdvance.toLocaleString()}`, color: '#1a7a4a', icon: '💚' },
           { label: 'Scheduled', value: scheduledCount, color: '#f59e0b', icon: '📅' },
@@ -414,6 +414,7 @@ export default function CustomerManagement({ tenantId }) {
             <div>
               <p style={{ fontSize: 10, color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
               <p style={{ fontSize: 16, fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
+              {c.sub && <p style={{ fontSize: 10, color: '#aaa', margin: '2px 0 0' }}>{c.sub}</p>}
             </div>
           </div>
         ))}
