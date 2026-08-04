@@ -541,6 +541,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', background: 'white' }}>
                     <p style={{ fontWeight: '700', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
                     <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · Balance: Rs. {Number(c.balance || 0).toLocaleString()}</p>
+                    {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                   </div>
                 ))}
               </div>
