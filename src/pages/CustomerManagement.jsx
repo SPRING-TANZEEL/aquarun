@@ -402,23 +402,22 @@ export default function CustomerManagement({ tenantId }) {
       </div>
 
       {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '16px' }}>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #0f4c81' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Total Customers</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{customers.filter(c => c.is_active).length}</p>
-        </div>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #f44336' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Total Receivable</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#f44336', margin: 0 }}>Rs. {totalReceivable.toLocaleString()}</p>
-        </div>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #1a7a4a' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Advance Credits</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#1a7a4a', margin: 0 }}>Rs. {totalAdvance.toLocaleString()}</p>
-        </div>
-        <div style={{ background: 'white', borderRadius: '10px', padding: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: '4px solid #f59e0b' }}>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Scheduled</p>
-          <p style={{ fontSize: '22px', fontWeight: '700', color: '#f59e0b', margin: 0 }}>{scheduledCount}</p>
-        </div>
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+        {[
+          { label: 'Total Customers', value: customers.filter(c => c.is_active).length, color: '#0f4c81', icon: '👥' },
+          { label: 'Total Receivable', value: `Rs. ${totalReceivable.toLocaleString()}`, color: '#f44336', icon: '📥', small: true },
+          { label: 'Advance Credits', value: `Rs. ${totalAdvance.toLocaleString()}`, color: '#1a7a4a', icon: '💚', small: true },
+          { label: 'Scheduled', value: scheduledCount, color: '#f59e0b', icon: '📅' },
+          { label: 'Inactive', value: customers.filter(c => !c.is_active).length, color: '#888', icon: '❌' },
+        ].map(c => (
+          <div key={c.label} style={{ background: 'white', borderRadius: 12, padding: '14px 18px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', borderLeft: `4px solid ${c.color}`, flexShrink: 0, minWidth: 130 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: 16 }}>{c.icon}</span>
+              <p style={{ fontSize: 10, color: '#888', margin: 0, textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+            </div>
+            <p style={{ fontSize: c.small ? '16px' : '22px', fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
+          </div>
+        ))}
       </div>
 
       {/* ── IMPORT TAB ── */}
