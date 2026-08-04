@@ -1260,41 +1260,36 @@ function ChurnRisk({ tenantId }) {
         <button onClick={fetchData} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
       </div>
 
-      {/* Summary Cards — compact horizontal */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 16 }}>
         {[
-          { label: 'Critical',  icon: '🔴', value: data?.riskCounts.critical || 0, color: '#c62828', bg: '#ffebee' },
-          { label: 'High',      icon: '🟠', value: data?.riskCounts.high     || 0, color: '#c2410c', bg: '#fff3e0' },
-          { label: 'Medium',    icon: '🟡', value: data?.riskCounts.medium   || 0, color: '#b45309', bg: '#fff8e1' },
-          { label: 'Low',       icon: '🟢', value: data?.riskCounts.low      || 0, color: '#1a7a4a', bg: '#e8f5e9' },
-          { label: 'Exposure',  icon: '🫙', value: `Rs.${((data?.totalBottleExposure||0)/1000).toFixed(0)}K`, color: '#0f4c81', bg: '#e3f0ff' },
+          { label: 'Critical', labelUr: 'انتہائی خطرناک', value: data?.riskCounts.critical || 0, color: '#c62828', bg: '#ffebee', isCount: true },
+          { label: 'High Risk', labelUr: 'زیادہ خطرہ', value: data?.riskCounts.high || 0, color: '#c2410c', bg: '#fff3e0', isCount: true },
+          { label: 'Medium Risk', labelUr: 'درمیانہ', value: data?.riskCounts.medium || 0, color: '#b45309', bg: '#fff8e1', isCount: true },
+          { label: 'Bottle Exposure', labelUr: 'بوتلوں کی مالیت', value: `Rs. ${(data?.totalBottleExposure || 0).toLocaleString()}`, color: '#0f4c81', bg: '#e3f0ff', isCount: false },
         ].map(c => (
-          <div key={c.label} style={{ background: c.bg, borderRadius: 10, padding: '10px 14px', flexShrink: 0, minWidth: 80, textAlign: 'center', border: `1px solid ${c.color}22` }}>
-            <p style={{ fontSize: 18, margin: '0 0 3px' }}>{c.icon}</p>
-            <p style={{ fontSize: 16, fontWeight: 900, color: c.color, margin: '0 0 2px' }}>{c.value}</p>
-            <p style={{ fontSize: 9, color: '#888', margin: 0, textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
+          <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
+            <p style={{ fontSize: 10, color: '#888', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+            <p dir="rtl" style={{ fontSize: 9, color: '#aaa', margin: '0 0 4px', fontFamily: 'serif' }}>{c.labelUr}</p>
+            <p style={{ fontSize: c.isCount ? 22 : 15, fontWeight: 800, color: c.color, margin: 0 }}>{c.isCount ? c.value + ' customers' : c.value}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters — compact two-row */}
-      <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Days missed:</span>
-          {[{ k: 'all', l: 'All' }, { k: '7', l: '7+' }, { k: '15', l: '15+' }, { k: '30', l: '30+' }].map(f => (
-            <button key={f.k} onClick={() => setFilter(f.k)}
-              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
-          ))}
-        </div>
-        <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Risk level:</span>
-          {[{ k: 'all', l: 'All', c: '#555' }, { k: 'critical', l: '🔴', c: '#c62828' }, { k: 'high', l: '🟠', c: '#c2410c' }, { k: 'medium', l: '🟡', c: '#b45309' }, { k: 'low', l: '🟢', c: '#1a7a4a' }].map(f => (
-            <button key={f.k} onClick={() => setRiskFilter(f.k)}
-              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
-                background: riskFilter === f.k ? f.c : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
-          ))}
-        </div>
+      {/* Filters */}
+      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Days missed:</span>
+        {[{ k: 'all', l: 'All' }, { k: '7', l: '7+ days' }, { k: '15', l: '15+ days' }, { k: '30', l: '30+ days' }].map(f => (
+          <button key={f.k} onClick={() => setFilter(f.k)}
+            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+        ))}
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#555', marginLeft: 8 }}>Risk:</span>
+        {[{ k: 'all', l: 'All' }, { k: 'critical', l: '🔴 Critical' }, { k: 'high', l: '🟠 High' }, { k: 'medium', l: '🟡 Medium' }, { k: 'low', l: '🟢 Low' }].map(f => (
+          <button key={f.k} onClick={() => setRiskFilter(f.k)}
+            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+              background: riskFilter === f.k ? '#0f4c81' : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+        ))}
       </div>
 
       {/* Search */}
@@ -1318,9 +1313,7 @@ function ChurnRisk({ tenantId }) {
       ) : filtered.map(c => {
         const rc = RISK_CONFIG[c.risk]
         return (
-          <div key={c.id} style={{ background: 'white', borderRadius: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.07)', border: `1px solid ${rc.border}`, overflow: 'hidden' }}>
-            <div style={{ height: 3, background: rc.color }} />
-            <div style={{ padding: '12px 16px' }}>
+          <div key={c.id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', marginBottom: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${rc.color}`, border: `1px solid ${rc.border}` }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
               <div style={{ flex: 1 }}>
                 {/* Name + Risk Badge */}
@@ -1379,7 +1372,6 @@ function ChurnRisk({ tenantId }) {
                   )}
                 </div>
               </div>
-            </div>
             </div>
           </div>
         )
