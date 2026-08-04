@@ -245,14 +245,14 @@ export default function CEOCashPosition({ tenantId }) {
           { key: 'history',  icon: '📋', label: 'History' },
         ].map(t => (
           <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-            flex: 1, padding: '10px 8px', border: 'none', borderRadius: 8, cursor: 'pointer',
+            flex: 1, padding: '8px 4px', border: 'none', borderRadius: 8, cursor: 'pointer',
             background: activeTab === t.key ? '#0f4c81' : 'transparent',
             color: activeTab === t.key ? 'white' : '#666',
             fontWeight: activeTab === t.key ? 700 : 500,
-            fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-            transition: 'all 0.15s',
+            fontSize: 11, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
           }}>
-            <span>{t.icon}</span><span>{t.label}</span>
+            <span style={{ fontSize: 16 }}>{t.icon}</span>
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
@@ -261,50 +261,58 @@ export default function CEOCashPosition({ tenantId }) {
       {activeTab === 'overview' && (
         <div>
           {/* Date Filter */}
-          <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 16, boxShadow: '0 2px 6px rgba(0,0,0,0.05)', display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>📅 Period:</span>
-            {[
-              { label: 'Today', from: today, to: today },
-              { label: 'This Month', from: firstOfMonth, to: today },
-              { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
-              { label: 'All Time', from: '2024-01-01', to: today },
-            ].map(p => (
-              <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
-                style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
-                  color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
-                {p.label}
-              </button>
-            ))}
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
-            <span style={{ color: '#888', fontSize: 12 }}>to</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+          <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 16, boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}>
+            {/* Row 1 — Quick buttons */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              {[
+                { label: 'Today',      from: today,           to: today },
+                { label: 'This Month', from: firstOfMonth,    to: today },
+                { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
+                { label: 'All Time',   from: '2024-01-01',    to: today },
+              ].map(p => (
+                <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+                  style={{ flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                    background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
+                    color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {/* Row 2 — Date range */}
+            <div style={{ height: 1, background: '#f0f0f0', marginBottom: 8 }} />
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: '#888', fontWeight: 600, whiteSpace: 'nowrap' }}>📅</span>
+              <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                style={{ flex: 1, padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none' }} />
+              <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+              <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                style={{ flex: 1, padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none' }} />
+            </div>
           </div>
 
           {/* Account Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
             {ACCOUNTS.map(acc => {
               const bal = accountBalances[acc.key]
               const pending = acc.key === 'jazzcash' ? data?.jazzPending : acc.key === 'easypaisa' ? data?.epPending : 0
               return (
-                <div key={acc.key} style={{ background: 'white', borderRadius: 12, padding: '18px 20px', boxShadow: '0 2px 10px rgba(0,0,0,0.07)', borderLeft: `4px solid ${acc.color}`, position: 'relative', overflow: 'hidden' }}>
-                  <div style={{ position: 'absolute', top: -10, right: -10, fontSize: 60, opacity: 0.05 }}>{acc.icon}</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{ width: 36, height: 36, borderRadius: 8, background: acc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>{acc.icon}</div>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#555' }}>{acc.label}</span>
-                    </div>
+                <div key={acc.key} style={{ background: 'white', borderRadius: 12, padding: '14px 16px', boxShadow: '0 2px 8px rgba(0,0,0,0.07)', borderTop: `3px solid ${acc.color}` }}>
+                  {/* Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 8, background: acc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>{acc.icon}</div>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>{acc.label}</span>
                   </div>
-                  <p style={{ fontSize: 24, fontWeight: 900, color: bal >= 0 ? acc.color : '#c62828', margin: '0 0 4px', letterSpacing: '-0.5px' }}>
+                  {/* Balance */}
+                  <p style={{ fontSize: 18, fontWeight: 900, color: bal >= 0 ? acc.color : '#c62828', margin: '0 0 3px', letterSpacing: '-0.3px' }}>
                     Rs. {fmt(bal)}
                   </p>
-                  <p style={{ fontSize: 11, color: '#888', margin: 0 }}>
+                  <p style={{ fontSize: 10, color: '#aaa', margin: 0 }}>
                     Opening: Rs. {fmt(openingBalances[acc.key])}
                   </p>
                   {pending > 0 && (
-                    <div style={{ marginTop: 8, padding: '5px 10px', background: '#fff8e1', borderRadius: 6, display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ fontSize: 11, color: '#b45309', fontWeight: 600 }}>⏳ Pending confirmation</span>
-                      <span style={{ fontSize: 11, color: '#b45309', fontWeight: 700 }}>Rs. {fmt(pending)}</span>
+                    <div style={{ marginTop: 8, padding: '4px 8px', background: '#fff8e1', borderRadius: 5, display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 10, color: '#b45309', fontWeight: 600 }}>⏳ Pending</span>
+                      <span style={{ fontSize: 10, color: '#b45309', fontWeight: 700 }}>Rs. {fmt(pending)}</span>
                     </div>
                   )}
                 </div>
