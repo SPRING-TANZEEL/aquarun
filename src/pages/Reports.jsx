@@ -32,13 +32,69 @@ export default function Reports({ tenantId }) {
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>📈 Reports</h2>
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Business reports and financial summaries.</p>
       </div>
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)}
-            style={{ padding: '8px 14px', border: 'none', borderRadius: '8px', cursor: 'pointer', background: activeTab === t.key ? '#0f4c81' : '#f0f0f0', color: activeTab === t.key ? 'white' : '#555', fontWeight: activeTab === t.key ? '700' : '400', fontSize: '13px' }}>
-            {t.label}
-          </button>
-        ))}
+      <div style={{ background: 'white', borderRadius: 12, padding: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', marginBottom: 20 }}>
+        {/* Row 1 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginBottom: 4 }}>
+          {[
+            { key: 'daily',   label: '💵', sub: 'Cash Flow'   },
+            { key: 'ledger',  label: '📒', sub: 'Ledger'      },
+            { key: 'ageing',  label: '⏳', sub: 'Receivables' },
+            { key: 'sales',   label: '📊', sub: 'Sales'       },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+              padding: '8px 4px', border: 'none', borderRadius: 7, cursor: 'pointer',
+              background: activeTab === t.key ? '#0f4c81' : 'transparent',
+              color: activeTab === t.key ? 'white' : '#666',
+              fontWeight: activeTab === t.key ? 700 : 500, fontSize: 11,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}>
+              <span style={{ fontSize: 16 }}>{t.label}</span>
+              <span>{t.sub}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ height: 1, background: '#f0f0f0', margin: '0 4px' }} />
+        {/* Row 2 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 4 }}>
+          {[
+            { key: 'pl',         label: '📈', sub: 'P&L'        },
+            { key: 'tax',        label: '🧾', sub: 'Tax'         },
+            { key: 'executive',  label: '📋', sub: 'Executive'   },
+            { key: 'collection', label: '📥', sub: 'Collections' },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+              padding: '8px 4px', border: 'none', borderRadius: 7, cursor: 'pointer',
+              background: activeTab === t.key ? '#1a7a4a' : 'transparent',
+              color: activeTab === t.key ? 'white' : '#666',
+              fontWeight: activeTab === t.key ? 700 : 500, fontSize: 11,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}>
+              <span style={{ fontSize: 16 }}>{t.label}</span>
+              <span>{t.sub}</span>
+            </button>
+          ))}
+        </div>
+        <div style={{ height: 1, background: '#f0f0f0', margin: '4px 4px 0' }} />
+        {/* Row 3 */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 4 }}>
+          {[
+            { key: 'churn',    label: '📋', sub: 'Churn Risk'   },
+            { key: 'bottles',  label: '🫙', sub: 'Bottles'      },
+            { key: 'custsales',label: '👤', sub: 'Cust. Sales'  },
+            { key: 'bulk',     label: '📨', sub: 'Bulk Share'   },
+          ].map(t => (
+            <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+              padding: '8px 4px', border: 'none', borderRadius: 7, cursor: 'pointer',
+              background: activeTab === t.key ? '#7c3aed' : 'transparent',
+              color: activeTab === t.key ? 'white' : '#666',
+              fontWeight: activeTab === t.key ? 700 : 500, fontSize: 11,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
+            }}>
+              <span style={{ fontSize: 16 }}>{t.label}</span>
+              <span>{t.sub}</span>
+            </button>
+          ))}
+        </div>
       </div>
       {activeTab === 'daily' && <DailyCashReport tenantId={tenantId} />}
       {activeTab === 'ledger' && <CustomerLedger tenantId={tenantId} />}
@@ -66,6 +122,16 @@ export default function Reports({ tenantId }) {
       {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
       {activeTab === 'custsales' && <CustomerSales tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
+      {activeTab === 'churn' && (hasPremiumReports
+        ? <ChurnRisk tenantId={tenantId} />
+        : <div style={{ background: 'white', borderRadius: 12, padding: 60, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: 40, margin: '0 0 12px' }}>🔒</p>
+            <p style={{ fontSize: 16, fontWeight: 700, color: '#555', margin: '0 0 8px' }}>Premium Feature</p>
+            <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Churn Risk Report — contact admin to upgrade.</p>
+          </div>
+      )}
+      {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
+      {activeTab === 'custsales' && <CustomerSales tenantId={tenantId} />}
     </div>
   )
 }
@@ -293,10 +359,10 @@ function DailyCashReport({ tenantId }) {
     <div style={{ fontFamily:'system-ui,-apple-system,sans-serif' }}>
 
       {/* Filter Bar */}
-      <div style={{ background:'white', borderRadius:12, padding:'14px 18px', marginBottom:16, boxShadow:'0 2px 8px rgba(0,0,0,0.06)', display:'flex', gap:10, flexWrap:'wrap', alignItems:'center' }}>
-
-        {/* Day navigation — only show when single day selected */}
-        {dateFrom === dateTo && (
+      <div style={{ background:'white', borderRadius:12, padding:'12px 16px', marginBottom:16, boxShadow:'0 2px 8px rgba(0,0,0,0.06)' }}>
+        {/* Row 1 — quick filters + navigation */}
+        <div style={{ display:'flex', gap:6, alignItems:'center', marginBottom:8, flexWrap:'wrap' }}>
+          {dateFrom === dateTo && (
           <div style={{ display:'flex', alignItems:'center', gap:6 }}>
             <button onClick={() => navigate(-1)} style={{ width:32, height:32, border:'1.5px solid #e0e0e0', borderRadius:6, cursor:'pointer', background:'white', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center' }}>‹</button>
             <button onClick={() => navigate(1)} disabled={dateFrom >= today} style={{ width:32, height:32, border:'1.5px solid #e0e0e0', borderRadius:6, cursor:'pointer', background:'white', fontSize:16, display:'flex', alignItems:'center', justifyContent:'center', opacity: dateFrom >= today ? 0.4 : 1 }}>›</button>
@@ -320,24 +386,42 @@ function DailyCashReport({ tenantId }) {
           </button>
         ))}
 
-        {/* Custom range */}
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          style={{ padding:'6px 10px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
-        <span style={{ fontSize:11, color:'#aaa' }}>to</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          style={{ padding:'6px 10px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
-
-        <button onClick={() => fetchReport(dateFrom, dateTo)}
-          style={{ padding:'7px 16px', background:'#0f4c81', color:'white', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:700 }}>
-          🔍 Search
-        </button>
+        
 
         {data && (
-          <button onClick={printReport}
-            style={{ padding:'7px 14px', background:'#f0f4f8', color:'#555', border:'1px solid #e0e0e0', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginLeft:'auto' }}>
-            🖨️ Print / PDF
+            <button onClick={printReport}
+              style={{ padding:'7px 14px', background:'#f0f4f8', color:'#555', border:'1px solid #e0e0e0', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:600, marginLeft:'auto' }}>
+              🖨️ Print / PDF
+            </button>
+          )}
+        </div>
+        <div style={{ height:1, background:'#f0f0f0', marginBottom:8 }} />
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:11, color:'#888', fontWeight:600 }}>📅</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
+          <span style={{ color:'#aaa', fontSize:11 }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
+          <button onClick={() => fetchReport(dateFrom, dateTo)}
+            style={{ padding:'6px 14px', background:'#0f4c81', color:'white', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:700 }}>
+            Go
           </button>
-        )}
+        </div>
+        {/* Row 2 — date range */}
+        <div style={{ height:1, background:'#f0f0f0', marginBottom:8 }} />
+        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+          <span style={{ fontSize:11, color:'#888', fontWeight:600 }}>📅</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
+          <span style={{ color:'#aaa', fontSize:11 }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
+          <button onClick={() => fetchReport(dateFrom, dateTo)}
+            style={{ padding:'6px 14px', background:'#0f4c81', color:'white', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:700 }}>
+            Go
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -1176,36 +1260,41 @@ function ChurnRisk({ tenantId }) {
         <button onClick={fetchData} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
       </div>
 
-      {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10, marginBottom: 16 }}>
+      {/* Summary Cards — compact horizontal */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 2 }}>
         {[
-          { label: 'Critical', labelUr: 'انتہائی خطرناک', value: data?.riskCounts.critical || 0, color: '#c62828', bg: '#ffebee', isCount: true },
-          { label: 'High Risk', labelUr: 'زیادہ خطرہ', value: data?.riskCounts.high || 0, color: '#c2410c', bg: '#fff3e0', isCount: true },
-          { label: 'Medium Risk', labelUr: 'درمیانہ', value: data?.riskCounts.medium || 0, color: '#b45309', bg: '#fff8e1', isCount: true },
-          { label: 'Bottle Exposure', labelUr: 'بوتلوں کی مالیت', value: `Rs. ${(data?.totalBottleExposure || 0).toLocaleString()}`, color: '#0f4c81', bg: '#e3f0ff', isCount: false },
+          { label: 'Critical',  icon: '🔴', value: data?.riskCounts.critical || 0, color: '#c62828', bg: '#ffebee' },
+          { label: 'High',      icon: '🟠', value: data?.riskCounts.high     || 0, color: '#c2410c', bg: '#fff3e0' },
+          { label: 'Medium',    icon: '🟡', value: data?.riskCounts.medium   || 0, color: '#b45309', bg: '#fff8e1' },
+          { label: 'Low',       icon: '🟢', value: data?.riskCounts.low      || 0, color: '#1a7a4a', bg: '#e8f5e9' },
+          { label: 'Exposure',  icon: '🫙', value: `Rs.${((data?.totalBottleExposure||0)/1000).toFixed(0)}K`, color: '#0f4c81', bg: '#e3f0ff' },
         ].map(c => (
-          <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
-            <p style={{ fontSize: 10, color: '#888', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
-            <p dir="rtl" style={{ fontSize: 9, color: '#aaa', margin: '0 0 4px', fontFamily: 'serif' }}>{c.labelUr}</p>
-            <p style={{ fontSize: c.isCount ? 22 : 15, fontWeight: 800, color: c.color, margin: 0 }}>{c.isCount ? c.value + ' customers' : c.value}</p>
+          <div key={c.label} style={{ background: c.bg, borderRadius: 10, padding: '10px 14px', flexShrink: 0, minWidth: 80, textAlign: 'center', border: `1px solid ${c.color}22` }}>
+            <p style={{ fontSize: 18, margin: '0 0 3px' }}>{c.icon}</p>
+            <p style={{ fontSize: 16, fontWeight: 900, color: c.color, margin: '0 0 2px' }}>{c.value}</p>
+            <p style={{ fontSize: 9, color: '#888', margin: 0, textTransform: 'uppercase', letterSpacing: 0.3 }}>{c.label}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Days missed:</span>
-        {[{ k: 'all', l: 'All' }, { k: '7', l: '7+ days' }, { k: '15', l: '15+ days' }, { k: '30', l: '30+ days' }].map(f => (
-          <button key={f.k} onClick={() => setFilter(f.k)}
-            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
-        ))}
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#555', marginLeft: 8 }}>Risk:</span>
-        {[{ k: 'all', l: 'All' }, { k: 'critical', l: '🔴 Critical' }, { k: 'high', l: '🟠 High' }, { k: 'medium', l: '🟡 Medium' }, { k: 'low', l: '🟢 Low' }].map(f => (
-          <button key={f.k} onClick={() => setRiskFilter(f.k)}
-            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              background: riskFilter === f.k ? '#0f4c81' : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
-        ))}
+      {/* Filters — compact two-row */}
+      <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Days missed:</span>
+          {[{ k: 'all', l: 'All' }, { k: '7', l: '7+' }, { k: '15', l: '15+' }, { k: '30', l: '30+' }].map(f => (
+            <button key={f.k} onClick={() => setFilter(f.k)}
+              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }}>Risk level:</span>
+          {[{ k: 'all', l: 'All', c: '#555' }, { k: 'critical', l: '🔴', c: '#c62828' }, { k: 'high', l: '🟠', c: '#c2410c' }, { k: 'medium', l: '🟡', c: '#b45309' }, { k: 'low', l: '🟢', c: '#1a7a4a' }].map(f => (
+            <button key={f.k} onClick={() => setRiskFilter(f.k)}
+              style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                background: riskFilter === f.k ? f.c : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+          ))}
+        </div>
       </div>
 
       {/* Search */}
@@ -1229,7 +1318,9 @@ function ChurnRisk({ tenantId }) {
       ) : filtered.map(c => {
         const rc = RISK_CONFIG[c.risk]
         return (
-          <div key={c.id} style={{ background: 'white', borderRadius: 12, padding: '16px 18px', marginBottom: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${rc.color}`, border: `1px solid ${rc.border}` }}>
+          <div key={c.id} style={{ background: 'white', borderRadius: 12, marginBottom: 8, boxShadow: '0 1px 6px rgba(0,0,0,0.07)', border: `1px solid ${rc.border}`, overflow: 'hidden' }}>
+            <div style={{ height: 3, background: rc.color }} />
+            <div style={{ padding: '12px 16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
               <div style={{ flex: 1 }}>
                 {/* Name + Risk Badge */}
@@ -1382,36 +1473,41 @@ function CustomerSales({ tenantId }) {
     <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
 
       {/* Filter Bar */}
-      <div style={{ background: 'white', borderRadius: 12, padding: '14px 18px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>📅</span>
-        {[
-          { l: 'Today',      f: today2,      t: today2 },
-          { l: 'Yesterday',  f: yesterday,   t: yesterday },
-          { l: 'This Month', f: firstOfMonth, t: today2 },
-          { l: 'Last Month', f: lastMonth1,  t: lastMonthEnd },
-        ].map(p => (
-          <button key={p.l} onClick={() => applyQuick(p.f, p.t)}
-            style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
-              background: dateFrom === p.f && dateTo === p.t ? '#0f4c81' : '#f0f4f8',
-              color: dateFrom === p.f && dateTo === p.t ? '#fff' : '#555' }}>
-            {p.l}
+      <div style={{ background: 'white', borderRadius: 12, padding: '12px 14px', marginBottom: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        {/* Row 1 — quick filters */}
+        <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+          {[
+            { l: 'Today',      f: today2,       t: today2 },
+            { l: 'Yesterday',  f: yesterday,    t: yesterday },
+            { l: 'This Month', f: firstOfMonth, t: today2 },
+            { l: 'Last Month', f: lastMonth1,   t: lastMonthEnd },
+          ].map(p => (
+            <button key={p.l} onClick={() => applyQuick(p.f, p.t)}
+              style={{ flex: 1, padding: '6px 4px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                background: dateFrom === p.f && dateTo === p.t ? '#0f4c81' : '#f0f4f8',
+                color: dateFrom === p.f && dateTo === p.t ? '#fff' : '#555' }}>
+              {p.l}
+            </button>
+          ))}
+        </div>
+        {/* Row 2 — date range + search */}
+        <div style={{ height: 1, background: '#f0f0f0', marginBottom: 8 }} />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ flex: 1, padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none' }} />
+          <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ flex: 1, padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none' }} />
+          <button onClick={() => fetchData(dateFrom, dateTo)}
+            style={{ padding: '6px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            🔍
           </button>
-        ))}
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
-        <span style={{ color: '#aaa', fontSize: 12 }}>to</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
-        <button onClick={() => fetchData(dateFrom, dateTo)}
-          style={{ padding: '7px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
-          🔍 Search
-        </button>
+        </div>
+        <div style={{ height: 1, background: '#f0f0f0', margin: '8px 0' }} />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder="Filter by customer name, mobile or ID..."
+          style={{ width: '100%', padding: '7px 12px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none', boxSizing: 'border-box' }} />
       </div>
-
-      {/* Customer Search */}
-      <input value={search} onChange={e => setSearch(e.target.value)}
-        placeholder="🔍 Filter by customer name, mobile or ID..."
-        style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 14 }} />
 
       {/* Summary Cards */}
       {searched && (
@@ -1643,22 +1739,21 @@ function BottleBalance({ tenantId }) {
         ))}
       </div>
 
-      {/* Search + Sort */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <input value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="🔍 Search customer name, mobile or ID..."
-          style={{ flex: 1, minWidth: 200, padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
-        <div style={{ display: 'flex', gap: 6 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#555', alignSelf: 'center' }}>Sort:</span>
-          {[{ k: 'bottles', l: 'Most Bottles' }, { k: 'value', l: 'Highest Value' }, { k: 'name', l: 'Name A-Z' }].map(s => (
-            <button key={s.k} onClick={() => setSortBy(s.k)}
-              style={{ padding: '8px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                background: sortBy === s.k ? '#0f4c81' : '#f0f4f8', color: sortBy === s.k ? '#fff' : '#555' }}>
-              {s.l}
-            </button>
-          ))}
-        </div>
-        <button onClick={fetchData} style={{ padding: '8px 14px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🔄 Refresh</button>
+      {/* Search */}
+      <input value={search} onChange={e => setSearch(e.target.value)}
+        placeholder="🔍 Search customer name, mobile or ID..."
+        style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
+      {/* Sort + Refresh in one line */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap' }}>Sort:</span>
+        {[{ k: 'bottles', l: 'Most Bottles' }, { k: 'value', l: 'Highest Value' }, { k: 'name', l: 'A–Z' }].map(s => (
+          <button key={s.k} onClick={() => setSortBy(s.k)}
+            style={{ flex: 1, padding: '7px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+              background: sortBy === s.k ? '#0f4c81' : '#f0f4f8', color: sortBy === s.k ? '#fff' : '#555' }}>
+            {s.l}
+          </button>
+        ))}
+        <button onClick={fetchData} style={{ padding: '7px 12px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>🔄</button>
       </div>
 
       {/* Table */}
@@ -1959,15 +2054,16 @@ function BulkWhatsAppShare({ tenantId }) {
   const selectedCount = selectedList.length
   return (
     <div>
-      <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '4px' }}>📨 Bulk WhatsApp Share</h3>
-      <p style={{ fontSize: '13px', color: '#888', marginBottom: '16px' }}>Select customers to send their account statement via WhatsApp.</p>
-
-      {/* Info box */}
-      <div style={{ background: '#e8f5e9', border: '1px solid #c8e6c9', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
-        <p style={{ fontSize: '13px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>💡 How it works</p>
-        <p style={{ fontSize: '12px', color: '#555', margin: 0, lineHeight: 1.6 }}>
-          Select customers → Click Start → WhatsApp opens for each customer one by one → Tap Send → Click Next. Takes ~5 seconds per customer.
-        </p>
+      {/* Professional header */}
+      <div style={{ background: 'linear-gradient(135deg,#25d366,#128c7e)', borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, margin: '0 0 3px' }}>📨 Bulk WhatsApp Statements</p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: 0 }}>Select → Start → WhatsApp opens one by one → Tap Send → Next</p>
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: 1 }}>Customers loaded</p>
+          <p style={{ color: '#fff', fontWeight: 900, fontSize: 20, margin: 0 }}>{customers.length}</p>
+        </div>
       </div>
 
       {/* Filters */}
@@ -2195,12 +2291,14 @@ function SalesTaxReport({ tenantId }) {
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>🧾 Sales Tax Report</h3>
 
-      <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <button onClick={fetchTaxReport} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔄 Refresh</button>
+      <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#888', fontWeight: 600, whiteSpace: 'nowrap' }}>📅</span>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ flex: 1, padding: '6px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ flex: 1, padding: '6px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        <button onClick={fetchTaxReport} style={{ padding: '7px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>🔄 Refresh</button>
       </div>
 
       <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
@@ -3250,10 +3348,14 @@ function SalesSummary({ tenantId }) {
   return (
     <div>
       <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📊 Sales Summary</h3>
-      <div style={{ background: 'white', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>From</label><input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <div><label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px' }}>To</label><input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '13px', outline: 'none' }} /></div>
-        <button onClick={fetchSales} style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>🔍 Search</button>
+      <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 16, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 11, color: '#888', fontWeight: 600, whiteSpace: 'nowrap' }}>📅</span>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          style={{ flex: 1, padding: '6px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          style={{ flex: 1, padding: '6px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        <button onClick={fetchSales} style={{ padding: '7px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>🔍 Search</button>
       </div>
       {loading ? <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p> : data && (
         <div>
@@ -3615,28 +3717,33 @@ function ProfitLoss({ tenantId }) {
   return (
     <div>
       {/* Date filter */}
-      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#555', flexShrink: 0 }}>📅 Period:</span>
-        {[
-          { label: 'This Month', from: firstOfMonth, to: today },
-          { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
-          { label: 'This Year', from: firstOfYear, to: today },
-        ].map(p => (
-          <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
-            style={{ padding: '6px 14px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, flexShrink: 0,
-              background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
-              color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
-            {p.label}
-          </button>
-        ))}
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
-        <span style={{ fontSize: 12, color: '#888' }}>to</span>
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-          style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 13, outline: 'none' }} />
-        <button onClick={fetchPL} style={{ padding: '8px 20px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>🔍 Search</button>
-        <button onClick={printPL} style={{ padding: '8px 16px', background: '#f0f4f8', color: '#555', border: '1px solid #e0e0e0', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5 }}>🖨️ Print / PDF</button>
-        <span style={{ fontSize: 11, color: '#888', marginLeft: 'auto', fontStyle: 'italic' }}>Click any line item to see details</span>
+      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+          {[
+            { label: 'This Month', from: firstOfMonth,    to: today },
+            { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
+            { label: 'This Year',  from: firstOfYear,     to: today },
+          ].map(p => (
+            <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+              style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
+                color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
+              {p.label}
+            </button>
+          ))}
+          <button onClick={fetchPL} style={{ padding: '6px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>🔍 Search</button>
+          <button onClick={printPL} style={{ padding: '6px 12px', background: '#f0f4f8', color: '#555', border: '1px solid #e0e0e0', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🖨️ Print</button>
+          <span style={{ fontSize: 10, color: '#aaa', marginLeft: 'auto', fontStyle: 'italic' }}>Tap any line to drill down</span>
+        </div>
+        <div style={{ height: 1, background: '#f0f0f0', marginBottom: 8 }} />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}>📅</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ flex: 1, padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+          <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ flex: 1, padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+        </div>
       </div>
 
       {loading ? (
