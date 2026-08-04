@@ -498,7 +498,7 @@ export default function CEOCashPosition({ tenantId }) {
 
       {/* ══ HISTORY TAB ══ */}
       {activeTab === 'history' && (
-        <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflow: 'hidden' }}>
+        <div style={{ background: 'white', borderRadius: 14, boxShadow: '0 2px 12px rgba(0,0,0,0.07)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <div style={{ padding: '18px 20px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>📋 Transaction History</p>
             <span style={{ fontSize: 12, color: '#888' }}>{accountTransfers.length + ownerTransactions.length} total records</span>
@@ -510,7 +510,7 @@ export default function CEOCashPosition({ tenantId }) {
               <p style={{ color: '#888', fontSize: 14 }}>No transactions recorded yet</p>
             </div>
           ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', minWidth: 500, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#f8f9fa' }}>
                   {['Date', 'Type', 'Details', 'Amount'].map((h, i) => (
