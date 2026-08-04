@@ -1277,19 +1277,24 @@ function ChurnRisk({ tenantId }) {
       </div>
 
       {/* Filters */}
-      <div style={{ background: 'white', borderRadius: 10, padding: '12px 16px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Days missed:</span>
-        {[{ k: 'all', l: 'All' }, { k: '7', l: '7+ days' }, { k: '15', l: '15+ days' }, { k: '30', l: '30+ days' }].map(f => (
-          <button key={f.k} onClick={() => setFilter(f.k)}
-            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
-        ))}
-        <span style={{ fontSize: 12, fontWeight: 700, color: '#555', marginLeft: 8 }}>Risk:</span>
-        {[{ k: 'all', l: 'All' }, { k: 'critical', l: '🔴 Critical' }, { k: 'high', l: '🟠 High' }, { k: 'medium', l: '🟡 Medium' }, { k: 'low', l: '🟢 Low' }].map(f => (
-          <button key={f.k} onClick={() => setRiskFilter(f.k)}
-            style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-              background: riskFilter === f.k ? '#0f4c81' : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
-        ))}
+      <div style={{ background: 'white', borderRadius: 10, padding: '10px 14px', marginBottom: 14, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#555', whiteSpace: 'nowrap' }}>Days missed:</span>
+          {[{ k: 'all', l: 'All' }, { k: '7', l: '7+ days' }, { k: '15', l: '15+ days' }, { k: '30', l: '30+ days' }].map(f => (
+            <button key={f.k} onClick={() => setFilter(f.k)}
+              style={{ flex: 1, padding: '5px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: filter === f.k ? '#0f4c81' : '#f0f4f8', color: filter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+          ))}
+        </div>
+        <div style={{ height: 1, background: '#f0f0f0', marginBottom: 8 }} />
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: '#555', whiteSpace: 'nowrap' }}>Risk:</span>
+          {[{ k: 'all', l: 'All' }, { k: 'critical', l: '🔴 Critical' }, { k: 'high', l: '🟠 High' }, { k: 'medium', l: '🟡 Medium' }, { k: 'low', l: '🟢 Low' }].map(f => (
+            <button key={f.k} onClick={() => setRiskFilter(f.k)}
+              style={{ flex: 1, padding: '5px 4px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600,
+                background: riskFilter === f.k ? '#0f4c81' : '#f0f4f8', color: riskFilter === f.k ? '#fff' : '#555' }}>{f.l}</button>
+          ))}
+        </div>
       </div>
 
       {/* Search */}
