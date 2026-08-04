@@ -183,9 +183,8 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
 
       {/* Method filter tabs */}
       <div style={{ background: 'white', borderRadius: 10, padding: '10px 12px', marginBottom: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* Method tabs — compact */}
-          <div style={{ display: 'flex', gap: 4 }}>
+        {/* Method tabs */}
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
             {[
               { key: 'all',       label: 'All',  icon: '💳', count: entries.length,            color: '#1a1a2e' },
               { key: 'jazzcash',  label: 'JZC',  icon: '📱', count: countByMethod.jazzcash,  color: '#9c27b0' },
@@ -203,14 +202,14 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
               </button>
             ))}
           </div>
-          {/* Date range — same line */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-              style={{ padding: '5px 6px', border: '1.5px solid #e0e0e0', borderRadius: 7, fontSize: 11, outline: 'none', width: 110 }} />
-            <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
-            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-              style={{ padding: '5px 6px', border: '1.5px solid #e0e0e0', borderRadius: 7, fontSize: 11, outline: 'none', width: 110 }} />
-          </div>
+          {/* Date range — second line */}
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span style={{ fontSize: 11, color: '#888', fontWeight: 600, whiteSpace: 'nowrap' }}>📅</span>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+            style={{ padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 7, fontSize: 11, outline: 'none', flex: 1 }} />
+          <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+            style={{ padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 7, fontSize: 11, outline: 'none', flex: 1 }} />
         </div>
       </div>
 
