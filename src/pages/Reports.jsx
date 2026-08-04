@@ -828,56 +828,57 @@ function CustomerLedger({ tenantId }) {
       ) : (
         <div>
           <div className="no-print" style={{ marginBottom: '12px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '10px', alignItems: 'center' }}>
               <button onClick={() => { setSelectedCustomer(null); setLedger([]); setDateFrom(''); setDateTo('') }}
-                style={{ padding: '8px 16px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}>
+                style={{ padding: '8px 12px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', flexShrink: 0 }}>
                 ← Back
               </button>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <button onClick={handleShareWhatsApp}
-                style={{ padding: '10px 16px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                💬 Share
+                style={{ flex: 1, padding: '9px 8px', background: '#25d366', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700', textAlign: 'center' }}>
+                📄 PDF on WhatsApp
               </button>
               <button onClick={handlePrint}
-                style={{ padding: '10px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                🖨️ Print / PDF
+                style={{ flex: 1, padding: '9px 8px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700', textAlign: 'center' }}>
+                🖨️ Print
               </button>
               <button onClick={() => setShowMonthlyInvoice(true)}
-                style={{ padding: '10px 16px', background: '#e65100', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                📄 Monthly Invoice
+                style={{ flex: 1, padding: '9px 8px', background: '#e65100', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '700', textAlign: 'center' }}>
+                📄 Invoice
               </button>
             </div>
-            </div>
             {/* Date Filter Bar */}
-            <div style={{ background: '#f8fafc', border: '1px solid #e0e0e0', borderRadius: '10px', padding: '10px 14px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12px', fontWeight: '700', color: '#555', whiteSpace: 'nowrap' }}>📅 Period:</span>
-              {[
-                { label: 'All Time', from: '', to: '' },
-                { label: 'This Month', from: firstOfMonth, to: today },
-                { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
-              ].map(p => (
-                <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
-                  style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
-                    background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
-                    color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555',
-                  }}>{p.label}</button>
-              ))}
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-                  style={{ padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
-                <span style={{ fontSize: 11, color: '#888' }}>to</span>
-                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-                  style={{ padding: '5px 8px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 12, outline: 'none' }} />
+            <div style={{ background: '#f8fafc', border: '1px solid #e0e0e0', borderRadius: '10px', padding: '10px 12px' }}>
+              {/* Row 1 — quick period */}
+              <div style={{ display: 'flex', gap: 5, marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#555', whiteSpace: 'nowrap', alignSelf: 'center' }}>📅</span>
+                {[
+                  { label: 'All Time',   from: '',             to: ''            },
+                  { label: 'This Month', from: firstOfMonth,   to: today         },
+                  { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
+                ].map(p => (
+                  <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+                    style={{ flex: 1, padding: '5px 4px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+                      background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
+                      color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
+                    {p.label}
+                  </button>
+                ))}
+                {(dateFrom || dateTo) && (
+                  <button onClick={() => { setDateFrom(''); setDateTo('') }}
+                    style={{ padding: '5px 8px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, flexShrink: 0 }}>✕</button>
+                )}
               </div>
-              {(dateFrom || dateTo) && (
-                <button onClick={() => { setDateFrom(''); setDateTo('') }}
-                  style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✕ Clear</button>
-              )}
-              {(dateFrom || dateTo) && (
-                <span style={{ fontSize: 11, color: '#0f4c81', fontWeight: 600, marginLeft: 'auto' }}>
-                  {filteredLedger.length} transactions
-                </span>
-              )}
+              {/* Row 2 — date range */}
+              <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+                  style={{ flex: 1, padding: '5px 6px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none', minWidth: 0 }} />
+                <span style={{ color: '#aaa', fontSize: 10, flexShrink: 0 }}>—</span>
+                <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+                  style={{ flex: 1, padding: '5px 6px', border: '1.5px solid #e0e0e0', borderRadius: 6, fontSize: 11, outline: 'none', minWidth: 0 }} />
+                {(dateFrom || dateTo) && (
+                  <span style={{ fontSize: 10, color: '#0f4c81', fontWeight: 600, flexShrink: 0 }}>{filteredLedger.length} txn</span>
+                )}
+              </div>
             </div>
           </div>
 
@@ -942,30 +943,34 @@ function CustomerLedger({ tenantId }) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '10px 16px', marginBottom: '12px' }}>
-              <div style={{ display: 'flex', gap: '32px' }}>
+            <div style={{ background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px' }}>
+              {/* Top row — name + balance */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                 <div>
-                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer Name</p>
-                  <p style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{selectedCustomer.full_name}</p>
+                  <p style={{ fontSize: 10, color: '#888', margin: '0 0 1px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: '#0f4c81', margin: 0 }}>{selectedCustomer.full_name}</p>
                 </div>
-                <div>
-                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Customer ID</p>
-                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', margin: 0 }}>{selectedCustomer.customer_code}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mobile</p>
-                  <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: 0 }}>{selectedCustomer.mobile || '—'}</p>
-                </div>
-                <div>
-                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Rate / 19L</p>
-                  <p style={{ fontSize: '14px', fontWeight: '600', color: '#333', margin: 0 }}>Rs. {selectedCustomer.rate_19l || 100}</p>
+                <div style={{ textAlign: 'right', background: closingBalance > 0 ? '#ffebee' : '#e8f5e9', border: `2px solid ${closingBalance > 0 ? '#f44336' : '#4caf50'}`, borderRadius: 8, padding: '6px 12px' }}>
+                  <p style={{ fontSize: 9, color: '#888', margin: '0 0 1px', textTransform: 'uppercase' }}>Balance</p>
+                  <p style={{ fontSize: 16, fontWeight: 700, margin: 0, color: closingBalance > 0 ? '#f44336' : '#1a7a4a' }}>
+                    Rs. {Math.abs(closingBalance).toLocaleString()}{closingBalance < 0 ? ' CR' : ''}
+                  </p>
                 </div>
               </div>
-              <div style={{ textAlign: 'right', background: closingBalance > 0 ? '#ffebee' : '#e8f5e9', border: `2px solid ${closingBalance > 0 ? '#f44336' : '#4caf50'}`, borderRadius: '8px', padding: '8px 16px' }}>
-                <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Outstanding Balance</p>
-                <p style={{ fontSize: '20px', fontWeight: '700', margin: 0, color: closingBalance > 0 ? '#f44336' : '#1a7a4a' }}>
-                  Rs. {Math.abs(closingBalance).toLocaleString()}{closingBalance < 0 ? ' CR' : ''}
-                </p>
+              {/* Bottom row — ID, mobile, rate */}
+              <div style={{ display: 'flex', gap: 16 }}>
+                <div>
+                  <p style={{ fontSize: 9, color: '#888', margin: '0 0 1px', textTransform: 'uppercase' }}>ID</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#333', margin: 0 }}>{selectedCustomer.customer_code}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 9, color: '#888', margin: '0 0 1px', textTransform: 'uppercase' }}>Mobile</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#333', margin: 0 }}>{selectedCustomer.mobile || '—'}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 9, color: '#888', margin: '0 0 1px', textTransform: 'uppercase' }}>Rate 19L</p>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#333', margin: 0 }}>Rs. {selectedCustomer.rate_19l || 100}</p>
+                </div>
               </div>
             </div>
 
