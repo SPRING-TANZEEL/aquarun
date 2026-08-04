@@ -57,8 +57,38 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [remarkSaved,    setRemarkSaved]    = useState(false)
   const [otherBrands,    setOtherBrands]    = useState(0)
   const [rescheduling,   setRescheduling]   = useState(false)
+  const [riderLocation,  setRiderLocation]  = useState(null)
 
-  useEffect(() => { fetchOrders() }, [filter, isOnline, dbReady, tenantId])
+  useEffect(() => { getRiderLocation(); fetchOrders() }, [filter, isOnline, dbReady, tenantId])
+
+  function getRiderLocation() {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      pos => setRiderLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      err => console.log('Location for sorting:', err.message),
+      { timeout: 5000, maximumAge: 60000 }
+    )
+  }
+
+  function haversineDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLon = (lon2 - lon1) * Math.PI / 180
+    const a = Math.sin(dLat/2) ** 2 + Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) * Math.sin(dLon/2) ** 2
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a))
+  }
+
+  function sortByDistance(orders, location) {
+    if (!location) return orders
+    const withCoords = orders.filter(o => o.customers?.latitude && o.customers?.longitude)
+    const withoutCoords = orders.filter(o => !o.customers?.latitude || !o.customers?.longitude)
+    withCoords.sort((a, b) => {
+      const distA = haversineDistance(location.lat, location.lng, Number(a.customers.latitude), Number(a.customers.longitude))
+      const distB = haversineDistance(location.lat, location.lng, Number(b.customers.latitude), Number(b.customers.longitude))
+      return distA - distB
+    })
+    return [...withCoords, ...withoutCoords]
+  }
 
   async function fetchOrders() {
     setLoading(true)
@@ -75,7 +105,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           .order('delivery_date', { ascending: true })
         if (filter === 'today') query = query.lte('delivery_date', today)
         const { data } = await query
-        setOrders(data || [])
+        setOrders(sortByDistance(data || [], riderLocation))
       } else {
         if (dbReady) {
           const offlineOrders = await getOrdersOffline()
