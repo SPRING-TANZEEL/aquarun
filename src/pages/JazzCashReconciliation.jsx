@@ -182,34 +182,35 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
       </div>
 
       {/* Method filter tabs */}
-      <div style={{ background: 'white', borderRadius: 10, padding: '12px 14px', marginBottom: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
-        {/* Method filter buttons */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-          {[
-            { key: 'all',       label: 'All',       icon: '💳', count: entries.length,             color: '#1a1a2e' },
-            { key: 'jazzcash',  label: 'JazzCash',  icon: '📱', count: countByMethod.jazzcash,  color: '#9c27b0' },
-            { key: 'easypaisa', label: 'EasyPaisa', icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
-            { key: 'bank',      label: 'Bank',      icon: '🏦', count: countByMethod.bank,       color: '#0f4c81' },
-          ].map(m => (
-            <button key={m.key} onClick={() => setMethodFilter(m.key)} style={{
-              padding: '7px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
-              background: methodFilter === m.key ? m.color : '#f0f4f8',
-              color: methodFilter === m.key ? '#fff' : '#555',
-              display: 'flex', alignItems: 'center', gap: 5,
-            }}>
-              {m.icon} {m.label}
-              <span style={{ background: methodFilter === m.key ? 'rgba(255,255,255,0.25)' : '#e0e0e0', color: methodFilter === m.key ? '#fff' : '#555', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>{m.count}</span>
-            </button>
-          ))}
-        </div>
-        {/* Date range */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: '#888', fontWeight: 600 }}>📅 From:</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none', flex: 1, minWidth: 120 }} />
-          <span style={{ color: '#aaa', fontSize: 12 }}>to</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ padding: '6px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 12, outline: 'none', flex: 1, minWidth: 120 }} />
+      <div style={{ background: 'white', borderRadius: 10, padding: '10px 12px', marginBottom: 14, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'space-between' }}>
+          {/* Method tabs — compact */}
+          <div style={{ display: 'flex', gap: 4 }}>
+            {[
+              { key: 'all',       label: 'All',  icon: '💳', count: entries.length,            color: '#1a1a2e' },
+              { key: 'jazzcash',  label: 'JZC',  icon: '📱', count: countByMethod.jazzcash,  color: '#9c27b0' },
+              { key: 'easypaisa', label: 'EP',   icon: '💚', count: countByMethod.easypaisa, color: '#4caf50' },
+              { key: 'bank',      label: 'Bank', icon: '🏦', count: countByMethod.bank,       color: '#0f4c81' },
+            ].map(m => (
+              <button key={m.key} onClick={() => setMethodFilter(m.key)} style={{
+                padding: '6px 8px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: 700,
+                background: methodFilter === m.key ? m.color : '#f0f4f8',
+                color: methodFilter === m.key ? '#fff' : '#555',
+                display: 'flex', alignItems: 'center', gap: 3,
+              }}>
+                {m.icon} {m.label}
+                <span style={{ background: methodFilter === m.key ? 'rgba(255,255,255,0.25)' : '#e0e0e0', color: methodFilter === m.key ? '#fff' : '#666', borderRadius: 8, padding: '0 5px', fontSize: 10 }}>{m.count}</span>
+              </button>
+            ))}
+          </div>
+          {/* Date range — same line */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              style={{ padding: '5px 6px', border: '1.5px solid #e0e0e0', borderRadius: 7, fontSize: 11, outline: 'none', width: 110 }} />
+            <span style={{ color: '#aaa', fontSize: 11 }}>—</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              style={{ padding: '5px 6px', border: '1.5px solid #e0e0e0', borderRadius: 7, fontSize: 11, outline: 'none', width: 110 }} />
+          </div>
         </div>
       </div>
 
