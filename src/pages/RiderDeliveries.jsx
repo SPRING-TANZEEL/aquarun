@@ -45,6 +45,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
   const [cashReceived, setCashReceived] = useState('')
   const [bottlesReturned, setBottlesReturned] = useState(0)
+  const [productQtys, setProductQtys] = useState({})
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [filter, setFilter] = useState('today')
@@ -142,12 +143,21 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     setCashReceived('')
     setBottlesReturned(0)
     setSuccess(null)
+    // Pre-fill product quantities from order
+    const pqtys = {}
+    order.product_items?.forEach(p => { pqtys[p.product_id] = p.qty })
+    setProductQtys(pqtys)
   }
 
   function subTotal() {
+    const productTotal = selectedOrder?.product_items?.reduce((s, p) => {
+      const qty = productQtys[p.product_id] ?? p.qty
+      return s + (qty * (p.price || 0))
+    }, 0) || 0
     return (qty19l * (selectedRate || 0)) +
       (qtyHalf * (selectedOrder?.customers?.rate_half_litre || 0)) +
-      (qty15l * (selectedOrder?.customers?.rate_1_5l || 0))
+      (qty15l * (selectedOrder?.customers?.rate_1_5l || 0)) +
+      productTotal
   }
 
   function taxAmount() {
@@ -303,6 +313,22 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         rate: Number(selectedOrder.customers?.rate_1_5l || 0),
         amount: qty15l * Number(selectedOrder.customers?.rate_1_5l || 0)
       })
+      // Add extra products to delivery items
+      selectedOrder.product_items?.forEach(p => {
+        const qty = productQtys[p.product_id] ?? p.qty
+        if (qty > 0) {
+          riderItems.push({
+            tenant_id: tenantId,
+            delivery_id: savedDelivery.id,
+            product_id: p.product_id,
+            product_name: p.name,
+            bottle_type: null,
+            qty,
+            rate: p.price || 0,
+            amount: qty * (p.price || 0)
+          })
+        }
+      })
       if (riderItems.length > 0) await supabase.from('delivery_items').insert(riderItems)
 
       // Balance calculated dynamically from customer_balances view — no manual update needed
@@ -366,6 +392,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     setPaymentMethod(null)
     setCashReceived('')
     setBottlesReturned(0)
+    setProductQtys({})
     setOtherBrands(0)
     setSelectedRemark(null)
     setOtherRemarkText('')
@@ -709,6 +736,22 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             )}
           </div>
 
+          {/* Extra Products */}
+          {selectedOrder?.product_items?.length > 0 && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #f3e8ff' }}>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: '#7c3aed', marginBottom: '14px' }}>📦 Other Products</p>
+              {selectedOrder.product_items.map((p, i) => (
+                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: i < selectedOrder.product_items.length - 1 ? '12px' : 0 }}>
+                  <div>
+                    <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{p.name}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Rs. {p.price || 0} each · Ordered: {p.qty}</p>
+                  </div>
+                  {numBtn(productQtys[p.product_id] ?? p.qty, val => setProductQtys(q => ({ ...q, [p.product_id]: val })))}
+                </div>
+              ))}
+            </div>
+          )}
+
           {/* ✅ BOTTLES RETURNED */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -875,6 +918,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                           {o.qty_19l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🍶 {o.qty_19l} × 19L</span>}
                           {o.qty_half_litre > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>💧 {o.qty_half_litre} × Half</span>}
                           {o.qty_1_5l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🧴 {o.qty_1_5l} × 1.5L</span>}
+                          {o.product_items?.map((p, i) => (
+                            <span key={i} style={{ fontSize: '12px', background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>📦 {p.qty} × {p.name}</span>
+                          ))}
                           {ourBottles > 0 && <span style={{ fontSize: '12px', background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🫙 {ourBottles} bottles</span>}
                         </div>
                         {o.notes && <p style={{ fontSize: '11px', color: '#aaa', margin: '4px 0 0 30px' }}>{o.notes}</p>}
