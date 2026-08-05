@@ -402,22 +402,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     setSaving(false)
 
     // Auto-advance to next order
-    await fetchOrders()
     setSelectedOrder(null)
-    if (currentOrderIndex !== null && currentOrderIndex + 1 < orders.length) {
-      const nextOrder = orders[currentOrderIndex + 1]
-      if (nextOrder) {
-        setTimeout(() => {
-          setCurrentOrderIndex(currentOrderIndex + 1)
-          selectOrder(nextOrder)
-          setNavigating(false)
-        }, 1500)
-      } else {
-        setCurrentOrderIndex(null)
-      }
-    } else {
-      setCurrentOrderIndex(null)
-    }
+    setCurrentOrderIndex(null)
+    await fetchOrders()
   }
 
   async function saveRemark(remarkType, customText = '') {
