@@ -38,25 +38,25 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     const { data: deliveries } = await supabase.from('deliveries')
       .select('*, customers(full_name, customer_code)')
       .eq('tenant_id', tenantId).eq('rider_id', rider.id).eq('is_voided', false)
-      .gt('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
+      .gte('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
 
     const { data: cashPayments } = await supabase.from('payments')
       .select('*, customers(full_name, customer_code)')
       .eq('tenant_id', tenantId).eq('rider_id', rider.id)
       .eq('payment_method', 'cash').eq('is_voided', false)
-      .gt('created_at', fromTimestamp).lte('created_at', toTimestamp)
+      .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
     const { data: expenses } = await supabase.from('expenses')
       .select('*').eq('tenant_id', tenantId).eq('rider_id', rider.id).eq('is_voided', false)
-      .gt('created_at', fromTimestamp).lte('created_at', toTimestamp)
+      .gte('created_at', fromTimestamp).lte('created_at', toTimestamp)
 
     const { data: sentTransfers } = await supabase.from('cash_transfers')
       .select('*').eq('tenant_id', tenantId).eq('from_rider_id', rider.id).eq('status', 'confirmed')
-      .gt('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
+      .gte('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
 
     const { data: receivedTransfers } = await supabase.from('cash_transfers')
       .select('*').eq('tenant_id', tenantId).eq('to_rider_id', rider.id).eq('status', 'confirmed')
-      .gt('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
+      .gte('confirmed_at', fromTimestamp).lte('confirmed_at', toTimestamp)
 
     let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0
     const cashDeliveries = [], jazzDeliveries = [], creditDeliveries = []
@@ -75,7 +75,8 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalCashIn = cashFromSales + cashFromPayments
-    const cashInHand = totalCashIn - totalExpenses
+    const totalSentAmt = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+    const cashInHand = totalCashIn - totalExpenses - totalSentAmt
 
     setSummary({
       cashFromSales, cashFromPayments,
