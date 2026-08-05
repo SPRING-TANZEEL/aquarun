@@ -62,7 +62,7 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     const cashDeliveries = [], jazzDeliveries = [], creditDeliveries = []
 
     deliveries?.forEach(d => {
-      if (d.payment_method === 'cash') { cashFromSales += Number(d.amount_received); cashDeliveries.push(d) }
+      if (d.payment_method === 'cash') { cashFromSales += Number(d.amount_received) || Number(d.total_with_tax || d.total_amount); cashDeliveries.push(d) }
       else if (d.payment_method === 'jazzcash') {
         if (d.jazzcash_confirmed) jazzFromSales += Number(d.total_with_tax || d.total_amount)
         else jazzFromSalesPending += Number(d.total_with_tax || d.total_amount)
@@ -75,8 +75,7 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalCashIn = cashFromSales + cashFromPayments
-    const totalSentAmt = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    const cashInHand = totalCashIn - totalExpenses - totalSentAmt
+    const cashInHand = totalCashIn - totalExpenses - (sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0)
 
     setSummary({
       cashFromSales, cashFromPayments,
