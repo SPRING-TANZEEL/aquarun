@@ -616,7 +616,8 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
 
   async function saveOrder() {
     if (!selectedCustomer) return alert('Please select a customer')
-    if (!form.qty_19l && !form.qty_half_litre && !form.qty_1_5l) return alert('Please enter at least one bottle quantity')
+    const hasProduct = form.qty_19l > 0 || Object.values(productQtys).some(q => q > 0)
+    if (!hasProduct) return alert('Please enter at least one product quantity')
     setSaving(true)
     const productItems = Object.entries(productQtys)
       .filter(([, qty]) => qty > 0)
@@ -1009,14 +1010,12 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 14 }}>
-            {[{ key: 'qty_19l', label: '19 Litre' }, { key: 'qty_half_litre', label: 'Half Litre' }, { key: 'qty_1_5l', label: '1.5 Litre' }].map(f => (
-              <div key={f.key}>
-                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 4, fontWeight: 600 }}>{f.label}</label>
-                <input type="number" value={form[f.key]} min="0"
-                  onChange={e => setForm({ ...form, [f.key]: Number(e.target.value) })} style={inp} />
-              </div>
-            ))}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 14 }}>
+            <div>
+              <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 4, fontWeight: 600 }}>19 Litre</label>
+              <input type="number" value={form.qty_19l} min="0"
+                onChange={e => setForm({ ...form, qty_19l: Number(e.target.value) })} style={inp} />
+            </div>
           </div>
 
           {saleableProducts.length > 0 && (
