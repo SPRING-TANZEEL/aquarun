@@ -157,26 +157,55 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
 
-    // ── CREDIT SIDE — split sales by product type ───────────────
-    const qty19l = Number(delivery.qty_19l || 0)
-    const qtyHalf = Number(delivery.qty_half_litre || 0)
-    const qty15l = Number(delivery.qty_1_5l || 0)
-    const totalQty = qty19l + qtyHalf + qty15l
+    // ── CREDIT SIDE — split sales by each income stream ─────────
+    const qty19l  = Number(delivery.qty_19l          || 0)
+    const qtyHalf = Number(delivery.qty_half_litre   || 0)
+    const qty15l  = Number(delivery.qty_1_5l         || 0)
 
-    if (totalQty === 0 || (qty19l > 0 && qtyHalf === 0 && qty15l === 0)) {
-      // Only 19L or no specific qty — all to 4001
+    // Calculate amount per product type using their rates
+    const rate19l  = Number(delivery.rate_applied    || 0)
+    const rateHalf = Number(delivery.rate_half_litre || 0)
+    const rate15l  = Number(delivery.rate_1_5l       || 0)
+
+    const amt19l  = qty19l  * rate19l
+    const amtHalf = qtyHalf * rateHalf
+    const amt15l  = qty15l  * rate15l
+
+    // Product items (extra products like dispensers, caps etc)
+    const productItems = delivery.product_items || []
+    const productTotal = productItems.reduce((s, p) => s + ((p.qty || 0) * (p.price || 0)), 0)
+
+    // Water sales lines — only post if amount > 0
+    if (amt19l  > 0) lines.push({ account_code: '4001', account_name: 'Water Sales - 19L',         credit: amt19l  })
+    if (amtHalf > 0) lines.push({ account_code: '4002', account_name: 'Water Sales - Half Litre',   credit: amtHalf })
+    if (amt15l  > 0) lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L',         credit: amt15l  })
+
+    // Extra products — each gets its own line under Product Sales 4004
+    if (productTotal > 0) {
+      // If multiple products group by product name for clarity
+      const productGroups = {}
+      productItems.forEach(p => {
+        if ((p.qty || 0) <= 0) return
+        const key = p.name || 'Product'
+        productGroups[key] = (productGroups[key] || 0) + ((p.qty || 0) * (p.price || 0))
+      })
+      Object.entries(productGroups).forEach(([name, amt]) => {
+        if (amt > 0) lines.push({ account_code: '4004', account_name: `Product Sales - ${name}`, credit: amt })
+      })
+    }
+
+    // If nothing posted yet (e.g. all rates are 0) — fallback to subTotal on 4001
+    const totalCredited = amt19l + amtHalf + amt15l + productTotal
+    if (totalCredited === 0 && subTotal > 0) {
       lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: subTotal })
-    } else if (qtyHalf > 0 && qty19l === 0 && qty15l === 0) {
-      lines.push({ account_code: '4002', account_name: 'Water Sales - Half Litre', credit: subTotal })
-    } else if (qty15l > 0 && qty19l === 0 && qtyHalf === 0) {
-      lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L', credit: subTotal })
-    } else {
-      // Mixed — split proportionally by quantity
-      const rate19l = qty19l > 0 ? Number(delivery.rate_applied || 0) : 0
-      const amt19l = qty19l * rate19l
-      const remaining = subTotal - amt19l
-      if (amt19l > 0) lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: amt19l })
-      if (remaining > 0) lines.push({ account_code: '4002', account_name: 'Water Sales - Half/1.5L', credit: remaining })
+    }
+
+    // Rounding correction — if credited amounts don't add up to subTotal due to rate differences
+    const creditDiff = subTotal - totalCredited
+    if (Math.abs(creditDiff) > 0 && Math.abs(creditDiff) < 2 && totalCredited > 0) {
+      // Add small rounding difference to the largest sales line
+      const lastWaterLine = lines.filter(l => l.credit > 0).sort((a, b) => b.credit - a.credit)[0]
+      if (lastWaterLine) lastWaterLine.credit = +(lastWaterLine.credit + creditDiff).toFixed(2)
     }
 
     // Tax portion → Tax Payable (only if tax > 0)
@@ -184,12 +213,20 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       lines.push({ account_code: '2300', account_name: 'Tax Payable', credit: taxAmount })
     }
 
+    // Build narration with all products
+    const narrationParts = [
+      qty19l  > 0 ? `${qty19l}×19L`       : '',
+      qtyHalf > 0 ? `${qtyHalf}×Half`     : '',
+      qty15l  > 0 ? `${qty15l}×1.5L`      : '',
+      ...productItems.filter(p => p.qty > 0).map(p => `${p.qty}×${p.name}`),
+    ].filter(Boolean).join(' + ')
+
     const entryId = await postJournalEntry({
       tenantId,
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
-      narration: `Delivery — ${[qty19l > 0 ? `${qty19l}×19L` : '', qtyHalf > 0 ? `${qtyHalf}×Half` : '', qty15l > 0 ? `${qty15l}×1.5L` : ''].filter(Boolean).join(' ')} — ${paymentMethod} — ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` — tax Rs.${taxAmount}` : ''}`,
+      narration: `Delivery — ${narrationParts} — ${paymentMethod} — ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` — tax Rs.${taxAmount}` : ''}`,
       lines
     })
 
@@ -273,17 +310,34 @@ export async function postJazzCashConfirmationJournal(record, recordType, tenant
     const amount = Number(record.total_with_tax || record.total_amount || record.amount || 0)
     const paymentMethod = record.payment_method || 'jazzcash'
 
-    // Determine which accounts to use
+    const methodLabel = paymentMethod === 'easypaisa' ? 'EasyPaisa'
+      : paymentMethod === 'bank' ? 'Bank Transfer'
+      : 'JazzCash'
+
     const actualAcc = paymentMethod === 'easypaisa'
       ? { code: '1004', name: 'EasyPaisa Account' }
+      : paymentMethod === 'bank'
+      ? { code: '1003', name: 'Bank Account' }
       : { code: '1002', name: 'JazzCash Account' }
 
     const clearingAcc = getClearingAccount(paymentMethod)
 
+    // Fetch customer name for narration
+    let customerName = ''
+    if (record.customer_id) {
+      const { data: cust } = await supabase.from('customers')
+        .select('full_name').eq('id', record.customer_id).single()
+      customerName = cust?.full_name || ''
+    }
+
+    // Build narration with customer name + invoice/reference
+    const invoiceRef = record.invoice_number ? ` · Inv# ${record.invoice_number}` : ''
+    const typeLabel  = recordType === 'payment' ? 'Balance Payment' : 'Sale'
+    const narration  = `${methodLabel} confirmed — ${typeLabel}${customerName ? ` — ${customerName}` : ''}${invoiceRef} — Rs. ${amount.toLocaleString()}`
+
     const lines = [
-      // Move from clearing to actual account
-      { account_code: actualAcc.code, account_name: actualAcc.name, debit: amount },
-      { account_code: clearingAcc.code, account_name: clearingAcc.name, credit: amount }
+      { account_code: actualAcc.code,    account_name: actualAcc.name,    debit: amount  },
+      { account_code: clearingAcc.code,  account_name: clearingAcc.name,  credit: amount },
     ]
 
     const entryId = await postJournalEntry({
@@ -291,7 +345,7 @@ export async function postJazzCashConfirmationJournal(record, recordType, tenant
       date: new Date().toISOString().split('T')[0],
       referenceType: recordType + '_confirmed',
       referenceId: record.id,
-      narration: `${paymentMethod === 'easypaisa' ? 'EasyPaisa' : 'JazzCash'} confirmed — ${recordType} — moved from clearing to account`,
+      narration,
       lines
     })
 

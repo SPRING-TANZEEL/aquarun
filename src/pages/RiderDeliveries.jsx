@@ -99,7 +99,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       if (isOnline) {
         let query = supabase
           .from('orders')
-          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, other_brand_bottles_held, google_maps_link, is_tax_applicable, notes, delivery_notes)')
+          .select('*, customers(full_name, mobile, customer_code, balance, rate_19l, rate_half_litre, rate_1_5l, address, our_bottles_placed, other_brand_bottles_held, google_maps_link, is_tax_applicable, notes, delivery_notes), product_items')
           .eq('tenant_id', tenantId)
           .eq('rider_id', rider.id)
           .eq('status', 'assigned')
@@ -280,6 +280,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       delivery_lng: deliveryLng,
       bottles_returned: bottlesReturned,
       other_brand_bottles: otherBrands,
+      rate_half_litre: selectedOrder?.customers?.rate_half_litre || 0,
+      rate_1_5l: selectedOrder?.customers?.rate_1_5l || 0,
+      product_items: selectedOrder?.product_items || null,
     }
 
     if (isOnline) {
