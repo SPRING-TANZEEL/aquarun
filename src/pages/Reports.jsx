@@ -122,17 +122,7 @@ export default function Reports({ tenantId }) {
       {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
       {activeTab === 'custsales' && <CustomerSales tenantId={tenantId} />}
       {activeTab === 'bulk' && <BulkWhatsAppShare tenantId={tenantId} />}
-      {activeTab === 'churn' && (hasPremiumReports
-        ? <ChurnRisk tenantId={tenantId} />
-        : <div style={{ background: 'white', borderRadius: 12, padding: 60, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-            <p style={{ fontSize: 40, margin: '0 0 12px' }}>🔒</p>
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#555', margin: '0 0 8px' }}>Premium Feature</p>
-            <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Churn Risk Report — contact admin to upgrade.</p>
-          </div>
-      )}
-      {activeTab === 'bottles' && <BottleBalance tenantId={tenantId} />}
-      {activeTab === 'custsales' && <CustomerSales tenantId={tenantId} />}
-    </div>
+      </div>
   )
 }
 
@@ -408,21 +398,7 @@ function DailyCashReport({ tenantId }) {
             Go
           </button>
         </div>
-        {/* Row 2 — date range */}
-        <div style={{ height:1, background:'#f0f0f0', marginBottom:8 }} />
-        <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-          <span style={{ fontSize:11, color:'#888', fontWeight:600 }}>📅</span>
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
-            style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
-          <span style={{ color:'#aaa', fontSize:11 }}>—</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
-            style={{ flex:1, padding:'5px 8px', border:'1.5px solid #e0e0e0', borderRadius:6, fontSize:12, outline:'none' }} />
-          <button onClick={() => fetchReport(dateFrom, dateTo)}
-            style={{ padding:'6px 14px', background:'#0f4c81', color:'white', border:'none', borderRadius:6, cursor:'pointer', fontSize:12, fontWeight:700 }}>
-            Go
-          </button>
         </div>
-      </div>
 
       {loading ? (
         <div style={{ padding:60, textAlign:'center', background:'white', borderRadius:12 }}>
