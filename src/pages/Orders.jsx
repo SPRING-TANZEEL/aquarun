@@ -506,6 +506,8 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
   const [customerSearch, setCustomerSearch]   = useState('')
   const [customerResults, setCustomerResults] = useState([])
   const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [saleableProducts, setSaleableProducts] = useState([])
+  const [productQtys, setProductQtys]         = useState({})
 
   // ── transfer state ──
   const [showTransfer, setShowTransfer]       = useState(false)
@@ -530,6 +532,7 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
 
   // ── effects ──
   useEffect(() => { if (tenantId) { fetchOrders(); fetchRiders() } }, [filter, tenantId, dateFrom, dateTo])
+  useEffect(() => { if (tenantId) fetchSaleableProducts() }, [tenantId])
   useEffect(() => { if (tenantId && filter === 'bulk') fetchBulkData() }, [tenantId, filter])
 
   // ── data fetching ──
@@ -558,6 +561,16 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     const { data } = await supabase.from('riders')
       .select('*').eq('tenant_id', tenantId).eq('is_active', true)
     setRiders(data || [])
+  }
+
+  async function fetchSaleableProducts() {
+    const { data } = await supabase.from('products')
+      .select('id, name, sale_price, product_type')
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true)
+      .eq('is_saleable', true)
+      .order('name')
+    setSaleableProducts(data || [])
   }
 
   async function searchCustomer(val) {
@@ -605,6 +618,13 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     if (!selectedCustomer) return alert('Please select a customer')
     if (!form.qty_19l && !form.qty_half_litre && !form.qty_1_5l) return alert('Please enter at least one bottle quantity')
     setSaving(true)
+    const productItems = Object.entries(productQtys)
+      .filter(([, qty]) => qty > 0)
+      .map(([productId, qty]) => {
+        const p = saleableProducts.find(x => x.id === productId)
+        return { product_id: productId, qty, name: p?.name, price: p?.sale_price || 0 }
+      })
+
     const { error } = await supabase.from('orders').insert([{
       tenant_id: tenantId,
       customer_id: selectedCustomer.id,
@@ -616,9 +636,11 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
       status: 'pending',
       source: 'admin',
       is_priority: form.is_priority,
+      product_items: productItems.length > 0 ? productItems : null,
     }])
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
     setShowAddForm(false); setSelectedCustomer(null); setCustomerSearch('')
+    setProductQtys({})
     setForm({ customer_id: '', qty_19l: 0, qty_half_litre: 0, qty_1_5l: 0, delivery_date: new Date().toISOString().split('T')[0], notes: '', is_priority: false })
     fetchOrders(); setSaving(false)
   }
@@ -971,6 +993,7 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                           qty_1_5l: c.default_qty_1_5l || 0,
                           notes: c.delivery_notes || '',
                         }))
+                        setProductQtys({})
                       }} style={{ padding: '10px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', background: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                           <p style={{ fontWeight: 600, fontSize: 13, margin: '0 0 2px' }}>{c.full_name}</p>
@@ -995,6 +1018,25 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
               </div>
             ))}
           </div>
+
+          {saleableProducts.length > 0 && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 8, fontWeight: 600 }}>Other Products</label>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(3, 1fr)', gap: 10 }}>
+                {saleableProducts.map(p => (
+                  <div key={p.id} style={{ background: '#f8f9fa', borderRadius: 8, padding: '10px 12px', border: '1px solid #e0e0e0' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#333', margin: '0 0 6px' }}>{p.name}</p>
+                    {p.sale_price > 0 && <p style={{ fontSize: 10, color: '#888', margin: '0 0 6px' }}>Rs. {Number(p.sale_price).toLocaleString()}</p>}
+                    <input type="number" min="0"
+                      value={productQtys[p.id] || ''}
+                      onChange={e => setProductQtys(q => ({ ...q, [p.id]: Number(e.target.value) || 0 }))}
+                      placeholder="0"
+                      style={{ ...inp, padding: '7px 10px', fontSize: 14, textAlign: 'center' }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
