@@ -1577,7 +1577,9 @@ function CustomerSales({ tenantId }) {
                 <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{filtered.reduce((s,c) => s+c.qtyHalf, 0)}</td>
                 <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{filtered.reduce((s,c) => s+c.qty15l, 0)}</td>
                 <td style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>{grandQty}</td>
-                <td colSpan={3} style={{ padding: '11px 12px', color: '#fff', textAlign: 'right', fontWeight: 700 }}>—</td>
+                <td style={{ padding: '11px 12px', color: '#6ee7b7', textAlign: 'right', fontWeight: 700 }}>Rs. {filtered.reduce((s,c) => s+c.cash, 0).toLocaleString()}</td>
+                <td style={{ padding: '11px 12px', color: '#fca5a5', textAlign: 'right', fontWeight: 700 }}>Rs. {filtered.reduce((s,c) => s+c.credit, 0).toLocaleString()}</td>
+                <td style={{ padding: '11px 12px', color: '#e9d5ff', textAlign: 'right', fontWeight: 700 }}>Rs. {filtered.reduce((s,c) => s+(c.jazzcash+c.easypaisa+c.bank), 0).toLocaleString()}</td>
                 <td style={{ padding: '11px 12px', fontSize: 15, fontWeight: 900, color: '#fff', textAlign: 'right' }}>Rs. {grandTotal.toLocaleString()}</td>
               </tr>
             </tfoot>
