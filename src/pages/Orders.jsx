@@ -619,13 +619,6 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     const hasProduct = form.qty_19l > 0 || Object.values(productQtys).some(q => q > 0)
     if (!hasProduct) return alert('Please enter at least one product quantity')
     setSaving(true)
-    const productItems = Object.entries(productQtys)
-      .filter(([, qty]) => qty > 0)
-      .map(([productId, qty]) => {
-        const p = saleableProducts.find(x => x.id === productId)
-        return { product_id: productId, qty, name: p?.name, price: p?.sale_price || 0 }
-      })
-
     const { error } = await supabase.from('orders').insert([{
       tenant_id: tenantId,
       customer_id: selectedCustomer.id,
@@ -637,7 +630,6 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
       status: 'pending',
       source: 'admin',
       is_priority: form.is_priority,
-      product_items: productItems.length > 0 ? productItems : null,
     }])
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
     setShowAddForm(false); setSelectedCustomer(null); setCustomerSearch('')
