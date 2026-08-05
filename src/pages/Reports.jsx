@@ -177,9 +177,9 @@ function DailyCashReport({ tenantId }) {
       totalSalesValue += amt
       const pm = d.payment_method
       if (pm === 'cash') {
-        cashFromSales += Number(d.amount_received || amt)
+        cashFromSales += Number(d.amount_received || 0)
         const name = d.riders?.full_name || 'Walk-in / Admin'
-        riderCash[name] = (riderCash[name] || 0) + Number(d.amount_received || amt)
+        riderCash[name] = (riderCash[name] || 0) + Number(d.amount_received || 0)
       }
       if (pm === 'jazzcash')  { d.jazzcash_confirmed ? jazzConfirmed += amt : jazzPending += amt }
       if (pm === 'easypaisa') { d.jazzcash_confirmed ? epConfirmed   += amt : epPending   += amt }
