@@ -619,6 +619,13 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     const hasProduct = form.qty_19l > 0 || Object.values(productQtys).some(q => q > 0)
     if (!hasProduct) return alert('Please enter at least one product quantity')
     setSaving(true)
+    const productItems = Object.entries(productQtys)
+      .filter(([, qty]) => qty > 0)
+      .map(([productId, qty]) => {
+        const p = saleableProducts.find(x => x.id === productId)
+        return { product_id: productId, qty, name: p?.name, price: p?.sale_price || 0 }
+      })
+
     const { error } = await supabase.from('orders').insert([{
       tenant_id: tenantId,
       customer_id: selectedCustomer.id,
@@ -630,6 +637,7 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
       status: 'pending',
       source: 'admin',
       is_priority: form.is_priority,
+      product_items: productItems.length > 0 ? productItems : null,
     }])
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
     setShowAddForm(false); setSelectedCustomer(null); setCustomerSearch('')
@@ -1455,6 +1463,9 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                       </div>
                       <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 12, color: '#555' }}>
                         <span style={{ fontWeight: 600 }}>{[o.qty_19l > 0 && `19L×${o.qty_19l}`, o.qty_half_litre > 0 && `½L×${o.qty_half_litre}`, o.qty_1_5l > 0 && `1.5L×${o.qty_1_5l}`].filter(Boolean).join('  ')}</span>
+                        {o.product_items?.map((p, i) => (
+                          <span key={i} style={{ color: '#7c3aed', fontWeight: 600 }}>{p.name}×{p.qty}</span>
+                        ))}
                         {o.delivery_date && <span>📅 {new Date(o.delivery_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}</span>}
                         {o.riders && <span style={{ color: '#0f4c81', fontWeight: 600 }}>🚴 {o.riders.full_name}</span>}
                       </div>
@@ -1545,6 +1556,9 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
                           {o.qty_19l > 0 && <div style={{ fontWeight: 600 }}>19L × {o.qty_19l}</div>}
                           {o.qty_half_litre > 0 && <div>Half × {o.qty_half_litre}</div>}
                           {o.qty_1_5l > 0 && <div>1.5L × {o.qty_1_5l}</div>}
+                          {o.product_items?.map((p, i) => (
+                            <div key={i} style={{ color: '#7c3aed', fontWeight: 600 }}>{p.name} × {p.qty}</div>
+                          ))}
                         </td>
                         <td style={{ padding: '12px 10px', fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>
                           {o.delivery_date ? new Date(o.delivery_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
