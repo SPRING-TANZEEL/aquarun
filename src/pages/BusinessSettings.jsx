@@ -60,6 +60,12 @@ const MENU_ITEMS = [
   { key: 'about', icon: 'ℹ️', label: 'About' },
 ]
 
+const QR_FIELDS = [
+  { key: 'jazzcash_qr', label: 'JazzCash QR Code', color: '#e65100', bg: '#fff8f0', border: '#ffcc80' },
+  { key: 'easypaisa_qr', label: 'EasyPaisa QR Code', color: '#1a7a4a', bg: '#f0fff4', border: '#a5d6a7' },
+  { key: 'bank_qr', label: 'Bank QR Code', color: '#0f4c81', bg: '#f0f4ff', border: '#90caf9' },
+]
+
 export default function BusinessSettings({ tenantId }) {
   const [activeMenu, setActiveMenu] = useState('business')
   const [settings, setSettings] = useState({})
@@ -67,8 +73,10 @@ export default function BusinessSettings({ tenantId }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [uploadingQr, setUploadingQr] = useState({})
   const [logoPreview, setLogoPreview] = useState(null)
   const fileRef = useRef()
+  const qrRefs = { jazzcash_qr: useRef(), easypaisa_qr: useRef(), bank_qr: useRef() }
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
 
   useEffect(() => {
@@ -80,20 +88,14 @@ export default function BusinessSettings({ tenantId }) {
 
   async function fetchSettings() {
     setLoading(true)
-    const { data } = await supabase.from('business_settings')
-      .select('*')
-      .eq('tenant_id', tenantId)
+    const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
     const map = {}
-    // Initialize all keys from SETTINGS_CONFIG as empty
-    SETTINGS_CONFIG.forEach(section => {
-      section.fields.forEach(field => { map[field.key] = '' })
-    })
-    // Overlay with database values
+    SETTINGS_CONFIG.forEach(section => { section.fields.forEach(field => { map[field.key] = '' }) })
     data?.forEach(s => { map[s.setting_key] = s.setting_value })
     setSettings(map)
     if (map.business_logo) setLogoPreview(map.business_logo)
     setLoading(false)
-  } 
+  }
 
   async function handleLogoUpload(e) {
     const file = e.target.files[0]
@@ -117,6 +119,35 @@ export default function BusinessSettings({ tenantId }) {
     alert('Logo uploaded successfully!')
   }
 
+  async function handleQrUpload(e, qrKey) {
+    const file = e.target.files[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) return alert('Please select an image file')
+    if (file.size > 2 * 1024 * 1024) return alert('Image must be less than 2MB')
+    setUploadingQr(u => ({ ...u, [qrKey]: true }))
+    const ext = file.name.split('.').pop()
+    const fileName = `${qrKey}_${tenantId}_${Date.now()}.${ext}`
+    const { error: uploadError } = await supabase.storage.from('aquarun').upload(fileName, file, { upsert: true })
+    if (uploadError) { alert('Upload error: ' + uploadError.message); setUploadingQr(u => ({ ...u, [qrKey]: false })); return }
+    const { data: urlData } = supabase.storage.from('aquarun').getPublicUrl(fileName)
+    const publicUrl = urlData.publicUrl
+    await supabase.from('business_settings').upsert(
+      { tenant_id: tenantId, setting_key: qrKey, setting_value: publicUrl },
+      { onConflict: 'tenant_id,setting_key' }
+    )
+    setSettings(s => ({ ...s, [qrKey]: publicUrl }))
+    setUploadingQr(u => ({ ...u, [qrKey]: false }))
+    alert('QR code uploaded successfully!')
+  }
+
+  async function removeQr(qrKey) {
+    await supabase.from('business_settings').upsert(
+      { tenant_id: tenantId, setting_key: qrKey, setting_value: '' },
+      { onConflict: 'tenant_id,setting_key' }
+    )
+    setSettings(s => ({ ...s, [qrKey]: '' }))
+  }
+
   async function removeLogo() {
     await supabase.from('business_settings').upsert(
       { tenant_id: tenantId, setting_key: 'business_logo', setting_value: '' },
@@ -130,6 +161,7 @@ export default function BusinessSettings({ tenantId }) {
     setSaving(true)
     for (const [key, value] of Object.entries(settings)) {
       if (key === 'business_logo') continue
+      if (QR_FIELDS.map(q => q.key).includes(key)) continue
       await supabase.from('business_settings').upsert(
         { tenant_id: tenantId, setting_key: key, setting_value: value },
         { onConflict: 'tenant_id,setting_key' }
@@ -192,7 +224,6 @@ export default function BusinessSettings({ tenantId }) {
         {/* CONTENT */}
         <div style={{ flex: 1, minWidth: 0, width: isMobile ? '100%' : 'auto' }}>
 
-          {/* BUSINESS PROFILE */}
           {activeMenu === 'business' && (
             <div>
               {saved && (
@@ -200,6 +231,8 @@ export default function BusinessSettings({ tenantId }) {
                   <p style={{ fontWeight: '700', color: '#1b5e20', margin: 0 }}>✅ Settings saved successfully!</p>
                 </div>
               )}
+
+              {/* Logo */}
               <div style={card}>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>🖼️ Business Logo</p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -222,6 +255,43 @@ export default function BusinessSettings({ tenantId }) {
                     </div>
                     <input ref={fileRef} type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }} />
                   </div>
+                </div>
+              </div>
+
+              {/* QR Codes */}
+              <div style={card}>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#333', marginBottom: '4px' }}>📲 Payment QR Codes</p>
+                <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Upload QR codes from JazzCash, EasyPaisa, or your bank app. These will appear on printed invoices.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {QR_FIELDS.map(qr => (
+                    <div key={qr.key} style={{ background: qr.bg, border: `1px solid ${qr.border}`, borderRadius: '10px', padding: '14px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                      <div style={{ width: '70px', height: '70px', border: `2px solid ${qr.color}`, borderRadius: '8px', overflow: 'hidden', flexShrink: 0, background: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        {settings[qr.key]
+                          ? <img src={settings[qr.key]} alt={qr.label} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                          : <span style={{ fontSize: '24px' }}>📷</span>
+                        }
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '13px', fontWeight: '700', color: qr.color, margin: '0 0 6px' }}>{qr.label}</p>
+                        <p style={{ fontSize: '11px', color: '#666', margin: '0 0 8px' }}>
+                          {settings[qr.key] ? '✅ QR uploaded — will show on invoices' : 'No QR uploaded yet'}
+                        </p>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => qrRefs[qr.key].current.click()} disabled={uploadingQr[qr.key]}
+                            style={{ padding: '6px 12px', background: qr.color, color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                            {uploadingQr[qr.key] ? 'Uploading...' : '📁 Upload QR'}
+                          </button>
+                          {settings[qr.key] && (
+                            <button onClick={() => removeQr(qr.key)}
+                              style={{ padding: '6px 12px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
+                              🗑️ Remove
+                            </button>
+                          )}
+                        </div>
+                        <input ref={qrRefs[qr.key]} type="file" accept="image/*" onChange={e => handleQrUpload(e, qr.key)} style={{ display: 'none' }} />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -251,17 +321,11 @@ export default function BusinessSettings({ tenantId }) {
             </div>
           )}
 
-          {/* BACKUP & RESTORE */}
           {activeMenu === 'backup' && <BackupRestore settings={settings} tenantId={tenantId} />}
           {activeMenu === 'password' && <ChangePassword />}
-
-          {/* DATA EXPORT */}
           {activeMenu === 'export' && <DataExport tenantId={tenantId} />}
-
-          {/* IMPORT CUSTOMERS */}
           {activeMenu === 'import' && <ImportCustomers tenantId={tenantId} />}
 
-          {/* ABOUT */}
           {activeMenu === 'about' && (
             <div style={card}>
               <div style={{ padding: '8px 0' }}>
@@ -270,7 +334,6 @@ export default function BusinessSettings({ tenantId }) {
                   <h2 style={{ fontSize: '22px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>AquaRun</h2>
                   <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Water Delivery Management System</p>
                 </div>
-
                 <p style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Software Information</p>
                 {[
                   ['Software', 'AquaRun v1.0'],
@@ -285,7 +348,6 @@ export default function BusinessSettings({ tenantId }) {
                     <span style={{ fontSize: '13px', fontWeight: '700', color: '#333' }}>{v}</span>
                   </div>
                 ))}
-
                 <p style={{ fontSize: '11px', fontWeight: '700', color: '#aaa', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '20px 0 8px' }}>Developer & Support</p>
                 {[
                   ['Built by', 'Muhammad Tanzeel Ur Rehman'],
@@ -298,17 +360,14 @@ export default function BusinessSettings({ tenantId }) {
                     <span style={{ fontSize: '13px', fontWeight: '700', color: '#333', textAlign: 'right', maxWidth: '60%' }}>{v}</span>
                   </div>
                 ))}
-
                 <div style={{ marginTop: '20px', background: '#f0f7ff', borderRadius: '10px', padding: '14px', textAlign: 'center' }}>
                   <p style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600', margin: '0 0 4px' }}>Need help or support?</p>
                   <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Contact Muhammad Tanzeel on WhatsApp: <strong>+92 323 7621882</strong></p>
                 </div>
-
                 <p style={{ fontSize: '11px', color: '#aaa', textAlign: 'center', margin: '16px 0 0' }}>© 2026 AquaRun — Built by Muhammad Tanzeel Ur Rehman</p>
               </div>
             </div>
           )}
-
         </div>
       </div>
     </div>
@@ -376,7 +435,6 @@ function BackupRestore({ settings, tenantId }) {
       const text = await file.text()
       const backup = JSON.parse(text)
       if (!backup.tables || !backup.version) { alert('Invalid backup file.'); setRestoring(false); return }
-      // Safety check: only restore backups for this tenant
       if (backup.tenant_id && backup.tenant_id !== tenantId) {
         alert('This backup belongs to a different business account. Restore cancelled.')
         setRestoring(false)
@@ -391,9 +449,7 @@ function BackupRestore({ settings, tenantId }) {
       ]
       for (const table of restoreOrder) {
         if (!backup.tables[table] || backup.tables[table].length === 0) continue
-        // Only delete this tenant's rows
         await supabase.from(table).delete().eq('tenant_id', tenantId)
-        // Ensure all rows being restored have correct tenant_id
         const rowsWithTenant = backup.tables[table].map(row => ({ ...row, tenant_id: tenantId }))
         const chunks = []
         for (let i = 0; i < rowsWithTenant.length; i += 100) chunks.push(rowsWithTenant.slice(i, i + 100))
@@ -420,7 +476,6 @@ function BackupRestore({ settings, tenantId }) {
           </p>
         </div>
       </div>
-
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div style={{ width: '48px', height: '48px', background: '#e3f0ff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>💾</div>
@@ -434,7 +489,6 @@ function BackupRestore({ settings, tenantId }) {
           {backing ? '⏳ Creating Backup...' : '⬇️ Download Full Backup Now'}
         </button>
       </div>
-
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #ffebee' }}>
         <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div style={{ width: '48px', height: '48px', background: '#ffebee', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>🔄</div>
@@ -450,22 +504,14 @@ function BackupRestore({ settings, tenantId }) {
         </button>
         <input ref={restoreRef} type="file" accept=".json" onChange={restoreBackup} style={{ display: 'none' }} />
       </div>
-
       <div style={{ background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: '0 0 10px' }}>💡 Best Practices for Free Plan</p>
-        {[
-          'Take a backup every Sunday before closing',
-          'Always backup before adding a large batch of new customers',
-          'Save backup files in Google Drive or WhatsApp to yourself',
-          'Keep at least 4 weeks of backup files',
-          'Backup before making major changes to settings',
-        ].map(tip => (
+        {['Take a backup every Sunday before closing','Always backup before adding a large batch of new customers','Save backup files in Google Drive or WhatsApp to yourself','Keep at least 4 weeks of backup files','Backup before making major changes to settings'].map(tip => (
           <p key={tip} style={{ fontSize: '12px', color: '#555', margin: '0 0 6px', display: 'flex', gap: '8px' }}>
             <span style={{ color: '#0f4c81', fontWeight: '700' }}>•</span> {tip}
           </p>
         ))}
       </div>
-
       {backupHistory.length > 0 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Backup History</p>
@@ -475,9 +521,7 @@ function BackupRestore({ settings, tenantId }) {
                 <span style={{ fontSize: '20px' }}>✅</span>
                 <div>
                   <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: '0 0 2px' }}>Manual Backup</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
-                    {new Date(b.date).toLocaleString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {b.records} records
-                  </p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{new Date(b.date).toLocaleString('en-PK', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} · {b.records} records</p>
                 </div>
               </div>
               <span style={{ fontSize: '11px', background: '#f0f0f0', color: '#888', padding: '3px 10px', borderRadius: '20px' }}>Manual</span>
@@ -492,7 +536,6 @@ function BackupRestore({ settings, tenantId }) {
 // ── DATA EXPORT ──────────────────────────────────────────────────────
 function DataExport({ tenantId }) {
   const [exporting, setExporting] = useState(null)
-
   const EXPORT_TABLES = [
     { key: 'customers', label: 'Customers', desc: 'All customer records with balances' },
     { key: 'deliveries', label: 'Deliveries', desc: 'All delivery records' },
@@ -506,7 +549,6 @@ function DataExport({ tenantId }) {
     { key: 'journal_entry_lines', label: 'Journal Lines', desc: 'Detailed accounting lines' },
     { key: 'riders', label: 'Riders', desc: 'All rider records' },
   ]
-
   async function exportCSV(table, label) {
     setExporting(table)
     try {
@@ -514,45 +556,26 @@ function DataExport({ tenantId }) {
       if (error) throw error
       if (!data || data.length === 0) { alert('No data found in ' + label); setExporting(null); return }
       const headers = Object.keys(data[0])
-      const csvRows = [
-        headers.join(','),
-        ...data.map(row =>
-          headers.map(h => {
-            const val = row[h]
-            if (val === null || val === undefined) return ''
-            const str = String(val)
-            return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str
-          }).join(',')
-        )
-      ]
-      const csv = csvRows.join('\n')
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+      const csvRows = [headers.join(','), ...data.map(row => headers.map(h => { const val = row[h]; if (val === null || val === undefined) return ''; const str = String(val); return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str.replace(/"/g, '""')}"` : str }).join(','))]
+      const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
-      a.href = url
-      a.download = `AquaRun_${label}_${new Date().toISOString().split('T')[0]}.csv`
-      a.click()
+      a.href = url; a.download = `AquaRun_${label}_${new Date().toISOString().split('T')[0]}.csv`; a.click()
       URL.revokeObjectURL(url)
     } catch (err) { alert('Export failed: ' + err.message) }
     setExporting(null)
   }
-
   async function exportAll() {
     setExporting('all')
-    for (const t of EXPORT_TABLES) {
-      await exportCSV(t.key, t.label)
-      await new Promise(r => setTimeout(r, 300))
-    }
+    for (const t of EXPORT_TABLES) { await exportCSV(t.key, t.label); await new Promise(r => setTimeout(r, 300)) }
     setExporting(null)
   }
-
   return (
     <div>
       <div style={{ background: 'white', borderRadius: '12px', padding: '20px', marginBottom: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
         <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Data Export</p>
         <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Export your data as CSV files — opens in Excel or Google Sheets</p>
-        <button onClick={exportAll} disabled={exporting === 'all'}
-          style={{ width: '100%', padding: '12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginBottom: '16px' }}>
+        <button onClick={exportAll} disabled={exporting === 'all'} style={{ width: '100%', padding: '12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginBottom: '16px' }}>
           {exporting === 'all' ? '⏳ Exporting All...' : '⬇️ Export All Tables'}
         </button>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
@@ -562,8 +585,7 @@ function DataExport({ tenantId }) {
                 <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: '0 0 2px' }}>{t.label}</p>
                 <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{t.desc}</p>
               </div>
-              <button onClick={() => exportCSV(t.key, t.label)} disabled={exporting === t.key}
-                style={{ padding: '7px 16px', background: '#f0f7ff', color: '#0f4c81', border: '1px solid #c8d8ff', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button onClick={() => exportCSV(t.key, t.label)} disabled={exporting === t.key} style={{ padding: '7px 16px', background: '#f0f7ff', color: '#0f4c81', border: '1px solid #c8d8ff', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', whiteSpace: 'nowrap' }}>
                 {exporting === t.key ? '⏳' : '⬇️'} Export
               </button>
             </div>
@@ -585,89 +607,46 @@ function ImportCustomers({ tenantId }) {
 
   function downloadTemplate() {
     const headers = ['full_name', 'mobile', 'customer_code', 'rate_19l', 'rate_half_litre', 'rate_1_5l', 'opening_balance', 'address', 'google_maps_link']
-    const sample = [
-      ['Ahmed Khan', '0300-1234567', 'C001', '100', '0', '0', '0', 'House 12 Street 4 Kamoke', ''],
-      ['Sara Bibi', '0311-9876543', 'C002', '120', '50', '0', '500', 'House 5 Main Road Kamoke', ''],
-    ]
-    const csv = [headers.join(','), ...sample.map(r => r.join(','))].join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
+    const sample = [['Ahmed Khan', '0300-1234567', 'C001', '100', '0', '0', '0', 'House 12 Street 4 Kamoke', ''], ['Sara Bibi', '0311-9876543', 'C002', '120', '50', '0', '500', 'House 5 Main Road Kamoke', '']]
+    const blob = new Blob([[headers.join(','), ...sample.map(r => r.join(','))].join('\n')], { type: 'text/csv' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'AquaRun_Customer_Import_Template.csv'
-    a.click()
+    const a = document.createElement('a'); a.href = url; a.download = 'AquaRun_Customer_Import_Template.csv'; a.click()
     URL.revokeObjectURL(url)
   }
 
   async function handleFileUpload(e) {
-    const file = e.target.files[0]
-    if (!file) return
+    const file = e.target.files[0]; if (!file) return
     const text = await file.text()
     const lines = text.trim().split('\n')
     const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''))
-    const rows = []
-    const errs = []
+    const rows = []; const errs = []
     for (let i = 1; i < lines.length; i++) {
       if (!lines[i].trim()) continue
       const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''))
-      const row = {}
-      headers.forEach((h, idx) => { row[h] = values[idx] || '' })
+      const row = {}; headers.forEach((h, idx) => { row[h] = values[idx] || '' })
       if (!row.full_name) { errs.push(`Row ${i}: full_name is required`); continue }
       if (!row.mobile) { errs.push(`Row ${i}: mobile is required`); continue }
-      rows.push({
-        tenant_id: tenantId,
-        full_name: row.full_name,
-        mobile: row.mobile,
-        customer_code: row.customer_code || `C${String(i).padStart(3, '0')}`,
-        rate_19l: Number(row.rate_19l) || 100,
-        rate_half_litre: Number(row.rate_half_litre) || 0,
-        rate_1_5l: Number(row.rate_1_5l) || 0,
-        opening_balance: Number(row.opening_balance) || 0,
-        balance: Number(row.opening_balance) || 0,
-        address: row.address || '',
-        google_maps_link: row.google_maps_link || '',
-        is_active: true,
-      })
+      rows.push({ tenant_id: tenantId, full_name: row.full_name, mobile: row.mobile, customer_code: row.customer_code || `C${String(i).padStart(3, '0')}`, rate_19l: Number(row.rate_19l) || 100, rate_half_litre: Number(row.rate_half_litre) || 0, rate_1_5l: Number(row.rate_1_5l) || 0, opening_balance: Number(row.opening_balance) || 0, balance: Number(row.opening_balance) || 0, address: row.address || '', google_maps_link: row.google_maps_link || '', is_active: true })
     }
-    setErrors(errs)
-    setPreview(rows)
-    setStep(2)
+    setErrors(errs); setPreview(rows); setStep(2)
   }
 
   async function importCustomers() {
-    setImporting(true)
-    let count = 0
-    const chunks = []
-    for (let i = 0; i < preview.length; i += 50) chunks.push(preview.slice(i, i + 50))
-    for (const chunk of chunks) {
-      const { error } = await supabase.from('customers').insert(chunk)
-      if (!error) count += chunk.length
-    }
+    setImporting(true); let count = 0
+    const chunks = []; for (let i = 0; i < preview.length; i += 50) chunks.push(preview.slice(i, i + 50))
+    for (const chunk of chunks) { const { error } = await supabase.from('customers').insert(chunk); if (!error) count += chunk.length }
     try {
-      // Only recalculate receivables for this tenant's customers and COA
-      const { data: allCustomers } = await supabase.from('customers')
-        .select('opening_balance')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
+      const { data: allCustomers } = await supabase.from('customers').select('opening_balance').eq('tenant_id', tenantId).eq('is_active', true)
       const totalReceivable = allCustomers?.reduce((s, c) => s + Math.max(0, Number(c.opening_balance || 0)), 0) || 0
-      await supabase.from('chart_of_accounts')
-        .update({ opening_balance: totalReceivable })
-        .eq('account_code', '1100')
-        .eq('tenant_id', tenantId)
+      await supabase.from('chart_of_accounts').update({ opening_balance: totalReceivable }).eq('account_code', '1100').eq('tenant_id', tenantId)
     } catch (err) { console.error('COA update error:', err) }
-    setImported(count)
-    setStep(3)
-    setImporting(false)
+    setImported(count); setStep(3); setImporting(false)
   }
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px', background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
-        {[
-          { n: 1, label: 'Download Template' },
-          { n: 2, label: 'Upload & Preview' },
-          { n: 3, label: 'Done' },
-        ].map((s, i) => (
+        {[{ n: 1, label: 'Download Template' }, { n: 2, label: 'Upload & Preview' }, { n: 3, label: 'Done' }].map((s, i) => (
           <div key={s.n} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <div style={{ width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: step >= s.n ? '#0f4c81' : '#f0f0f0', color: step >= s.n ? 'white' : '#888', fontSize: '12px', fontWeight: '700', flexShrink: 0 }}>{s.n}</div>
@@ -677,109 +656,46 @@ function ImportCustomers({ tenantId }) {
           </div>
         ))}
       </div>
-
       {step === 1 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Step 1 — Download the Excel Template</p>
           <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>Download the CSV template, fill in your customer data in Excel or Google Sheets, then upload it.</p>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '16px' }}>
-            {[
-              { icon: '👤', label: 'Customer Name', color: '#e3f0ff' },
-              { icon: '📱', label: 'Mobile Number', color: '#e8f5e9' },
-              { icon: '💰', label: 'Opening Balance', color: '#fff3e0' },
-            ].map(c => (
-              <div key={c.label} style={{ background: c.color, borderRadius: '10px', padding: '12px', textAlign: 'center' }}>
-                <div style={{ fontSize: '24px', marginBottom: '6px' }}>{c.icon}</div>
-                <p style={{ fontSize: '11px', fontWeight: '600', color: '#333', margin: 0 }}>{c.label}</p>
-              </div>
-            ))}
-          </div>
-          <div style={{ background: '#fff3e0', border: '1px solid #ffe082', borderRadius: '10px', padding: '14px', marginBottom: '16px' }}>
-            <p style={{ fontSize: '12px', fontWeight: '700', color: '#e65100', margin: '0 0 8px' }}>Important tips before filling:</p>
-            {[
-              'customer_code must be unique (C001, C002, etc.)',
-              'mobile must be filled for every customer',
-              'opening_balance is amount customer already owes you',
-              'rate_19l is price per 19L bottle in Rs.',
-              'Delete the sample rows before uploading',
-            ].map(tip => (
-              <p key={tip} style={{ fontSize: '11px', color: '#795548', margin: '0 0 4px' }}>• {tip}</p>
-            ))}
-          </div>
-          <button onClick={downloadTemplate}
-            style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginBottom: '10px' }}>
-            ⬇️ Download Customer Import Template
-          </button>
-          <button onClick={() => fileRef.current.click()}
-            style={{ width: '100%', padding: '14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
-            📂 Upload Filled CSV File
-          </button>
+          <button onClick={downloadTemplate} style={{ width: '100%', padding: '14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginBottom: '10px' }}>⬇️ Download Customer Import Template</button>
+          <button onClick={() => fileRef.current.click()} style={{ width: '100%', padding: '14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>📂 Upload Filled CSV File</button>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} />
         </div>
       )}
-
       {step === 2 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '20px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <p style={{ fontSize: '15px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>Step 2 — Preview Data</p>
           <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px' }}>{preview.length} customers ready to import</p>
-          {errors.length > 0 && (
-            <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}>
-              <p style={{ fontSize: '12px', fontWeight: '700', color: '#c62828', margin: '0 0 6px' }}>⚠️ {errors.length} rows skipped due to errors:</p>
-              {errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: '11px', color: '#f44336', margin: '0 0 2px' }}>• {e}</p>)}
-              {errors.length > 5 && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>...and {errors.length - 5} more</p>}
-            </div>
-          )}
+          {errors.length > 0 && <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: '10px', padding: '12px', marginBottom: '16px' }}><p style={{ fontSize: '12px', fontWeight: '700', color: '#c62828', margin: '0 0 6px' }}>⚠️ {errors.length} rows skipped</p>{errors.slice(0, 5).map((e, i) => <p key={i} style={{ fontSize: '11px', color: '#f44336', margin: '0 0 2px' }}>• {e}</p>)}</div>}
           <div style={{ overflowX: 'auto', marginBottom: '16px', border: '1px solid #eee', borderRadius: '8px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
-              <thead>
-                <tr style={{ background: '#0f4c81', color: 'white' }}>
-                  {['#', 'Name', 'Mobile', 'Code', 'Rate 19L', 'Opening Bal'].map(h => (
-                    <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '600' }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {preview.slice(0, 10).map((r, i) => (
-                  <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}>
-                    <td style={{ padding: '8px 10px', color: '#888' }}>{i + 1}</td>
-                    <td style={{ padding: '8px 10px', fontWeight: '600' }}>{r.full_name}</td>
-                    <td style={{ padding: '8px 10px', color: '#555' }}>{r.mobile}</td>
-                    <td style={{ padding: '8px 10px', color: '#0f4c81', fontWeight: '600' }}>{r.customer_code}</td>
-                    <td style={{ padding: '8px 10px' }}>Rs. {r.rate_19l}</td>
-                    <td style={{ padding: '8px 10px', color: r.opening_balance > 0 ? '#f44336' : '#888' }}>Rs. {r.opening_balance.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
+              <thead><tr style={{ background: '#0f4c81', color: 'white' }}>{['#', 'Name', 'Mobile', 'Code', 'Rate 19L', 'Opening Bal'].map(h => <th key={h} style={{ padding: '8px 10px', textAlign: 'left', fontWeight: '600' }}>{h}</th>)}</tr></thead>
+              <tbody>{preview.slice(0, 10).map((r, i) => <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: i % 2 === 0 ? 'white' : '#fafafa' }}><td style={{ padding: '8px 10px', color: '#888' }}>{i + 1}</td><td style={{ padding: '8px 10px', fontWeight: '600' }}>{r.full_name}</td><td style={{ padding: '8px 10px', color: '#555' }}>{r.mobile}</td><td style={{ padding: '8px 10px', color: '#0f4c81', fontWeight: '600' }}>{r.customer_code}</td><td style={{ padding: '8px 10px' }}>Rs. {r.rate_19l}</td><td style={{ padding: '8px 10px', color: r.opening_balance > 0 ? '#f44336' : '#888' }}>Rs. {r.opening_balance.toLocaleString()}</td></tr>)}</tbody>
             </table>
             {preview.length > 10 && <p style={{ padding: '8px 12px', fontSize: '11px', color: '#888', borderTop: '1px solid #f0f0f0' }}>...and {preview.length - 10} more customers</p>}
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => { setStep(1); setPreview([]); setErrors([]) }}
-              style={{ flex: 1, padding: '12px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px' }}>
-              ← Back
-            </button>
-            <button onClick={importCustomers} disabled={importing || preview.length === 0}
-              style={{ flex: 2, padding: '12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
-              {importing ? '⏳ Importing...' : `✓ Import ${preview.length} Customers`}
-            </button>
+            <button onClick={() => { setStep(1); setPreview([]); setErrors([]) }} style={{ flex: 1, padding: '12px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px' }}>← Back</button>
+            <button onClick={importCustomers} disabled={importing || preview.length === 0} style={{ flex: 2, padding: '12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>{importing ? '⏳ Importing...' : `✓ Import ${preview.length} Customers`}</button>
           </div>
         </div>
       )}
-
       {step === 3 && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '40px 20px', textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
           <div style={{ fontSize: '56px', marginBottom: '16px' }}>🎉</div>
           <p style={{ fontSize: '20px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 8px' }}>Import Complete!</p>
           <p style={{ fontSize: '14px', color: '#555', margin: '0 0 24px' }}>{imported} customers imported successfully.</p>
-          <button onClick={() => { setStep(1); setPreview([]); setErrors([]); setImported(0) }}
-            style={{ padding: '12px 32px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>
-            Import More Customers
-          </button>
+          <button onClick={() => { setStep(1); setPreview([]); setErrors([]); setImported(0) }} style={{ padding: '12px 32px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '700' }}>Import More Customers</button>
         </div>
       )}
     </div>
   )
 }
+
+// ── CHANGE PASSWORD ──────────────────────────────────────────────────
 function ChangePassword() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -794,10 +710,8 @@ function ChangePassword() {
     if (newPassword !== confirmPassword) { setError('Passwords do not match'); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('Not logged in via email. Password change only works with email login.'); setSaving(false); return }
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email, password: currentPassword
-    })
+    if (!user) { setError('Not logged in via email.'); setSaving(false); return }
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword })
     if (signInError) { setError('Current password is incorrect'); setSaving(false); return }
     const { error: updateError } = await supabase.auth.updateUser({ password: newPassword })
     if (updateError) { setError('Error: ' + updateError.message); setSaving(false); return }
@@ -820,8 +734,7 @@ function ChangePassword() {
       <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="Min 6 characters" style={inp} />
       <label style={{ fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '4px' }}>Confirm New Password</label>
       <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat new password" style={inp} />
-      <button onClick={handleChangePassword} disabled={saving}
-        style={{ width: '100%', padding: '12px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginTop: '4px' }}>
+      <button onClick={handleChangePassword} disabled={saving} style={{ width: '100%', padding: '12px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', fontWeight: '700', marginTop: '4px' }}>
         {saving ? 'Updating...' : '🔑 Update Password'}
       </button>
       <div style={{ background: '#e3f0ff', borderRadius: '8px', padding: '10px 12px', marginTop: '16px' }}>
