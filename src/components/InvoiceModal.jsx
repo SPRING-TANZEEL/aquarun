@@ -75,7 +75,7 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
     win.document.close()
     win.onload = () => {
       win.focus()
-      setTimeout(() => { win.print(); win.onafterprint = () => win.close() }, 1500)
+      setTimeout(() => { win.print(); win.onafterprint = () => win.close() }, 2000)
     }
   }
 
@@ -89,7 +89,13 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
         body { font-family: 'Courier New', monospace; width: 76mm; margin: 0 auto; font-size: 11px; color: #000; padding: 2mm; }
         @media print { button { display: none !important; } @page { size: 80mm auto; margin: 0mm 2mm; } body { width: 76mm; } }
       </style>
-      </head><body>${content}</body></html>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+      </head><body>${content}<script>
+        document.querySelectorAll('.qr-placeholder').forEach(function(el) {
+          var text = el.getAttribute('data-qr');
+          new QRCode(el, { text: text, width: 90, height: 90, correctLevel: QRCode.CorrectLevel.M });
+        });
+      <\/script></body></html>
     `)
     win.document.close()
     win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
@@ -218,10 +224,10 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
             <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
               {settings.jazzcash_number && (
                 <div style={{ textAlign: 'center' }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent('JazzCash: ' + settings.jazzcash_number)}`}
-                    alt="JazzCash QR"
-                    style={{ width: '90px', height: '90px', border: '2px solid #e65100', borderRadius: '6px', display: 'block', marginBottom: '4px' }}
+                  <div
+                    className="qr-placeholder"
+                    data-qr={`JazzCash: ${settings.jazzcash_number}`}
+                    style={{ width: '90px', height: '90px', border: '2px solid #e65100', borderRadius: '6px', overflow: 'hidden', marginBottom: '4px' }}
                   />
                   <p style={{ fontSize: '9px', fontWeight: '700', color: '#e65100', margin: '0 0 1px' }}>JazzCash</p>
                   <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.jazzcash_number}</p>
@@ -229,10 +235,10 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
               )}
               {settings.easypaisa_number && (
                 <div style={{ textAlign: 'center' }}>
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent('EasyPaisa: ' + settings.easypaisa_number)}`}
-                    alt="EasyPaisa QR"
-                    style={{ width: '90px', height: '90px', border: '2px solid #1a7a4a', borderRadius: '6px', display: 'block', marginBottom: '4px' }}
+                  <div
+                    className="qr-placeholder"
+                    data-qr={`EasyPaisa: ${settings.easypaisa_number}`}
+                    style={{ width: '90px', height: '90px', border: '2px solid #1a7a4a', borderRadius: '6px', overflow: 'hidden', marginBottom: '4px' }}
                   />
                   <p style={{ fontSize: '9px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 1px' }}>EasyPaisa</p>
                   <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.easypaisa_number}</p>
