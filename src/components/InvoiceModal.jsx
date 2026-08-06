@@ -4,12 +4,10 @@ import { supabase } from '../supabase'
 export default function InvoiceModal({ deliveries, customer, settings, onClose, invoiceNumber, monthlyTotalPaid, monthlyBalanceDue }) {
   const printRef = useRef()
   const thermalRef = useRef()
-  const [lineItems, setLineItems] = useState({}) // { delivery_id: [items] }
+  const [lineItems, setLineItems] = useState({})
   const [loadingItems, setLoadingItems] = useState(true)
 
-  useEffect(() => {
-    fetchLineItems()
-  }, [])
+  useEffect(() => { fetchLineItems() }, [])
 
   async function fetchLineItems() {
     setLoadingItems(true)
@@ -21,11 +19,8 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
 
     const map = {}
     deliveryIds.forEach(id => { map[id] = [] })
-    data?.forEach(item => {
-      if (map[item.delivery_id]) map[item.delivery_id].push(item)
-    })
+    data?.forEach(item => { if (map[item.delivery_id]) map[item.delivery_id].push(item) })
 
-    // Fallback — if no delivery_items found, build from delivery fields
     deliveryIds.forEach(id => {
       if (map[id].length === 0) {
         const d = deliveries.find(x => x.id === id)
@@ -62,6 +57,8 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
   const today = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
   const paymentMethod = deliveries[0]?.payment_method
   const payLabel = paymentMethod === 'cash' ? 'Cash' : paymentMethod === 'jazzcash' ? 'JazzCash' : paymentMethod === 'easypaisa' ? 'EasyPaisa' : 'Credit'
+  const amountPaid = Number(deliveries[0]?.amount_received || grandTotal)
+  const balanceDue = Math.max(0, grandTotal - amountPaid)
 
   function printA4() {
     const content = printRef.current.innerHTML
@@ -71,38 +68,12 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #222; font-size: 13px; }
-        .inv-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 3px solid #0f4c81; margin-bottom: 20px; }
-        .biz-name { font-size: 22px; font-weight: 800; color: #0f4c81; margin-bottom: 4px; }
-        .biz-detail { font-size: 11px; color: #666; margin-bottom: 2px; }
-        .inv-title { font-size: 28px; font-weight: 800; color: #0f4c81; letter-spacing: 2px; text-align: right; }
-        .bill-box { background: #f0f4ff; border-left: 4px solid #0f4c81; padding: 12px 16px; margin-bottom: 20px; border-radius: 4px; }
-        .bill-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
-        .bill-name { font-size: 16px; font-weight: 700; color: #0f4c81; margin-bottom: 2px; }
-        .bill-detail { font-size: 11px; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        thead tr { background: #0f4c81; }
-        th { padding: 10px 12px; color: white; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
-        th.right { text-align: right; }
-        th.center { text-align: center; }
-        tbody tr:nth-child(even) { background: #f8f9ff; }
-        tbody tr { border-bottom: 1px solid #eee; }
-        td { padding: 10px 12px; font-size: 12px; color: #333; vertical-align: middle; }
-        td.right { text-align: right; font-weight: 600; }
-        td.center { text-align: center; }
-        td.amount { text-align: right; font-weight: 700; color: #0f4c81; }
-        .totals-wrap { display: flex; justify-content: flex-end; margin-bottom: 24px; }
-        .totals-box { width: 300px; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; }
-        .total-row { display: flex; justify-content: space-between; padding: 9px 14px; border-bottom: 1px solid #eee; font-size: 13px; }
-        .total-row.tax { background: #fff8f0; color: #e65100; }
-        .total-row.grand { background: #0f4c81; color: white; font-size: 15px; font-weight: 700; border: none; padding: 13px 14px; }
-        .payment-row { display: flex; justify-content: space-between; padding: 7px 14px; font-size: 11px; color: #888; background: #f8f8f8; }
-        .footer { border-top: 2px solid #e0e8ff; padding-top: 14px; display: flex; justify-content: space-between; align-items: flex-end; margin-top: 24px; }
         @media print { button { display: none !important; } @page { size: A4; margin: 15mm; } }
       </style>
       </head><body>${content}</body></html>
     `)
     win.document.close()
-    setTimeout(() => win.print(), 500)
+    win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
   }
 
   function printThermal() {
@@ -113,25 +84,12 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-family: 'Courier New', monospace; width: 76mm; margin: 0 auto; font-size: 11px; color: #000; padding: 2mm; }
-        .center { text-align: center; }
-        .bold { font-weight: bold; }
-        .dashed { border-top: 1px dashed #000; margin: 5px 0; }
-        .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 10px; }
-        .row.total { font-weight: bold; font-size: 12px; }
-        @media print { 
-          button { display: none !important; } 
-          @page { size: 80mm auto; margin: 0mm 2mm; } 
-          body { width: 76mm; }
-        }
+        @media print { button { display: none !important; } @page { size: 80mm auto; margin: 0mm 2mm; } body { width: 76mm; } }
       </style>
       </head><body>${content}</body></html>
     `)
     win.document.close()
-    win.onload = () => {
-      win.focus()
-      win.print()
-      win.onafterprint = () => win.close()
-    }
+    win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
   }
 
   if (loadingItems) return (
@@ -160,14 +118,14 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
         <div ref={printRef} style={{ background: 'white', borderRadius: '12px', padding: '32px', marginBottom: '20px', boxShadow: '0 2px 12px rgba(0,0,0,0.08)' }}>
 
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '20px', borderBottom: '3px solid #0f4c81', marginBottom: '24px' }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '16px', borderBottom: '3px solid #0f4c81', marginBottom: '18px' }}>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
               {settings.business_logo && (
-                <img src={settings.business_logo} alt="logo" style={{ width: '72px', height: '72px', objectFit: 'contain', borderRadius: '8px' }} />
+                <img src={settings.business_logo} alt="logo" style={{ width: '64px', height: '64px', objectFit: 'contain', borderRadius: '8px' }} />
               )}
               <div>
-                <p style={{ fontSize: '22px', fontWeight: '800', color: '#0f4c81', margin: '0 0 4px' }}>{settings.business_name || 'Business Name'}</p>
-                {settings.business_tagline && <p style={{ fontSize: '12px', color: '#888', margin: '0 0 3px', fontStyle: 'italic' }}>{settings.business_tagline}</p>}
+                <p style={{ fontSize: '20px', fontWeight: '800', color: '#0f4c81', margin: '0 0 3px' }}>{settings.business_name || 'Business Name'}</p>
+                {settings.business_tagline && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px', fontStyle: 'italic' }}>{settings.business_tagline}</p>}
                 {settings.business_address && <p style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>📍 {settings.business_address}</p>}
                 {settings.complaint_number && <p style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>📞 {settings.complaint_number}</p>}
                 {settings.ntn_number && <p style={{ fontSize: '11px', color: '#666', margin: '0 0 2px' }}>NTN: {settings.ntn_number}</p>}
@@ -175,29 +133,35 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <p style={{ fontSize: '30px', fontWeight: '800', color: '#0f4c81', letterSpacing: '3px', margin: '0 0 10px' }}>INVOICE</p>
-              <div style={{ background: '#f0f4ff', borderRadius: '8px', padding: '10px 16px', textAlign: 'right' }}>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Invoice No</p>
-                <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: '0 0 8px' }}>{invoiceNo}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>Date</p>
-                <p style={{ fontSize: '13px', fontWeight: '600', color: '#333', margin: 0 }}>{today}</p>
+              <p style={{ fontSize: '28px', fontWeight: '800', color: '#0f4c81', letterSpacing: '3px', margin: '0 0 8px' }}>INVOICE</p>
+              <div style={{ background: '#f0f4ff', borderRadius: '8px', padding: '10px 16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', fontSize: '12px', marginBottom: '5px' }}>
+                  <span style={{ color: '#888' }}>Invoice No</span>
+                  <span style={{ fontWeight: '700', color: '#0f4c81' }}>{invoiceNo}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: '20px', fontSize: '12px' }}>
+                  <span style={{ color: '#888' }}>Date</span>
+                  <span style={{ fontWeight: '600', color: '#333' }}>{today}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Bill To */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px', gap: '16px' }}>
-            <div style={{ background: '#f0f4ff', borderLeft: '4px solid #0f4c81', padding: '14px 18px', borderRadius: '6px', flex: 1 }}>
-              <p style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Bill To</p>
-              <p style={{ fontSize: '17px', fontWeight: '700', color: '#0f4c81', margin: '0 0 4px' }}>{customer?.full_name || 'Walk-in Customer'}</p>
-              {customer?.mobile && <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>📞 {customer.mobile}</p>}
-              {customer?.customer_code && <p style={{ fontSize: '11px', color: '#888', margin: '0 0 2px' }}>ID: {customer.customer_code}</p>}
-              {customer?.address && <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>📍 {customer.address}</p>}
+          {/* Bill To — compact single line */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '18px', gap: '16px' }}>
+            <div style={{ background: '#f0f4ff', borderLeft: '4px solid #0f4c81', padding: '10px 16px', borderRadius: '6px', flex: 1 }}>
+              <p style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 5px' }}>Bill To</p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{customer?.full_name || 'Walk-in Customer'}</p>
+                {customer?.customer_code && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>ID: {customer.customer_code}</p>}
+                {customer?.mobile && <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>📞 {customer.mobile}</p>}
+                {customer?.address && <p style={{ fontSize: '11px', color: '#666', margin: 0 }}>📍 {customer.address}</p>}
+              </div>
             </div>
             {isMonthly && (
-              <div style={{ background: '#f0fff4', borderLeft: '4px solid #1a7a4a', padding: '14px 18px', borderRadius: '6px', minWidth: '180px' }}>
-                <p style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 6px' }}>Period</p>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 4px' }}>{deliveries.length} Deliveries</p>
+              <div style={{ background: '#f0fff4', borderLeft: '4px solid #1a7a4a', padding: '10px 16px', borderRadius: '6px', minWidth: '160px' }}>
+                <p style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 4px' }}>Period</p>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>{deliveries.length} Deliveries</p>
                 <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>Monthly Statement</p>
               </div>
             )}
@@ -207,11 +171,11 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
             <thead>
               <tr style={{ background: '#0f4c81' }}>
-                {isMonthly && <th style={{ padding: '11px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'left', textTransform: 'uppercase' }}>Date</th>}
-                <th style={{ padding: '11px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'left', textTransform: 'uppercase' }}>Description</th>
-                <th style={{ padding: '11px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'center', textTransform: 'uppercase' }}>Qty</th>
-                <th style={{ padding: '11px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'right', textTransform: 'uppercase' }}>Unit Rate</th>
-                <th style={{ padding: '11px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'right', textTransform: 'uppercase' }}>Amount</th>
+                {isMonthly && <th style={{ padding: '10px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'left', textTransform: 'uppercase' }}>Date</th>}
+                <th style={{ padding: '10px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'left', textTransform: 'uppercase' }}>Description</th>
+                <th style={{ padding: '10px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'center', textTransform: 'uppercase' }}>Qty</th>
+                <th style={{ padding: '10px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'right', textTransform: 'uppercase' }}>Unit Rate</th>
+                <th style={{ padding: '10px 12px', color: 'white', fontSize: '11px', fontWeight: '700', textAlign: 'right', textTransform: 'uppercase' }}>Amount</th>
               </tr>
             </thead>
             <tbody>
@@ -234,19 +198,50 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
               ) : (
                 allLines.map((item, i) => (
                   <tr key={i} style={{ background: i % 2 === 0 ? 'white' : '#f8f9ff', borderBottom: '1px solid #eef0f5' }}>
-                    <td style={{ padding: '12px', fontSize: '13px', color: '#333', borderBottom: '1px solid #eef0f5', fontWeight: '500' }}>{item.product_name}</td>
-                    <td style={{ padding: '12px', fontSize: '13px', textAlign: 'center', borderBottom: '1px solid #eef0f5' }}>{item.qty}</td>
-                    <td style={{ padding: '12px', fontSize: '13px', textAlign: 'right', borderBottom: '1px solid #eef0f5', color: '#555' }}>Rs. {Number(item.rate).toLocaleString()}</td>
-                    <td style={{ padding: '12px', fontSize: '13px', fontWeight: '700', color: '#0f4c81', textAlign: 'right', borderBottom: '1px solid #eef0f5' }}>Rs. {Number(item.amount).toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', color: '#333', borderBottom: '1px solid #eef0f5', fontWeight: '500' }}>{item.product_name}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'center', borderBottom: '1px solid #eef0f5' }}>{item.qty}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', textAlign: 'right', borderBottom: '1px solid #eef0f5', color: '#555' }}>Rs. {Number(item.rate).toLocaleString()}</td>
+                    <td style={{ padding: '10px 12px', fontSize: '13px', fontWeight: '700', color: '#0f4c81', textAlign: 'right', borderBottom: '1px solid #eef0f5' }}>Rs. {Number(item.amount).toLocaleString()}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
 
-          {/* Totals */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '28px' }}>
-            <div style={{ width: '300px', border: '1px solid #e0e8ff', borderRadius: '10px', overflow: 'hidden' }}>
+          {/* Totals + QR Codes */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', gap: '16px' }}>
+
+            {/* QR Codes — left */}
+            <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              {settings.jazzcash_number && (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent('JazzCash: ' + settings.jazzcash_number)}`}
+                    alt="JazzCash QR"
+                    style={{ width: '90px', height: '90px', border: '2px solid #e65100', borderRadius: '6px', display: 'block', marginBottom: '4px' }}
+                  />
+                  <p style={{ fontSize: '9px', fontWeight: '700', color: '#e65100', margin: '0 0 1px' }}>JazzCash</p>
+                  <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.jazzcash_number}</p>
+                </div>
+              )}
+              {settings.easypaisa_number && (
+                <div style={{ textAlign: 'center' }}>
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent('EasyPaisa: ' + settings.easypaisa_number)}`}
+                    alt="EasyPaisa QR"
+                    style={{ width: '90px', height: '90px', border: '2px solid #1a7a4a', borderRadius: '6px', display: 'block', marginBottom: '4px' }}
+                  />
+                  <p style={{ fontSize: '9px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 1px' }}>EasyPaisa</p>
+                  <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.easypaisa_number}</p>
+                </div>
+              )}
+              {(settings.jazzcash_number || settings.easypaisa_number) && (
+                <p style={{ fontSize: '10px', color: '#888', margin: 0, fontStyle: 'italic', alignSelf: 'center' }}>📱 Scan to Pay</p>
+              )}
+            </div>
+
+            {/* Totals — right */}
+            <div style={{ width: '300px', border: '1px solid #e0e8ff', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
                 <span style={{ color: '#555' }}>Subtotal</span>
                 <span style={{ fontWeight: '600' }}>Rs. {grandSubTotal.toLocaleString()}</span>
@@ -283,18 +278,14 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
                   <span style={{ fontWeight: '600' }}>{settings.bank_account_number}</span>
                 </div>
               )}
-              {paymentMethod === 'cash' && (
-                <>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', borderTop: '1px solid #eee', fontSize: '12px', color: '#555' }}>
-                    <span>Amount Paid</span>
-                    <span style={{ fontWeight: '600' }}>Rs. {Number(deliveries[0]?.amount_received || grandTotal).toLocaleString()}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: Math.max(0, grandTotal - Number(deliveries[0]?.amount_received || grandTotal)) > 0 ? '#fff5f5' : '#f0fff4', fontSize: '13px', fontWeight: '700', color: Math.max(0, grandTotal - Number(deliveries[0]?.amount_received || grandTotal)) > 0 ? '#f44336' : '#1a7a4a' }}>
-                    <span>Balance Due</span>
-                    <span>Rs. {Math.max(0, grandTotal - Number(deliveries[0]?.amount_received || grandTotal)).toLocaleString()}</span>
-                  </div>
-                </>
-              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', borderTop: '1px solid #eee', fontSize: '12px', color: '#555' }}>
+                <span>Amount Paid</span>
+                <span style={{ fontWeight: '600' }}>Rs. {amountPaid.toLocaleString()}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: balanceDue > 0 ? '#fff5f5' : '#f0fff4', fontSize: '13px', fontWeight: '700', color: balanceDue > 0 ? '#f44336' : '#1a7a4a' }}>
+                <span>Balance Due</span>
+                <span>Rs. {balanceDue.toLocaleString()}</span>
+              </div>
               {isMonthly && monthlyTotalPaid > 0 && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderTop: '1px solid #eee', fontSize: '12px', color: '#1a7a4a' }}>
@@ -302,7 +293,7 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
                     <span style={{ fontWeight: '600' }}>Rs. {monthlyTotalPaid.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 16px', background: monthlyBalanceDue > 0 ? '#fff5f5' : '#f0fff4', fontSize: '13px', fontWeight: '700', color: monthlyBalanceDue > 0 ? '#f44336' : '#1a7a4a' }}>
-                    <span>Balance Due</span>
+                    <span>Monthly Balance Due</span>
                     <span>Rs. {(monthlyBalanceDue || 0).toLocaleString()}</span>
                   </div>
                 </>
@@ -311,7 +302,7 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
           </div>
 
           {/* Footer */}
-          <div style={{ borderTop: '2px solid #e0e8ff', paddingTop: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+          <div style={{ borderTop: '2px solid #e0e8ff', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
               <p style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', margin: '0 0 2px' }}>This is a system generated invoice.</p>
               {settings.whatsapp_number && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>WhatsApp: {settings.whatsapp_number}</p>}
@@ -377,10 +368,10 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
               {deliveries[0]?.payment_method === 'cash' && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '4px' }}>
-                    <span>Amount Paid</span><span>Rs. {Number(deliveries[0].amount_received).toLocaleString()}</span>
+                    <span>Amount Paid</span><span>Rs. {amountPaid.toLocaleString()}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '700', marginTop: '2px', borderTop: '1px dashed #000', paddingTop: '3px' }}>
-                    <span>Balance Due</span><span>Rs. {(grandTotal - Number(deliveries[0].amount_received)).toLocaleString()}</span>
+                    <span>Balance Due</span><span>Rs. {balanceDue.toLocaleString()}</span>
                   </div>
                 </>
               )}
