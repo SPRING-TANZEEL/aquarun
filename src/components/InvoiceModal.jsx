@@ -111,19 +111,27 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
     win.document.write(`
       <html><head><title>Receipt</title>
       <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: monospace; width: 80mm; margin: 0 auto; font-size: 11px; color: #000; padding: 4px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { font-family: 'Courier New', monospace; width: 76mm; margin: 0 auto; font-size: 11px; color: #000; padding: 2mm; }
         .center { text-align: center; }
         .bold { font-weight: bold; }
         .dashed { border-top: 1px dashed #000; margin: 5px 0; }
         .row { display: flex; justify-content: space-between; margin: 2px 0; font-size: 10px; }
         .row.total { font-weight: bold; font-size: 12px; }
-        @media print { button { display: none !important; } @page { size: 80mm auto; margin: 0; } }
+        @media print { 
+          button { display: none !important; } 
+          @page { size: 80mm auto; margin: 0mm 2mm; } 
+          body { width: 76mm; }
+        }
       </style>
       </head><body>${content}</body></html>
     `)
     win.document.close()
-    setTimeout(() => win.print(), 500)
+    win.onload = () => {
+      win.focus()
+      win.print()
+      win.onafterprint = () => win.close()
+    }
   }
 
   if (loadingItems) return (
