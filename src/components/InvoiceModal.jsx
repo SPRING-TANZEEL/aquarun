@@ -301,7 +301,7 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
           {/* Footer */}
           <div style={{ borderTop: '2px solid #e0e8ff', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
-              <p style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', margin: '0 0 2px' }}>This is a system generated invoice.</p>
+              <p style={{ fontSize: '11px', color: '#aaa', fontStyle: 'italic', margin: '0 0 2px' }}>This is a system generated invoice that does not required signature.</p>
               {settings.whatsapp_number && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>WhatsApp: {settings.whatsapp_number}</p>}
             </div>
             <div style={{ textAlign: 'right' }}>
