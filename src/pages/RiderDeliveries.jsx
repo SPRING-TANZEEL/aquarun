@@ -387,6 +387,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
     setSuccess({
       customer: selectedOrder.customers?.full_name,
+      customerMobile: selectedOrder.customers?.mobile || '',
       total, received, creditPortion, paymentMethod,
       bottlesReturned, qty19l,
       newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
@@ -555,10 +556,36 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               )}
             </div>
           )}
-          <button onClick={() => setSuccess(null)}
-            style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
-            OK
-          </button>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+            <button onClick={() => setSuccess(null)}
+              style={{ padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
+              OK
+            </button>
+            {success?.customerMobile && (() => {
+              const phone = success.customerMobile.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
+              const waNumber = phone ? `92${phone}` : ''
+              const bizName = bizSettings.business_name || 'AquaRun'
+              const items = [
+                success.qty19l > 0 ? `19L × ${success.qty19l}` : '',
+              ].filter(Boolean).join(', ')
+              const msg = `*${bizName} — Delivery Receipt*\n\n` +
+                `👤 ${success.customer}\n` +
+                `📦 ${items}\n` +
+                `💰 Total: Rs. ${success.total.toLocaleString()}\n` +
+                `💳 Payment: ${success.paymentMethod}\n` +
+                (success.creditPortion > 0 ? `📋 Credit: Rs. ${success.creditPortion.toLocaleString()}\n` : '') +
+                `\n_Thank you!_\n_${bizName}_`
+              const url = waNumber
+                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
+                : `https://wa.me/?text=${encodeURIComponent(msg)}`
+              return (
+                <button onClick={() => window.open(url, '_blank')}
+                  style={{ padding: '4px 12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                  💬 WhatsApp
+                </button>
+              )
+            })()}
+          </div>
         </div>
       )}
 

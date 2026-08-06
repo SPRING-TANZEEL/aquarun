@@ -249,7 +249,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     } catch (err) { console.error('Journal error:', err) }
 
     setPaySuccess({
-      name: payCustomer.full_name, amount, method: payMethod,
+      name: payCustomer.full_name, customerMobile: payCustomer.mobile || '', amount, method: payMethod,
       newBalance: !isPending ? Number(payCustomer.balance || 0) - amount : payCustomer.balance,
       jazzPending: isPending
     })
@@ -426,7 +426,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       }
     }
 
-    setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline })
+    setSuccess({ customer: selectedCustomer.full_name, customerMobile: selectedCustomer.mobile || '', total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline })
     setSelectedCustomer(null)
     setQty19l(1); setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
     setBottlesReturned(0); setOtherBrandsCollected(0); setStep(1)
@@ -507,10 +507,34 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   </strong>
                 </p>
               )}
-              <button onClick={() => setPaySuccess(null)}
-                style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
-                + {t('New Payment', 'نئی ادائیگی')}
-              </button>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                <button onClick={() => setPaySuccess(null)}
+                  style={{ padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
+                  + {t('New Payment', 'نئی ادائیگی')}
+                </button>
+                {paySuccess?.customerMobile && (() => {
+                  const phone = paySuccess.customerMobile.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
+                  const waNumber = phone ? `92${phone}` : ''
+                  const bizName = bizSettings.business_name || 'AquaRun'
+                  const msg = `*${bizName} — Payment Received*\n\n` +
+                    `👤 ${paySuccess.name}\n` +
+                    `💰 Amount: Rs. ${paySuccess.amount.toLocaleString()}\n` +
+                    `💳 Method: ${paySuccess.method}\n` +
+                    (paySuccess.jazzPending ? `⚠️ Pending confirmation\n` : '') +
+                    (!paySuccess.jazzPending && paySuccess.newBalance > 0 ? `📊 Remaining: Rs. ${paySuccess.newBalance.toLocaleString()}\n` : '') +
+                    (!paySuccess.jazzPending && paySuccess.newBalance <= 0 ? `✅ Account Clear\n` : '') +
+                    `\n_Thank you!_\n_${bizName}_`
+                  const url = waNumber
+                    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
+                    : `https://wa.me/?text=${encodeURIComponent(msg)}`
+                  return (
+                    <button onClick={() => window.open(url, '_blank')}
+                      style={{ padding: '4px 12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                      💬 WhatsApp
+                    </button>
+                  )
+                })()}
+              </div>
             </div>
           )}
 
@@ -610,10 +634,32 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
               {success.bottlesReturned > 0 && <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>🫙 {success.bottlesReturned} {t('our bottles returned', 'ہماری بوتلیں واپس')}</p>}
       {success.otherBrandsCollected > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', margin: '0 0 2px' }}>🔄 {success.otherBrandsCollected} {t('competitor bottles collected', 'دوسرے برانڈ کی بوتلیں واپس لی')}</p>}
               {success.savedOffline && <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>📵 {t('Saved offline — will sync when online', 'آف لائن محفوظ — آن لائن ہونے پر سنک ہوگا')}</p>}
-              <button onClick={() => setSuccess(null)}
-                style={{ marginTop: '8px', padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
-                + {t('New Sale', 'نئی فروخت')}
-              </button>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                <button onClick={() => setSuccess(null)}
+                  style={{ padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
+                  + {t('New Sale', 'نئی فروخت')}
+                </button>
+                {success?.customerMobile && (() => {
+                  const phone = success.customerMobile.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
+                  const waNumber = phone ? `92${phone}` : ''
+                  const bizName = bizSettings.business_name || 'AquaRun'
+                  const msg = `*${bizName} — Sale Receipt*\n\n` +
+                    `👤 ${success.customer}\n` +
+                    `💰 Total: Rs. ${success.total.toLocaleString()}\n` +
+                    `💳 Payment: ${success.paymentMethod}\n` +
+                    (success.creditPortion > 0 ? `📋 Credit: Rs. ${success.creditPortion.toLocaleString()}\n` : '') +
+                    `\n_Thank you!_\n_${bizName}_`
+                  const url = waNumber
+                    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
+                    : `https://wa.me/?text=${encodeURIComponent(msg)}`
+                  return (
+                    <button onClick={() => window.open(url, '_blank')}
+                      style={{ padding: '4px 12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+                      💬 WhatsApp
+                    </button>
+                  )
+                })()}
+              </div>
             </div>
           )}
 
