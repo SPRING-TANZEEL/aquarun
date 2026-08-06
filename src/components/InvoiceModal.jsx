@@ -62,7 +62,6 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
 
   function printA4() {
     const content = printRef.current.innerHTML
-    const qrScript = getQrScript(settings.jazzcash_number_1, settings.jazzcash_number_2)
     const win = window.open('', '_blank')
     win.document.write(`<!DOCTYPE html>
 <html><head><title>Invoice ${invoiceNo}</title>
