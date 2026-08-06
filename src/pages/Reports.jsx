@@ -15,7 +15,7 @@ export default function Reports({ tenantId }) {
   const tabs = [
     { key: 'daily', label: '💵 Cash Flow' },
     { key: 'ledger', label: '📒 Customer Ledger' },
-    <button onClick={() => setActiveTab('bulk_ledger')} style={{ padding: '8px 16px', background: activeTab === 'bulk_ledger' ? '#0f4c81' : '#f0f4f8', color: activeTab === 'bulk_ledger' ? 'white' : '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>📋 Bulk Ledger</button>
+    
     { key: 'ageing', label: '⏳ Receivables' },
     { key: 'sales', label: '📊 Sales Summary' },
     { key: 'pl', label: '📈 P&L' },
@@ -26,6 +26,7 @@ export default function Reports({ tenantId }) {
     { key: 'bottles', label: '🫙 Bottles' },
     { key: 'custsales', label: '👤 Customer Sales' },
     { key: 'bulk', label: '📨 Bulk Share' },
+    { key: 'bulk_ledger', label: '📋', sub: 'Bulk Ledger' },
   ]
   return (
     <div>
@@ -77,12 +78,13 @@ export default function Reports({ tenantId }) {
         </div>
         <div style={{ height: 1, background: '#f0f0f0', margin: '4px 4px 0' }} />
         {/* Row 3 */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4, marginTop: 4 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, marginTop: 4 }}>
           {[
             { key: 'churn',    label: '📋', sub: 'Churn Risk'   },
             { key: 'bottles',  label: '🫙', sub: 'Bottles'      },
             { key: 'custsales',label: '👤', sub: 'Cust. Sales'  },
-            { key: 'bulk',     label: '📨', sub: 'Bulk Share'   },
+            { key: 'bulk',       label: '📨', sub: 'Bulk Share'   },
+            { key: 'bulk_ledger', label: '📋', sub: 'Bulk Ledger' },
           ].map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
               padding: '8px 4px', border: 'none', borderRadius: 7, cursor: 'pointer',
