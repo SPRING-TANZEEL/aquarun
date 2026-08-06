@@ -3,7 +3,6 @@ import { supabase } from '../supabase'
 import * as AccountingEngine from '../accountingEngine'
 import { savePendingDelivery, updateCustomerBalanceOffline } from '../offlineDB'
 import RiderQuickSale from './RiderQuickSale'
-import WhatsAppModal from '../components/WhatsAppModal'
 
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
@@ -39,7 +38,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [payNotes, setPayNotes]     = useState('')
   const [paySuccess, setPaySuccess] = useState(null)
   const [paySaving, setPaySaving]   = useState(false)
-  const [whatsappData, setWhatsappData] = useState(null)
 
   function t(en, ur) { return lang === 'ur' ? ur : en }
 
@@ -255,20 +253,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       newBalance: !isPending ? Number(payCustomer.balance || 0) - amount : payCustomer.balance,
       jazzPending: isPending
     })
-
-    if (payCustomer.mobile) {
-      setWhatsappData({
-        type: 'payment',
-        data: {
-          customerName: payCustomer.full_name,
-          mobile: payCustomer.mobile,
-          amount,
-          method: payMethod,
-          newBalance: !isPending ? Number(payCustomer.balance || 0) - amount : Number(payCustomer.balance || 0),
-          jazzPending: isPending,
-        }
-      })
-    }
     setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
     setPaySaving(false)
   }
@@ -443,29 +427,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     }
 
     setSuccess({ customer: selectedCustomer.full_name, total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline })
-
-    if (selectedCustomer.mobile) {
-      const { qtyHalf: qh, qty15l: q15 } = getBottleQtys()
-      const items = [
-        qty19l > 0 ? `19L × ${qty19l} @ Rs.${selectedRate}` : '',
-        qh > 0 ? `Half × ${qh}` : '',
-        q15 > 0 ? `1.5L × ${q15}` : '',
-        ...extraProducts.filter(p => (quantities[p.id] || 0) > 0).map(p => `${p.name} × ${quantities[p.id]}`),
-      ].filter(Boolean)
-      setWhatsappData({
-        type: 'delivery',
-        data: {
-          customerName: selectedCustomer.full_name,
-          mobile: selectedCustomer.mobile,
-          items,
-          total,
-          paymentMethod,
-          creditPortion,
-          newBalance: Number(selectedCustomer.balance || 0) + creditPortion,
-          invoiceNumber: null,
-        }
-      })
-    }
     setSelectedCustomer(null)
     setQty19l(1); setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
     setBottlesReturned(0); setOtherBrandsCollected(0); setStep(1)
@@ -495,14 +456,6 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
 
   return (
     <div>
-      {whatsappData && (
-        <WhatsAppModal
-          type={whatsappData.type}
-          data={whatsappData.data}
-          bizName={bizSettings.business_name || 'AquaRun'}
-          onClose={() => setWhatsappData(null)}
-        />
-      )}
       <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '12px' }}>🏪 {t('Sell & Receive', 'فروخت اور وصولی')}</h2>
 
       {/* ── 3 SUB TABS ── */}

@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { reverseJournalEntry } from '../accountingEngine'
 import InvoiceModal from '../components/InvoiceModal'
-import WhatsAppModal from '../components/WhatsAppModal'
-import { openWhatsApp } from '../whatsappHelper'
 
 const TRANSACTION_TYPES = [
   { key: 'all',              label: 'All Transactions' },
@@ -35,7 +33,6 @@ export default function Transactions({ tenantId }) {
   const [totalCount, setTotalCount] = useState(0)
   const [allTransactions, setAllTransactions] = useState([])
   const [loadingMore, setLoadingMore] = useState(false)
-  const [whatsappTx, setWhatsappTx] = useState(null)
 
   useEffect(() => {
     if (tenantId) fetchTransactions()
@@ -364,14 +361,6 @@ export default function Transactions({ tenantId }) {
 
   return (
     <div>
-      {whatsappTx && (
-        <WhatsAppModal
-          type={whatsappTx.type}
-          data={whatsappTx.data}
-          bizName={businessSettings.business_name || 'AquaRun'}
-          onClose={() => setWhatsappTx(null)}
-        />
-      )}
       {invoiceData && (
         <InvoiceModal
           deliveries={[invoiceData.delivery]}
@@ -558,24 +547,6 @@ export default function Transactions({ tenantId }) {
                           <button onClick={() => openInvoice(tx)}
                             style={{ padding: '5px 10px', background: '#fff3e0', color: '#e65100', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '600' }}>
                             🧾 Invoice
-                          </button>
-                        )}
-                        {(tx.type === 'delivery' || tx.type === 'payment') && tx.party !== '—' && (
-                          <button onClick={() => {
-                            const mobile = tx.raw.customers?.mobile || ''
-                            if (tx.type === 'delivery') {
-                              const items = [
-                                tx.raw.qty_19l > 0 ? `19L × ${tx.raw.qty_19l} @ Rs.${tx.raw.rate_applied}` : '',
-                                tx.raw.qty_half_litre > 0 ? `Half × ${tx.raw.qty_half_litre}` : '',
-                                tx.raw.qty_1_5l > 0 ? `1.5L × ${tx.raw.qty_1_5l}` : '',
-                              ].filter(Boolean)
-                              setWhatsappTx({ type: 'delivery', data: { customerName: tx.party, mobile, items, total: tx.amount, paymentMethod: tx.payment_method, creditPortion: Number(tx.raw.credit_amount || 0), newBalance: 0, invoiceNumber: tx.raw.invoice_number } })
-                            } else {
-                              setWhatsappTx({ type: 'payment', data: { customerName: tx.party, mobile, amount: tx.amount, method: tx.payment_method, newBalance: 0, jazzPending: !tx.raw.jazzcash_confirmed && tx.payment_method === 'jazzcash' } })
-                            }
-                          }}
-                            style={{ padding: '5px 10px', background: '#e8f5e9', color: '#25d366', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '11px', fontWeight: '700' }}>
-                            💬 WA
                           </button>
                         )}
                         {voidableTypes.includes(tx.type) && (

@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import * as AccountingEngine from '../accountingEngine'
-import WhatsAppModal from '../components/WhatsAppModal'
 import {
   getOrdersOffline, updateOrderStatusOffline,
   savePendingDelivery
@@ -61,7 +60,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   const [rescheduling,   setRescheduling]   = useState(false)
   const [riderLocation,  setRiderLocation]  = useState(null)
   const [completedCount, setCompletedCount] = useState(0)
-  const [whatsappData, setWhatsappData] = useState(null)
 
   function getRiderLocation() {
     if (!navigator.geolocation) return
@@ -394,29 +392,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
       savedOffline: !isOnline
     })
-
-    // WhatsApp notification — only for registered customers with mobile
-    if (selectedOrder.customers?.mobile) {
-      const items = [
-        qty19l > 0 ? `19L × ${qty19l} @ Rs.${selectedRate}` : '',
-        qtyHalf > 0 ? `Half × ${qtyHalf}` : '',
-        qty15l > 0 ? `1.5L × ${qty15l}` : '',
-        ...(selectedOrder.product_items || []).map(p => `${p.name} × ${productQtys[p.product_id] ?? p.qty}`),
-      ].filter(Boolean)
-      setWhatsappData({
-        type: 'delivery',
-        data: {
-          customerName: selectedOrder.customers.full_name,
-          mobile: selectedOrder.customers.mobile,
-          items,
-          total,
-          paymentMethod,
-          creditPortion,
-          newBalance: Number(selectedOrder.customers.balance || 0) + creditPortion,
-          invoiceNumber: null,
-        }
-      })
-    }
     setPaymentMethod(null)
     setCashReceived('')
     setBottlesReturned(0)
@@ -500,14 +475,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
   return (
     <div>
-      {whatsappData && (
-        <WhatsAppModal
-          type={whatsappData.type}
-          data={whatsappData.data}
-          bizName={bizSettings.business_name || 'AquaRun'}
-          onClose={() => setWhatsappData(null)}
-        />
-      )}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>📦 My Deliveries</h2>
         {orders.length > 0 && (() => {
@@ -981,4 +948,3 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     </div>
   )
 }
-
