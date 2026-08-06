@@ -399,7 +399,9 @@ export default function AdminQuickSale({ tenantId }) {
               </button>
             )}
             {success?.type === 'sale' && (() => {
-              const customerPhone = success?.customerMobile?.replace(/^0/, '').replace(/[-\s]/g, '') || ''
+              const rawPhone = success?.customerMobile || ''
+              const customerPhone = rawPhone.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
+              const waNumber = customerPhone ? `92${customerPhone}` : ''
               const bizName = settings.business_name || 'AquaRun'
               const balanceMsg = success?.newBalance > 0
                 ? `\n⚠️ Outstanding Balance: Rs. ${success.newBalance.toLocaleString()}`
@@ -412,8 +414,8 @@ export default function AdminQuickSale({ tenantId }) {
                 `💰 Amount: Rs. ${success.total.toLocaleString()}\n` +
                 `💳 Payment: ${success.paymentMethod}${balanceMsg}\n\n` +
                 `_Thank you for your business!_\n_${bizName}_`
-              const url = customerPhone
-                ? `https://wa.me/92${customerPhone}?text=${encodeURIComponent(msg)}`
+              const url = waNumber
+                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
                 : `https://wa.me/?text=${encodeURIComponent(msg)}`
               return (
                 <button onClick={() => window.open(url, '_blank')}
@@ -432,8 +434,8 @@ export default function AdminQuickSale({ tenantId }) {
                 (success.jazzPending ? `⚠️ Pending confirmation\n` : ``) +
                 (!success.jazzPending ? `📊 New Balance: Rs. ${Math.abs(success.newBalance).toLocaleString()}${success.newBalance > 0 ? ' (outstanding)' : success.newBalance < 0 ? ' CR' : ' (clear)'}` : '') +
                 `\n\n_Thank you!_\n_${bizName}_`
-              const url = customerPhone
-                ? `https://wa.me/92${customerPhone}?text=${encodeURIComponent(msg)}`
+              const url = waNumber
+                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
                 : `https://wa.me/?text=${encodeURIComponent(msg)}`
               return (
                 <button onClick={() => window.open(url, '_blank')}
