@@ -156,7 +156,8 @@ export default function AdminQuickSale({ tenantId }) {
       type: 'payment', name: paymentCustomer.full_name, amount,
       method: paymentMethodReceipt,
       newBalance: !isPending ? Number(paymentCustomer.balance || 0) - amount : paymentCustomer.balance,
-      jazzPending: isPending
+      jazzPending: isPending,
+      customerMobile: paymentCustomer.mobile || ''
     })
     setPaymentCustomer(null); setPaymentSearch(''); setPaymentAmount(''); setPaymentNotes('')
     setSaving(false)
@@ -316,7 +317,7 @@ export default function AdminQuickSale({ tenantId }) {
       setLastDelivery({ ...savedDelivery, invoice_number: invoiceNumber, tax_amount: taxAmount, total_with_tax: total, _customer: selectedCustomer })
     } catch (err) { console.error('Invoice number error:', err) }
 
-    setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id })
+    setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id, customerMobile: selectedCustomer?.mobile || '', newBalance: selectedCustomer ? (paymentMethod === 'credit' ? Number(selectedCustomer.balance || 0) + total : Number(selectedCustomer.balance || 0)) : 0 })
 
     setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
     setSaleDate(new Date().toISOString().split('T')[0])
@@ -397,7 +398,52 @@ export default function AdminQuickSale({ tenantId }) {
                 🧾 Print Invoice
               </button>
             )}
-            
+            {success?.type === 'sale' && (() => {
+              const rawPhone = success?.customerMobile || ''
+              const customerPhone = rawPhone.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
+              const waNumber = customerPhone ? `92${customerPhone}` : ''
+              const bizName = settings.business_name || 'AquaRun'
+              const balanceMsg = success?.newBalance > 0
+                ? `\n⚠️ Outstanding Balance: Rs. ${success.newBalance.toLocaleString()}`
+                : success?.newBalance < 0
+                ? `\n✅ Advance Credit: Rs. ${Math.abs(success.newBalance).toLocaleString()}`
+                : `\n✅ Account Clear`
+              const msg = `*${bizName} — Sale Receipt*\n\n` +
+                `👤 Customer: ${success.name}\n` +
+                `📦 Items: ${success.desc}\n` +
+                `💰 Amount: Rs. ${success.total.toLocaleString()}\n` +
+                `💳 Payment: ${success.paymentMethod}${balanceMsg}\n\n` +
+                `_Thank you for your business!_\n_${bizName}_`
+              const url = waNumber
+                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
+                : `https://wa.me/?text=${encodeURIComponent(msg)}`
+              return (
+                <button onClick={() => window.open(url, '_blank')}
+                  style={{ padding: '5px 14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                  💬 WhatsApp
+                </button>
+              )
+            })()}
+            {success?.type === 'payment' && (() => {
+              const customerPhone = success?.customerMobile?.replace(/^0/, '').replace(/[-\s]/g, '') || ''
+              const bizName = settings.business_name || 'AquaRun'
+              const msg = `*${bizName} — Payment Received*\n\n` +
+                `👤 Customer: ${success.name}\n` +
+                `💰 Amount Received: Rs. ${success.amount.toLocaleString()}\n` +
+                `💳 Method: ${success.method}\n` +
+                (success.jazzPending ? `⚠️ Pending confirmation\n` : ``) +
+                (!success.jazzPending ? `📊 New Balance: Rs. ${Math.abs(success.newBalance).toLocaleString()}${success.newBalance > 0 ? ' (outstanding)' : success.newBalance < 0 ? ' CR' : ' (clear)'}` : '') +
+                `\n\n_Thank you!_\n_${bizName}_`
+              const url = waNumber
+                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
+                : `https://wa.me/?text=${encodeURIComponent(msg)}`
+              return (
+                <button onClick={() => window.open(url, '_blank')}
+                  style={{ padding: '5px 14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
+                  💬 WhatsApp
+                </button>
+              )
+            })()}
           </div>
         </div>
       )}
