@@ -86,7 +86,8 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
 </style>
 </head><body>${content}</body></html>`)
     win.document.close()
-    win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
+    win.document.close()
+    setTimeout(() => { win.focus(); win.print(); }, 1000)
   }
 
   if (loadingItems) return (
