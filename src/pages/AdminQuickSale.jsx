@@ -424,8 +424,9 @@ export default function AdminQuickSale({ tenantId }) {
                 </button>
               )
             })()}
-            {success?.type === 'payment' && (() => {
-              const customerPhone = success?.customerMobile?.replace(/^0/, '').replace(/[-\s]/g, '') || ''
+            {success?.type === 'payment' && success?.customerMobile && (() => {
+              const phone = success.customerMobile.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
+              const waNumber = phone ? `92${phone}` : ''
               const bizName = settings.business_name || 'AquaRun'
               const msg = `*${bizName} — Payment Received*\n\n` +
                 `👤 Customer: ${success.name}\n` +
