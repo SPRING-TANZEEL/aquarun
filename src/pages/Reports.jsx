@@ -1096,7 +1096,8 @@ function BulkLedger({ tenantId }) {
       .gt('balance', 0)
       .order('full_name', { ascending: true })
 
-    if (!allCustomers || allCustomers.length === 0) {
+    const customers = (allCustomers || []).filter(c => Number(c.balance) > 0)
+    if (customers.length === 0) {
       alert('No customers with outstanding balance found.')
       setGenerating(false)
       setProgress('')
@@ -1112,9 +1113,9 @@ function BulkLedger({ tenantId }) {
 
     const customerPages = []
 
-    for (let i = 0; i < allCustomers.length; i++) {
-      const customer = allCustomers[i]
-      setProgress(`Processing ${i + 1} of ${allCustomers.length}: ${customer.full_name}`)
+    for (let i = 0; i < customers.length; i++) {
+      const customer = customers[i]
+      setProgress(`Processing ${i + 1} of ${customers.length}: ${customer.full_name}`)
 
       const { data: deliveries } = await supabase.from('deliveries').select('*')
         .eq('customer_id', customer.id).eq('tenant_id', tenantId).eq('is_voided', false)
@@ -2745,6 +2746,7 @@ function CollectionAnalysis({ tenantId }) {
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
         .gt('balance', 0)
+      .not('balance', 'is', null)
         .order('balance', { ascending: false })
 
       const now = new Date()
