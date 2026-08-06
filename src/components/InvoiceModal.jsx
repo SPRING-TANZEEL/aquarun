@@ -69,7 +69,7 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
     win.document.write(`
       <html><head><title>Invoice ${invoiceNo}</title>
       <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #222; font-size: 13px; }
         .inv-header { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 16px; border-bottom: 3px solid #0f4c81; margin-bottom: 20px; }
         .biz-name { font-size: 22px; font-weight: 800; color: #0f4c81; margin-bottom: 4px; }
