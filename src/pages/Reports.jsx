@@ -1334,7 +1334,7 @@ function BulkLedger({ tenantId }) {
   <meta charset="UTF-8"/>
   <title>Bulk Customer Ledger — ${bizName} — ${dateFrom} to ${dateTo}</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     body { font-family: Arial, sans-serif; background: white; }
     @media print {
       @page { size: A4; margin: 10mm; }
