@@ -68,12 +68,15 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #222; font-size: 13px; }
-        @media print { button { display: none !important; } @page { size: A4; margin: 15mm; } }
+        @media print { button { display: none !important; } @page { size: A4; margin: 15mm; } img { display: block !important; } }
       </style>
       </head><body>${content}</body></html>
     `)
     win.document.close()
-    win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
+    win.onload = () => {
+      win.focus()
+      setTimeout(() => { win.print(); win.onafterprint = () => win.close() }, 1500)
+    }
   }
 
   function printThermal() {
