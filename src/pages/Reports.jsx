@@ -15,6 +15,7 @@ export default function Reports({ tenantId }) {
   const tabs = [
     { key: 'daily', label: '💵 Cash Flow' },
     { key: 'ledger', label: '📒 Customer Ledger' },
+    <button onClick={() => setActiveTab('bulk_ledger')} style={{ padding: '8px 16px', background: activeTab === 'bulk_ledger' ? '#0f4c81' : '#f0f4f8', color: activeTab === 'bulk_ledger' ? 'white' : '#555', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: '600', whiteSpace: 'nowrap' }}>📋 Bulk Ledger</button>
     { key: 'ageing', label: '⏳ Receivables' },
     { key: 'sales', label: '📊 Sales Summary' },
     { key: 'pl', label: '📈 P&L' },
@@ -98,6 +99,7 @@ export default function Reports({ tenantId }) {
       </div>
       {activeTab === 'daily' && <DailyCashReport tenantId={tenantId} />}
       {activeTab === 'ledger' && <CustomerLedger tenantId={tenantId} />}
+      {activeTab === 'bulk_ledger' && <BulkLedger tenantId={tenantId} />}
       {activeTab === 'ageing' && <ReceivablesAgeing tenantId={tenantId} />}
       {activeTab === 'sales' && <SalesSummary tenantId={tenantId} />}
       {activeTab === 'pl' && <ProfitLoss tenantId={tenantId} />}
@@ -1057,6 +1059,346 @@ function CustomerLedger({ tenantId }) {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── BULK LEDGER REPORT ────────────────────────────────────────────
+function BulkLedger({ tenantId }) {
+  const today = new Date().toISOString().split('T')[0]
+  const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]
+  const [dateFrom, setDateFrom] = useState(firstOfMonth)
+  const [dateTo, setDateTo] = useState(today)
+  const [generating, setGenerating] = useState(false)
+  const [progress, setProgress] = useState('')
+  const [businessSettings, setBusinessSettings] = useState({})
+
+  useEffect(() => { if (tenantId) fetchSettings() }, [tenantId])
+
+  async function fetchSettings() {
+    const { data } = await supabase.from('business_settings').select('*').eq('tenant_id', tenantId)
+    const map = {}
+    data?.forEach(s => { map[s.setting_key] = s.setting_value })
+    setBusinessSettings(map)
+  }
+
+  async function generateBulkLedger() {
+    if (!dateFrom || !dateTo) { alert('Please select both From and To dates.'); return }
+    setGenerating(true)
+    setProgress('Fetching customers...')
+
+    const { data: allCustomers } = await supabase
+      .from('customer_balances')
+      .select('*')
+      .eq('tenant_id', tenantId)
+      .gt('balance', 0)
+      .order('full_name', { ascending: true })
+
+    if (!allCustomers || allCustomers.length === 0) {
+      alert('No customers with outstanding balance found.')
+      setGenerating(false)
+      setProgress('')
+      return
+    }
+
+    const printDate = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'long', year: 'numeric' })
+    const bizName = businessSettings.business_name || 'AquaRun'
+    const bizLogo = businessSettings.business_logo || ''
+    const bizAddress = businessSettings.business_address || ''
+    const bizPhone = businessSettings.complaint_number || ''
+    const bizTagline = businessSettings.business_tagline || 'Pure Water Delivery'
+
+    const customerPages = []
+
+    for (let i = 0; i < allCustomers.length; i++) {
+      const customer = allCustomers[i]
+      setProgress(`Processing ${i + 1} of ${allCustomers.length}: ${customer.full_name}`)
+
+      const { data: deliveries } = await supabase.from('deliveries').select('*')
+        .eq('customer_id', customer.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        .order('delivered_at', { ascending: true })
+
+      const { data: payments } = await supabase.from('payments').select('*')
+        .eq('customer_id', customer.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        .order('created_at', { ascending: true })
+
+      const entries = []
+      deliveries?.forEach(d => {
+        entries.push({
+          date: d.delivered_at,
+          type: 'delivery',
+          description: 'Delivery — 19L×' + (d.qty_19l || 0) + ' Half×' + (d.qty_half_litre || 0) + ' 1.5L×' + (d.qty_1_5l || 0),
+          debit: Number(d.total_with_tax || d.total_amount),
+          credit: d.payment_method === 'cash'
+            ? Number(d.amount_received || 0)
+            : (d.payment_method === 'jazzcash' && d.jazzcash_confirmed ? Number(d.total_with_tax || d.total_amount) : 0),
+          credit_amount: Number(d.credit_amount || 0),
+          pendingAmount: 0,
+        })
+      })
+      payments?.forEach(p => {
+        const isCash = p.payment_method === 'cash'
+        const isConfirmedJazz = p.payment_method === 'jazzcash' && p.jazzcash_confirmed
+        const isPendingJazz = p.payment_method === 'jazzcash' && !p.jazzcash_confirmed
+        entries.push({
+          date: p.created_at,
+          type: 'payment',
+          description: 'Payment — ' + p.payment_method + (isPendingJazz ? ' (Pending)' : ''),
+          debit: 0,
+          credit: isCash || isConfirmedJazz ? Number(p.amount) : 0,
+          credit_amount: 0,
+          pendingAmount: isPendingJazz ? Number(p.amount) : 0,
+        })
+      })
+      entries.sort((a, b) => new Date(a.date) - new Date(b.date))
+
+      const openingBal = Number(customer.opening_balance || 0)
+      const openingBalForFilter = entries
+        .filter(e => new Date(e.date).toISOString().split('T')[0] < dateFrom)
+        .reduce((s, e) => s + e.debit - e.credit, openingBal)
+
+      const filtered = entries.filter(e => {
+        const eDate = new Date(e.date).toISOString().split('T')[0]
+        return eDate >= dateFrom && eDate <= dateTo
+      })
+
+      let bal = openingBalForFilter
+      const ledgerRows = filtered.map((e, idx) => {
+        bal = bal + e.debit - e.credit
+        return { ...e, runningBalance: bal, idx }
+      })
+
+      const totalDebit = filtered.reduce((s, e) => s + (e.debit || 0), 0)
+      const totalCredit = filtered.reduce((s, e) => s + (e.credit || 0), 0)
+      const closingBalance = ledgerRows.length > 0 ? bal : openingBalForFilter
+
+      const fromLabel = new Date(dateFrom).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+      const toLabel = new Date(dateTo).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+      const openingBalColor = openingBalForFilter > 0 ? '#f44336' : '#1a7a4a'
+      const closingBalColor = closingBalance > 0 ? '#f44336' : '#1a7a4a'
+      const logoHtml = bizLogo ? `<img src="${bizLogo}" alt="logo" style="width:52px;height:52px;object-fit:contain;border-radius:8px;border:1px solid #eee;margin-right:12px"/>` : ''
+
+      const tableRows = ledgerRows.map((e, idx) => {
+        const dateStr = new Date(e.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+        const balColor = e.runningBalance > 0 ? '#f44336' : '#1a7a4a'
+        const crTag = e.runningBalance < 0 ? '<span style="font-size:9px;margin-left:2px">CR</span>' : ''
+        const creditAmtRow = e.credit_amount > 0 ? `<div style="font-size:9px;color:#f44336">↳ Credit: Rs. ${e.credit_amount.toLocaleString()}</div>` : ''
+        const pendingRow = e.pendingAmount > 0 ? `<div style="font-size:9px;color:#e65100">↳ Pending: Rs. ${e.pendingAmount.toLocaleString()}</div>` : ''
+        return `
+          <tr style="background:${idx % 2 === 0 ? 'white' : '#fafbff'};border-bottom:1px solid #eef0f5">
+            <td style="padding:5px 10px;font-size:10px;color:#aaa;font-weight:600">${idx + 1}</td>
+            <td style="padding:5px 10px;font-size:11px;color:#555;white-space:nowrap">${dateStr}</td>
+            <td style="padding:5px 10px;font-size:11px;color:#333">
+              <span style="font-weight:600">${e.description}</span>
+              ${creditAmtRow}${pendingRow}
+            </td>
+            <td style="padding:5px 10px;font-size:11px;font-weight:700;color:${e.debit > 0 ? '#f44336' : '#ddd'};text-align:right">${e.debit > 0 ? e.debit.toLocaleString() : '—'}</td>
+            <td style="padding:5px 10px;font-size:11px;font-weight:700;color:${e.credit > 0 ? '#1a7a4a' : '#ddd'};text-align:right">${e.credit > 0 ? e.credit.toLocaleString() : '—'}</td>
+            <td style="padding:5px 10px;font-size:12px;font-weight:700;text-align:right;color:${balColor}">${Math.abs(e.runningBalance).toLocaleString()}${crTag}</td>
+          </tr>`
+      }).join('')
+
+      const emptyRow = filtered.length === 0
+        ? `<tr><td colspan="6" style="padding:24px;text-align:center;color:#888;font-size:13px">No transactions in selected period</td></tr>`
+        : ''
+
+      const closingBox = closingBalance > 0
+        ? `<div style="margin-top:16px;border:2px solid #f44336;border-radius:8px;padding:12px 16px;display:flex;justify-content:space-between;align-items:center;background:#fff5f5">
+            <div>
+              <p style="font-size:13px;font-weight:700;color:#c62828;margin:0 0 2px">⚠️ Amount Due</p>
+              <p style="font-size:11px;color:#888;margin:0">Please settle your outstanding balance at your earliest convenience.</p>
+            </div>
+            <p style="font-size:22px;font-weight:700;color:#f44336;margin:0">Rs. ${closingBalance.toLocaleString()}</p>
+          </div>`
+        : `<div style="margin-top:16px;border:2px solid #4caf50;border-radius:8px;padding:12px 16px;background:#f0fff4">
+            <p style="font-size:13px;font-weight:700;color:#1a7a4a;margin:0">✅ Account Clear — No outstanding balance. Thank you!</p>
+           </div>`
+
+      customerPages.push(`
+        <div style="page-break-after:always;padding:20px;box-sizing:border-box;font-family:Arial,sans-serif;max-width:900px;margin:0 auto">
+          <div style="border-bottom:3px solid #0f4c81;padding-bottom:12px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+            <div style="display:flex;align-items:center">
+              ${logoHtml}
+              <div>
+                <p style="font-size:18px;font-weight:700;color:#0f4c81;margin:0 0 2px">${bizName}</p>
+                <p style="font-size:11px;color:#888;margin:0 0 1px">${bizTagline}</p>
+                ${bizAddress ? `<p style="font-size:10px;color:#aaa;margin:0">📍 ${bizAddress}</p>` : ''}
+              </div>
+            </div>
+            <div style="text-align:right">
+              <div style="background:#0f4c81;color:white;padding:6px 16px;border-radius:6px;margin-bottom:6px;display:inline-block">
+                <p style="font-size:13px;font-weight:700;margin:0;letter-spacing:0.05em">CUSTOMER ACCOUNT STATEMENT</p>
+              </div>
+              <p style="font-size:11px;color:#888;margin:0">📅 ${fromLabel} — ${toLabel}</p>
+              <p style="font-size:11px;color:#888;margin:2px 0 0">📞 ${bizPhone}</p>
+              <p style="font-size:11px;color:#aaa;margin:2px 0 0">Printed: ${printDate}</p>
+            </div>
+          </div>
+          <div style="background:#f0f4ff;border:1px solid #c8d8ff;border-radius:8px;padding:10px 14px;margin-bottom:12px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+              <div>
+                <p style="font-size:10px;color:#888;margin:0 0 1px;text-transform:uppercase;letter-spacing:0.05em">Customer</p>
+                <p style="font-size:15px;font-weight:700;color:#0f4c81;margin:0">${customer.full_name}</p>
+              </div>
+              <div style="text-align:right;background:${closingBalance > 0 ? '#ffebee' : '#e8f5e9'};border:2px solid ${closingBalance > 0 ? '#f44336' : '#4caf50'};border-radius:8px;padding:6px 12px">
+                <p style="font-size:9px;color:#888;margin:0 0 1px;text-transform:uppercase">Balance</p>
+                <p style="font-size:16px;font-weight:700;margin:0;color:${closingBalColor}">Rs. ${Math.abs(closingBalance).toLocaleString()}${closingBalance < 0 ? ' CR' : ''}</p>
+              </div>
+            </div>
+            <div style="display:flex;gap:16px">
+              <div>
+                <p style="font-size:9px;color:#888;margin:0 0 1px;text-transform:uppercase">ID</p>
+                <p style="font-size:12px;font-weight:700;color:#333;margin:0">${customer.customer_code}</p>
+              </div>
+              <div>
+                <p style="font-size:9px;color:#888;margin:0 0 1px;text-transform:uppercase">Mobile</p>
+                <p style="font-size:12px;font-weight:600;color:#333;margin:0">${customer.mobile || '—'}</p>
+              </div>
+              <div>
+                <p style="font-size:9px;color:#888;margin:0 0 1px;text-transform:uppercase">Rate 19L</p>
+                <p style="font-size:12px;font-weight:600;color:#333;margin:0">Rs. ${customer.rate_19l || 100}</p>
+              </div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:12px">
+            <div style="background:${openingBalForFilter > 0 ? '#ffebee' : '#e8f5e9'};border-radius:8px;padding:10px 12px;text-align:center">
+              <p style="font-size:10px;color:#666;margin:0 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Opening (B/F)</p>
+              <p style="font-size:15px;font-weight:700;color:${openingBalColor};margin:0">Rs. ${Math.abs(openingBalForFilter).toLocaleString()}</p>
+            </div>
+            <div style="background:#ffebee;border-radius:8px;padding:10px 12px;text-align:center">
+              <p style="font-size:10px;color:#666;margin:0 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Period Sales (Dr)</p>
+              <p style="font-size:15px;font-weight:700;color:#f44336;margin:0">Rs. ${totalDebit.toLocaleString()}</p>
+            </div>
+            <div style="background:#e8f5e9;border-radius:8px;padding:10px 12px;text-align:center">
+              <p style="font-size:10px;color:#666;margin:0 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Period Payments (Cr)</p>
+              <p style="font-size:15px;font-weight:700;color:#1a7a4a;margin:0">Rs. ${totalCredit.toLocaleString()}</p>
+            </div>
+            <div style="background:${closingBalance > 0 ? '#ffebee' : '#e8f5e9'};border-radius:8px;padding:10px 12px;text-align:center">
+              <p style="font-size:10px;color:#666;margin:0 0 4px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em">Outstanding Balance</p>
+              <p style="font-size:15px;font-weight:700;color:${closingBalColor};margin:0">Rs. ${Math.abs(closingBalance).toLocaleString()}</p>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px">
+            <thead>
+              <tr style="background:#0f4c81;color:white">
+                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700">#</th>
+                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700">Date</th>
+                <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700">Description</th>
+                <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700">Debit (Rs.)</th>
+                <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700">Credit (Rs.)</th>
+                <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700">Balance (Rs.)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:#e3f0ff;border-bottom:1px solid #c8d8ff">
+                <td style="padding:8px 12px;font-size:11px;color:#888">—</td>
+                <td style="padding:8px 12px;font-size:11px;color:#888">—</td>
+                <td style="padding:5px 10px;font-size:12px;font-weight:700;color:#0f4c81">★ Balance Brought Forward (before ${fromLabel})</td>
+                <td style="padding:8px 12px;text-align:right;color:#aaa">—</td>
+                <td style="padding:8px 12px;text-align:right;color:#aaa">—</td>
+                <td style="padding:5px 10px;text-align:right;font-size:12px;font-weight:700;color:${openingBalColor}">${openingBalForFilter.toLocaleString()}</td>
+              </tr>
+              ${emptyRow}
+              ${tableRows}
+            </tbody>
+            <tfoot>
+              <tr style="background:#0f4c81;color:white">
+                <td colspan="3" style="padding:10px 12px;font-size:13px;font-weight:700">TOTAL</td>
+                <td style="padding:10px 12px;font-size:13px;font-weight:700;text-align:right">${totalDebit.toLocaleString()}</td>
+                <td style="padding:10px 12px;font-size:13px;font-weight:700;text-align:right">${totalCredit.toLocaleString()}</td>
+                <td style="padding:10px 12px;font-size:14px;font-weight:700;text-align:right">${Math.abs(closingBalance).toLocaleString()}${closingBalance < 0 ? ' CR' : ''}</td>
+              </tr>
+            </tfoot>
+          </table>
+          ${closingBox}
+          <div style="margin-top:24px;padding-top:12px;border-top:2px solid #0f4c81;display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <p style="font-size:10px;color:#888;margin:0 0 2px;font-style:italic">This is a system generated report and does not require any signature or stamp.</p>
+              <p style="font-size:10px;color:#aaa;margin:0">Generated by AquaRun • ${bizName} • ${printDate}</p>
+            </div>
+            <div style="text-align:right">
+              <p style="font-size:10px;color:#0f4c81;font-weight:700;margin:0">Powered by AquaRun</p>
+              <p style="font-size:9px;color:#aaa;margin:2px 0 0">Water Delivery Management System</p>
+            </div>
+          </div>
+        </div>
+      `)
+    }
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <title>Bulk Customer Ledger — ${bizName} — ${dateFrom} to ${dateTo}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: Arial, sans-serif; background: white; }
+    @media print {
+      @page { size: A4; margin: 10mm; }
+      body { margin: 0; }
+    }
+  </style>
+</head>
+<body>
+  ${customerPages.join('\n')}
+</body>
+</html>`
+
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    setGenerating(false)
+    setProgress('')
+  }
+
+  const firstOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split('T')[0]
+  const lastOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 0).toISOString().split('T')[0]
+
+  return (
+    <div>
+      <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#333', marginBottom: '16px' }}>📋 Bulk Customer Ledger</h3>
+      <div style={{ background: 'white', borderRadius: '12px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        <p style={{ fontSize: '13px', color: '#555', marginBottom: '12px', fontWeight: '600' }}>
+          Generates a single PDF with one ledger per customer (outstanding balance only)
+        </p>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {[
+            { label: 'This Month', from: firstOfMonth, to: today },
+            { label: 'Last Month', from: firstOfLastMonth, to: lastOfLastMonth },
+          ].map(p => (
+            <button key={p.label} onClick={() => { setDateFrom(p.from); setDateTo(p.to) }}
+              style={{ padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                background: dateFrom === p.from && dateTo === p.to ? '#0f4c81' : '#f0f4f8',
+                color: dateFrom === p.from && dateTo === p.to ? '#fff' : '#555' }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>FROM</p>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+              style={{ width: '100%', padding: '9px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 11, color: '#888', fontWeight: 600, marginBottom: 4 }}>TO</p>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+              style={{ width: '100%', padding: '9px 10px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          </div>
+        </div>
+        <div style={{ background: '#e3f0ff', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
+          <p style={{ fontSize: 12, color: '#0f4c81', margin: 0 }}>
+            ℹ️ Only customers with outstanding balance &gt; 0 will be included. Each customer gets a separate page.
+          </p>
+        </div>
+        <button onClick={generateBulkLedger} disabled={generating}
+          style={{ width: '100%', padding: '13px', background: generating ? '#90a4ae' : '#0f4c81', color: 'white',
+            border: 'none', borderRadius: '10px', cursor: generating ? 'not-allowed' : 'pointer',
+            fontSize: '14px', fontWeight: '700' }}>
+          {generating ? `⏳ ${progress}` : '📄 Generate Bulk Ledger PDF'}
+        </button>
+      </div>
     </div>
   )
 }
