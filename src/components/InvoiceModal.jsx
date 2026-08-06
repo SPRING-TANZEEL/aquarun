@@ -70,7 +70,7 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
   body { font-family: 'Segoe UI', Arial, sans-serif; padding: 24px; color: #222; font-size: 13px; }
   @media print { button { display: none !important; } @page { size: A4; margin: 15mm; } }
 </style>
-</head><body>${content}<script>${qrScript}<\/script></body></html>`)
+</head><body>${content}</body></html>`)
     win.document.close()
   }
 
