@@ -265,6 +265,36 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
                 <span>Payment Method</span>
                 <span style={{ fontWeight: '600' }}>{payLabel}</span>
               </div>
+              {paymentMethod === 'jazzcash' && settings.jazzcash_number && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', background: '#fff8f0', fontSize: '11px', color: '#e65100' }}>
+                  <span>JazzCash Account</span>
+                  <span style={{ fontWeight: '600' }}>{settings.jazzcash_number}</span>
+                </div>
+              )}
+              {paymentMethod === 'easypaisa' && settings.easypaisa_number && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', background: '#f0fff4', fontSize: '11px', color: '#1a7a4a' }}>
+                  <span>EasyPaisa Account</span>
+                  <span style={{ fontWeight: '600' }}>{settings.easypaisa_number}</span>
+                </div>
+              )}
+              {paymentMethod === 'bank' && settings.bank_account_number && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', background: '#f0f4ff', fontSize: '11px', color: '#0f4c81' }}>
+                  <span>{settings.bank_name || 'Bank'} — {settings.bank_account_title || ''}</span>
+                  <span style={{ fontWeight: '600' }}>{settings.bank_account_number}</span>
+                </div>
+              )}
+              {paymentMethod === 'cash' && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 16px', borderTop: '1px solid #eee', fontSize: '12px', color: '#555' }}>
+                    <span>Amount Paid</span>
+                    <span style={{ fontWeight: '600' }}>Rs. {Number(deliveries[0]?.amount_received || grandTotal).toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', background: Math.max(0, grandTotal - Number(deliveries[0]?.amount_received || grandTotal)) > 0 ? '#fff5f5' : '#f0fff4', fontSize: '13px', fontWeight: '700', color: Math.max(0, grandTotal - Number(deliveries[0]?.amount_received || grandTotal)) > 0 ? '#f44336' : '#1a7a4a' }}>
+                    <span>Balance Due</span>
+                    <span>Rs. {Math.max(0, grandTotal - Number(deliveries[0]?.amount_received || grandTotal)).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
               {isMonthly && monthlyTotalPaid > 0 && (
                 <>
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 16px', borderTop: '1px solid #eee', fontSize: '12px', color: '#1a7a4a' }}>
