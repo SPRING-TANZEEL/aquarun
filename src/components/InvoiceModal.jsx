@@ -344,6 +344,16 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
                 </>
               )}
               <div style={{ fontSize: '10px', marginTop: '4px', color: '#555' }}>Payment: {payLabel}</div>
+              {deliveries[0]?.payment_method === 'cash' && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', marginTop: '4px' }}>
+                    <span>Amount Paid</span><span>Rs. {Number(deliveries[0].amount_received).toLocaleString()}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', fontWeight: '700', marginTop: '2px', borderTop: '1px dashed #000', paddingTop: '3px' }}>
+                    <span>Balance Due</span><span>Rs. {(grandTotal - Number(deliveries[0].amount_received)).toLocaleString()}</span>
+                  </div>
+                </>
+              )}
             </div>
             <div style={{ textAlign: 'center', marginTop: '10px', borderTop: '1px dashed #000', paddingTop: '7px' }}>
               <p style={{ fontSize: '10px', margin: '0 0 2px', fontWeight: '600' }}>Thank you for your business!</p>
