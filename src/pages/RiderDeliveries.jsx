@@ -290,7 +290,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       const { data: savedDelivery, error } = await supabase
         .from('deliveries').insert([deliveryData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
-      onlineDelivery = savedDelivery
+      onlineDelivery = { ...savedDelivery }
 
       await supabase.from('orders').update({
         status: 'completed', completed_at: now

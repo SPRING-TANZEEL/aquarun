@@ -319,7 +319,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     if (isOnline) {
       const { data: savedDelivery, error } = await supabase
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
-      onlineDelivery = savedDelivery
+      onlineDelivery = { ...savedDelivery }
 
       if (creditPortion > 0) {
         await supabase.from('customers').update({ balance: Number(selectedCustomer.balance) + creditPortion }).eq('id', selectedCustomer.id)
