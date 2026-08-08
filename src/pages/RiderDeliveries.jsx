@@ -285,10 +285,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       product_items: selectedOrder?.product_items || null,
     }
 
+    let onlineDelivery = null
     if (isOnline) {
       const { data: savedDelivery, error } = await supabase
         .from('deliveries').insert([deliveryData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      onlineDelivery = savedDelivery
 
       await supabase.from('orders').update({
         status: 'completed', completed_at: now
@@ -392,9 +394,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       bottlesReturned, qty19l,
       newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
       savedOffline: !isOnline,
-      deliveryRaw: savedDelivery ? { ...savedDelivery } : null,
+      deliveryRaw: onlineDelivery ? { ...onlineDelivery } : null,
       customerRaw: selectedOrder.customers,
-      invoiceNumber: savedDelivery?.invoice_number || null
+      invoiceNumber: onlineDelivery?.invoice_number || null
     })
     setPaymentMethod(null)
     setCashReceived('')
