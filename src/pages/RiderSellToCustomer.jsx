@@ -426,7 +426,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       }
     }
 
-    setSuccess({ customer: selectedCustomer.full_name, customerMobile: selectedCustomer.mobile || '', total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline, deliveryRaw: { ...savedDelivery, invoice_number: invoiceNumber }, customerRaw: selectedCustomer })
+    setSuccess({ customer: selectedCustomer.full_name, customerMobile: selectedCustomer.mobile || '', total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline, deliveryRaw: savedDelivery ? { ...savedDelivery } : null, customerRaw: selectedCustomer })
     setSelectedCustomer(null)
     setQty19l(1); setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
     setBottlesReturned(0); setOtherBrandsCollected(0); setStep(1)

@@ -392,7 +392,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       bottlesReturned, qty19l,
       newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
       savedOffline: !isOnline,
-      deliveryRaw: { ...savedDelivery, invoice_number: invoiceNumber },
+      deliveryRaw: savedDelivery ? { ...savedDelivery } : null,
       customerRaw: selectedOrder.customers,
       invoiceNumber: savedDelivery?.invoice_number || null
     })
