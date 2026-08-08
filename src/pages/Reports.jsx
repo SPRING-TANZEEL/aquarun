@@ -1940,63 +1940,94 @@ function CustomerSales({ tenantId }) {
 
 // ─── BOTTLE BALANCE REPORT ──────────────────────────────────────────
 function BottleBalance({ tenantId }) {
-  const [customers, setCustomers]   = useState([])
-  const [loading,   setLoading]     = useState(true)
-  const [search,    setSearch]      = useState('')
-  const [sortBy,    setSortBy]      = useState('bottles')  // 'bottles' | 'value' | 'name'
-  const [bottleCost, setBottleCost] = useState(900)
+  const [customers, setCustomers]     = useState([])
+  const [loading,   setLoading]       = useState(true)
+  const [search,    setSearch]        = useState('')
+  const [sortBy,    setSortBy]        = useState('bottles')
+  const [bottleCost, setBottleCost]   = useState(900)
   const [totalBottles, setTotalBottles] = useState(0)
-  const [bizName,   setBizName]     = useState('')
+  const [bizName,   setBizName]       = useState('')
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [history,   setHistory]       = useState([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
+  const [activeView, setActiveView]   = useState('summary') // 'summary' | 'history'
 
   useEffect(() => { if (tenantId) fetchData() }, [tenantId])
 
   async function fetchData() {
     setLoading(true)
     try {
-      // Fetch bottle replacement cost from settings
       const { data: costSetting } = await supabase.from('business_settings')
         .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'bottle_replacement_cost').maybeSingle()
       const cost = Number(costSetting?.setting_value || 900)
       setBottleCost(cost)
 
-      // Fetch business name for print
       const { data: bizSetting } = await supabase.from('business_settings')
         .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', 'business_name').maybeSingle()
       setBizName(bizSetting?.setting_value || '')
 
-      // Fetch all customers with bottle data
       const { data } = await supabase.from('customers')
         .select('id, full_name, mobile, customer_code, address, our_bottles_placed, rate_19l, is_active')
         .eq('tenant_id', tenantId)
         .eq('is_active', true)
-        .gt('our_bottles_placed', 0)
+        .gte('our_bottles_placed', 0)
         .order('our_bottles_placed', { ascending: false })
 
-      setCustomers(data || [])
-      setTotalBottles((data || []).reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0))
+      const withBottles = (data || []).filter(c => Number(c.our_bottles_placed || 0) > 0)
+      setCustomers(withBottles)
+      setTotalBottles(withBottles.reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0))
     } catch (err) {
       console.error('BottleBalance error:', err)
     }
     setLoading(false)
   }
 
+  async function loadHistory(customer) {
+    setSelectedCustomer(customer)
+    setActiveView('history')
+    setLoadingHistory(true)
+    const { data: deliveries } = await supabase.from('deliveries')
+      .select('id, delivered_at, qty_19l, bottles_returned, payment_method, total_with_tax, total_amount, is_voided')
+      .eq('tenant_id', tenantId)
+      .eq('customer_id', customer.id)
+      .eq('is_voided', false)
+      .order('delivered_at', { ascending: true })
+
+    let runningBalance = 0
+    const rows = (deliveries || []).map(d => {
+      const delivered = Number(d.qty_19l || 0)
+      const returned  = Number(d.bottles_returned || 0)
+      const netChange = delivered - returned
+      runningBalance += netChange
+      return {
+        date: d.delivered_at,
+        delivered,
+        returned,
+        netChange,
+        balance: runningBalance,
+        amount: Number(d.total_with_tax || d.total_amount || 0),
+        payment_method: d.payment_method,
+      }
+    })
+    setHistory(rows)
+    setLoadingHistory(false)
+  }
+
   function printReport() {
     const win = window.open('', '_blank')
-    const totalValue = customers.reduce((s, c) => s + Number(c.our_bottles_placed || 0) * bottleCost, 0)
     const rows = filtered.map((c, i) => `
-      <tr style="border-bottom:1px solid #eee; background:${i % 2 === 0 ? 'white' : '#fafafa'}">
+      <tr style="border-bottom:1px solid #eee;background:${i % 2 === 0 ? 'white' : '#fafafa'}">
         <td style="padding:6px 10px">${i + 1}</td>
         <td style="padding:6px 10px;font-weight:600">${c.full_name}</td>
         <td style="padding:6px 10px">${c.mobile || '—'}</td>
         <td style="padding:6px 10px">${c.customer_code || '—'}</td>
         <td style="padding:6px 10px;text-align:center;font-weight:700;color:#0f4c81">${c.our_bottles_placed}</td>
         <td style="padding:6px 10px;text-align:right;font-weight:700;color:#c62828">Rs. ${(Number(c.our_bottles_placed) * bottleCost).toLocaleString()}</td>
-      </tr>
-    `).join('')
+      </tr>`).join('')
     win.document.write(`<!DOCTYPE html><html><head><title>${bizName} — Bottle Balance</title>
     <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;padding:12px}
     table{width:100%;border-collapse:collapse}th{background:#f0f0f0;padding:8px 10px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;border-bottom:2px solid #ccc}
-    @media print{body{padding:8px}}</style></head><body>
+    @media print{@page{size:A4;margin:10mm}}</style></head><body>
     <div style="text-align:center;padding-bottom:10px;border-bottom:2px solid #000;margin-bottom:12px">
       <h1 style="font-size:16px;font-weight:700;margin:0 0 2px">${bizName}</h1>
       <p style="font-size:12px;margin:0 0 1px">Bottle Balance Report</p>
@@ -2005,18 +2036,66 @@ function BottleBalance({ tenantId }) {
     <div style="display:flex;gap:20px;margin-bottom:12px;padding:10px;background:#f8f9fa;border-radius:6px">
       <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL CUSTOMERS</p><p style="font-size:16px;font-weight:700;margin:0">${filtered.length}</p></div>
       <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL BOTTLES</p><p style="font-size:16px;font-weight:700;margin:0;color:#0f4c81">${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0), 0)}</p></div>
-      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL VALUE (@ Rs.${bottleCost}/bottle)</p><p style="font-size:16px;font-weight:700;margin:0;color:#c62828">Rs. ${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0) * bottleCost, 0).toLocaleString()}</p></div>
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL VALUE</p><p style="font-size:16px;font-weight:700;margin:0;color:#c62828">Rs. ${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0)*bottleCost, 0).toLocaleString()}</p></div>
     </div>
     <table><thead><tr><th>#</th><th>Customer</th><th>Mobile</th><th>ID</th><th style="text-align:center">Bottles</th><th style="text-align:right">Value</th></tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr style="background:#0f4c81;color:white"><td colspan="4" style="padding:8px 10px;font-weight:700">TOTAL</td>
     <td style="padding:8px 10px;text-align:center;font-weight:700">${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0), 0)}</td>
-    <td style="padding:8px 10px;text-align:right;font-weight:700">Rs. ${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0) * bottleCost, 0).toLocaleString()}</td></tr></tfoot>
+    <td style="padding:8px 10px;text-align:right;font-weight:700">Rs. ${filtered.reduce((s,c) => s + Number(c.our_bottles_placed||0)*bottleCost, 0).toLocaleString()}</td></tr></tfoot>
     </table>
     <div style="margin-top:10px;padding-top:8px;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:9px;color:#888">
       <span>Generated by AquaRun • ${bizName}</span>
       <span>Bottle replacement cost: Rs. ${bottleCost}/bottle</span>
+    </div></body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 500)
+  }
+
+  function printHistory() {
+    if (!selectedCustomer || !history.length) return
+    const win = window.open('', '_blank')
+    const totalDelivered = history.reduce((s, r) => s + r.delivered, 0)
+    const totalReturned  = history.reduce((s, r) => s + r.returned, 0)
+    const rows = history.map((r, i) => {
+      const dateStr = new Date(r.date).toLocaleDateString('en-PK', { day:'2-digit', month:'short', year:'numeric' })
+      return `<tr style="border-bottom:1px solid #eee;background:${i % 2 === 0 ? 'white' : '#fafafa'}">
+        <td style="padding:6px 10px">${i + 1}</td>
+        <td style="padding:6px 10px">${dateStr}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:#0f4c81">${r.delivered}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:#1a7a4a">${r.returned}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:700;color:${r.netChange > 0 ? '#f44336' : r.netChange < 0 ? '#1a7a4a' : '#888'}">${r.netChange > 0 ? '+' : ''}${r.netChange}</td>
+        <td style="padding:6px 10px;text-align:center;font-weight:800;color:${r.balance > 0 ? '#0f4c81' : '#1a7a4a'}">${r.balance}</td>
+        <td style="padding:6px 10px;text-align:right">${r.payment_method || '—'}</td>
+      </tr>`
+    }).join('')
+    win.document.write(`<!DOCTYPE html><html><head><title>Bottle History — ${selectedCustomer.full_name}</title>
+    <style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;padding:12px}
+    table{width:100%;border-collapse:collapse}th{background:#0f4c81;color:white;padding:8px 10px;text-align:left;font-size:11px;font-weight:700}
+    @media print{@page{size:A4;margin:10mm}}</style></head><body>
+    <div style="border-bottom:2px solid #0f4c81;padding-bottom:10px;margin-bottom:12px">
+      <h1 style="font-size:15px;font-weight:700;color:#0f4c81;margin:0 0 4px">${bizName} — Bottle Tracking History</h1>
+      <p style="font-size:13px;font-weight:700;margin:0 0 2px">Customer: ${selectedCustomer.full_name}</p>
+      <p style="font-size:11px;color:#555;margin:0">${selectedCustomer.mobile || ''} · ${selectedCustomer.customer_code || ''}</p>
     </div>
+    <div style="display:flex;gap:16px;margin-bottom:12px;padding:10px;background:#f8f9fa;border-radius:6px">
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL DELIVERED</p><p style="font-size:16px;font-weight:700;color:#0f4c81;margin:0">${totalDelivered}</p></div>
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">TOTAL RETURNED</p><p style="font-size:16px;font-weight:700;color:#1a7a4a;margin:0">${totalReturned}</p></div>
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">CURRENTLY WITH CUSTOMER</p><p style="font-size:16px;font-weight:700;color:${selectedCustomer.our_bottles_placed > 0 ? '#f44336' : '#1a7a4a'};margin:0">${selectedCustomer.our_bottles_placed}</p></div>
+      <div><p style="font-size:10px;color:#666;margin:0 0 2px">VALUE AT RISK</p><p style="font-size:16px;font-weight:700;color:#c62828;margin:0">Rs. ${(selectedCustomer.our_bottles_placed * bottleCost).toLocaleString()}</p></div>
+    </div>
+    <table><thead><tr><th>#</th><th>Date</th><th style="text-align:center">Delivered</th><th style="text-align:center">Returned</th><th style="text-align:center">Net</th><th style="text-align:center">Balance</th><th style="text-align:right">Payment</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr style="background:#0f4c81;color:white">
+      <td colspan="2" style="padding:8px 10px;font-weight:700">TOTAL</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700">${totalDelivered}</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700">${totalReturned}</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700">${totalDelivered - totalReturned}</td>
+      <td style="padding:8px 10px;text-align:center;font-weight:700">${selectedCustomer.our_bottles_placed}</td>
+      <td></td>
+    </tr></tfoot></table>
+    <div style="margin-top:10px;font-size:9px;color:#888;border-top:1px solid #ccc;padding-top:8px">Generated by AquaRun • ${bizName} • ${new Date().toLocaleDateString('en-PK')}</div>
     </body></html>`)
     win.document.close()
     win.focus()
@@ -2032,7 +2111,7 @@ function BottleBalance({ tenantId }) {
       return 0
     })
 
-  const totalValue      = filtered.reduce((s, c) => s + Number(c.our_bottles_placed || 0) * bottleCost, 0)
+  const totalValue       = filtered.reduce((s, c) => s + Number(c.our_bottles_placed || 0) * bottleCost, 0)
   const totalFilteredBtl = filtered.reduce((s, c) => s + Number(c.our_bottles_placed || 0), 0)
 
   if (loading) return (
@@ -2042,14 +2121,119 @@ function BottleBalance({ tenantId }) {
     </div>
   )
 
+  // ── HISTORY VIEW ──
+  if (activeView === 'history' && selectedCustomer) {
+    const totalDelivered = history.reduce((s, r) => s + r.delivered, 0)
+    const totalReturned  = history.reduce((s, r) => s + r.returned, 0)
+    return (
+      <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
+        {/* Back button + title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+          <button onClick={() => { setActiveView('summary'); setSelectedCustomer(null); setHistory([]) }}
+            style={{ padding: '8px 14px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+            ← Back
+          </button>
+          <div style={{ flex: 1 }}>
+            <p style={{ fontSize: 15, fontWeight: 800, color: '#0f4c81', margin: 0 }}>🫙 {selectedCustomer.full_name}</p>
+            <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{selectedCustomer.mobile} · {selectedCustomer.customer_code}</p>
+          </div>
+          <button onClick={printHistory}
+            style={{ padding: '8px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+            🖨️ Print
+          </button>
+        </div>
+
+        {/* Summary cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 16 }}>
+          {[
+            { label: 'Total Delivered', value: totalDelivered + ' bottles', color: '#0f4c81', bg: '#e3f0ff' },
+            { label: 'Total Returned', value: totalReturned + ' bottles', color: '#1a7a4a', bg: '#e8f5e9' },
+            { label: 'Currently With Customer', value: selectedCustomer.our_bottles_placed + ' bottles', color: selectedCustomer.our_bottles_placed > 0 ? '#f44336' : '#1a7a4a', bg: selectedCustomer.our_bottles_placed > 0 ? '#ffebee' : '#e8f5e9' },
+            { label: 'Value at Risk', value: 'Rs. ' + (selectedCustomer.our_bottles_placed * bottleCost).toLocaleString(), color: '#c62828', bg: '#ffebee' },
+          ].map(c => (
+            <div key={c.label} style={{ background: 'white', borderRadius: 10, padding: '12px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', borderLeft: `4px solid ${c.color}` }}>
+              <p style={{ fontSize: 10, color: '#888', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.4 }}>{c.label}</p>
+              <p style={{ fontSize: 17, fontWeight: 800, color: c.color, margin: 0 }}>{c.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* History table */}
+        {loadingHistory ? (
+          <div style={{ padding: 40, textAlign: 'center', color: '#888' }}>Loading history...</div>
+        ) : history.length === 0 ? (
+          <div style={{ padding: 40, textAlign: 'center', background: 'white', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+            <p style={{ fontSize: 32, margin: '0 0 8px' }}>🫙</p>
+            <p style={{ color: '#888' }}>No delivery history found</p>
+          </div>
+        ) : (
+          <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflowX: 'auto' }}>
+            <table style={{ width: '100%', minWidth: 500, borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#0f4c81' }}>
+                  {['#', 'Date', 'Delivered', 'Returned', 'Net Change', 'Balance', 'Payment'].map((h, i) => (
+                    <th key={h} style={{ padding: '10px 12px', textAlign: i >= 2 ? 'center' : 'left', fontSize: 11, color: 'white', fontWeight: 700, whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {history.map((r, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                    <td style={{ padding: '10px 12px', fontSize: 11, color: '#aaa' }}>{idx + 1}</td>
+                    <td style={{ padding: '10px 12px', fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>
+                      {new Date(r.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: '#0f4c81' }}>{r.delivered}</span>
+                      <span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>out</span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 14, fontWeight: 800, color: '#1a7a4a' }}>{r.returned}</span>
+                      <span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>back</span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: r.netChange > 0 ? '#f44336' : r.netChange < 0 ? '#1a7a4a' : '#888' }}>
+                        {r.netChange > 0 ? '+' : ''}{r.netChange}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 15, fontWeight: 800, color: r.balance > 0 ? '#0f4c81' : '#1a7a4a',
+                        background: r.balance > 3 ? '#ffebee' : r.balance > 0 ? '#e3f0ff' : '#e8f5e9',
+                        padding: '3px 10px', borderRadius: 20 }}>
+                        {r.balance}
+                      </span>
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 11, color: '#666' }}>
+                      {r.payment_method === 'cash' ? '💵 Cash' : r.payment_method === 'jazzcash' ? '📱 Jazz' : r.payment_method === 'credit' ? '📋 Credit' : r.payment_method || '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr style={{ background: '#0f4c81', color: 'white' }}>
+                  <td colSpan={2} style={{ padding: '10px 12px', fontSize: 13, fontWeight: 700 }}>TOTAL</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700 }}>{totalDelivered}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700 }}>{totalReturned}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700 }}>{totalDelivered - totalReturned > 0 ? '+' : ''}{totalDelivered - totalReturned}</td>
+                  <td style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, fontWeight: 700 }}>{selectedCustomer.our_bottles_placed}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── SUMMARY VIEW ──
   return (
     <div style={{ fontFamily: 'system-ui,-apple-system,sans-serif' }}>
-
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg,#0f4c81,#1a6bad)', borderRadius: 12, padding: '16px 20px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <p style={{ color: '#fff', fontWeight: 800, fontSize: 16, margin: '0 0 3px' }}>🫙 Bottle Balance Report</p>
-          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: 0 }}>Our bottles currently placed with customers · Rs. {bottleCost}/bottle replacement cost</p>
+          <p style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12, margin: 0 }}>Our bottles with customers · Rs. {bottleCost}/bottle replacement cost · Click any row for full history</p>
         </div>
         <button onClick={printReport} style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>🖨️ Print / PDF</button>
       </div>
@@ -2069,11 +2253,10 @@ function BottleBalance({ tenantId }) {
         ))}
       </div>
 
-      {/* Search */}
+      {/* Search + Sort */}
       <input value={search} onChange={e => setSearch(e.target.value)}
         placeholder="🔍 Search customer name, mobile or ID..."
         style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', marginBottom: 10 }} />
-      {/* Sort + Refresh in one line */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 14, alignItems: 'center' }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap' }}>Sort:</span>
         {[{ k: 'bottles', l: 'Most Bottles' }, { k: 'value', l: 'Highest Value' }, { k: 'name', l: 'A–Z' }].map(s => (
@@ -2094,12 +2277,12 @@ function BottleBalance({ tenantId }) {
           <p style={{ color: '#888', fontSize: 13, margin: 0 }}>All bottles have been returned</p>
         </div>
       ) : (
-        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ background: 'white', borderRadius: 12, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', overflowX: 'auto' }}>
           <table style={{ width: '100%', minWidth: 600, borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#f8f9fa' }}>
-                {['#', 'Customer', 'Mobile', 'ID', 'Address', 'Bottles', 'Value at Risk'].map((h, i) => (
-                  <th key={h} style={{ padding: '11px 14px', textAlign: i >= 5 ? 'right' : 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
+                {['#', 'Customer', 'Mobile', 'ID', 'Bottles with Customer', 'Value at Risk', 'History'].map((h, i) => (
+                  <th key={h} style={{ padding: '11px 14px', textAlign: i >= 4 ? 'center' : 'left', fontSize: 11, color: '#666', fontWeight: 700, borderBottom: '2px solid #eee', whiteSpace: 'nowrap' }}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -2108,37 +2291,40 @@ function BottleBalance({ tenantId }) {
                 const bottles = Number(c.our_bottles_placed || 0)
                 const value   = bottles * bottleCost
                 return (
-                  <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                  <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0', background: idx % 2 === 0 ? 'white' : '#fafafa', cursor: 'pointer' }}
+                    onClick={() => loadHistory(c)}>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: '#aaa' }}>{idx + 1}</td>
                     <td style={{ padding: '11px 14px' }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', margin: '0 0 1px' }}>{c.full_name}</p>
+                      {c.address && <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>{c.address.slice(0, 30)}{c.address.length > 30 ? '...' : ''}</p>}
                     </td>
                     <td style={{ padding: '11px 14px', fontSize: 12, color: '#555' }}>{c.mobile || '—'}</td>
                     <td style={{ padding: '11px 14px', fontSize: 11, color: '#888' }}>{c.customer_code || '—'}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#888', maxWidth: 180 }}>{c.address ? c.address.slice(0, 30) + (c.address.length > 30 ? '...' : '') : '—'}</td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>
-                      <span style={{ fontSize: 16, fontWeight: 800, color: '#0f4c81' }}>{bottles}</span>
-                      <span style={{ fontSize: 11, color: '#888', marginLeft: 4 }}>btls</span>
+                    <td style={{ padding: '11px 14px', textAlign: 'center' }}>
+                      <span style={{ fontSize: 18, fontWeight: 800, color: bottles > 5 ? '#f44336' : '#0f4c81',
+                        background: bottles > 5 ? '#ffebee' : '#e3f0ff', padding: '4px 14px', borderRadius: 20 }}>
+                        {bottles}
+                      </span>
                     </td>
-                    <td style={{ padding: '11px 14px', textAlign: 'right' }}>
-                      <p style={{ fontSize: 14, fontWeight: 800, color: '#c62828', margin: 0 }}>Rs. {value.toLocaleString()}</p>
-                      <p style={{ fontSize: 10, color: '#aaa', margin: '1px 0 0' }}>@ Rs.{bottleCost}/bottle</p>
+                    <td style={{ padding: '11px 14px', textAlign: 'center', fontSize: 13, fontWeight: 700, color: '#c62828' }}>
+                      Rs. {value.toLocaleString()}
+                    </td>
+                    <td style={{ padding: '11px 14px', textAlign: 'center' }}>
+                      <button onClick={e => { e.stopPropagation(); loadHistory(c) }}
+                        style={{ padding: '5px 12px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                        📋 View
+                      </button>
                     </td>
                   </tr>
                 )
               })}
             </tbody>
             <tfoot>
-              <tr style={{ background: '#0f4c81' }}>
-                <td colSpan={5} style={{ padding: '12px 14px', fontSize: 13, fontWeight: 700, color: '#fff' }}>
-                  TOTAL — {filtered.length} customers
-                </td>
-                <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: 900, color: '#fff', textAlign: 'right' }}>
-                  {totalFilteredBtl}
-                </td>
-                <td style={{ padding: '12px 14px', fontSize: 15, fontWeight: 900, color: '#fff', textAlign: 'right' }}>
-                  Rs. {totalValue.toLocaleString()}
-                </td>
+              <tr style={{ background: '#0f4c81', color: 'white' }}>
+                <td colSpan={4} style={{ padding: '10px 14px', fontSize: 13, fontWeight: 700 }}>TOTAL — {filtered.length} customers</td>
+                <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 14, fontWeight: 800 }}>{totalFilteredBtl}</td>
+                <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: 13, fontWeight: 700 }}>Rs. {totalValue.toLocaleString()}</td>
+                <td></td>
               </tr>
             </tfoot>
           </table>
