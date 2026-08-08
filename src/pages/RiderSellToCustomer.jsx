@@ -318,6 +318,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     let onlineDelivery = null
     if (isOnline) {
       const { data: savedDelivery, error } = await supabase
+        .from('deliveries').insert([deliveryData]).select().single()
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
       onlineDelivery = { ...savedDelivery }
 
