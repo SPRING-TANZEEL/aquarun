@@ -315,9 +315,11 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       other_brand_bottles: otherBrandsCollected,
     }
 
+    let onlineDelivery = null
     if (isOnline) {
-      const { data: savedDelivery, error } = await supabase.from('deliveries').insert([deliveryData]).select().single()
+      const { data: savedDelivery, error } = await supabase
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
+      onlineDelivery = savedDelivery
 
       if (creditPortion > 0) {
         await supabase.from('customers').update({ balance: Number(selectedCustomer.balance) + creditPortion }).eq('id', selectedCustomer.id)
@@ -426,7 +428,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       }
     }
 
-    setSuccess({ customer: selectedCustomer.full_name, customerMobile: selectedCustomer.mobile || '', total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline, deliveryRaw: savedDelivery ? { ...savedDelivery } : null, customerRaw: selectedCustomer })
+    setSuccess({ customer: selectedCustomer.full_name, customerMobile: selectedCustomer.mobile || '', total, received, creditPortion, paymentMethod, bottlesReturned, otherBrandsCollected, savedOffline: !isOnline, deliveryRaw: onlineDelivery ? { ...onlineDelivery } : null, customerRaw: selectedCustomer })
     setSelectedCustomer(null)
     setQty19l(1); setSelectedRate(null); setPaymentMethod(null); setCashReceived('')
     setBottlesReturned(0); setOtherBrandsCollected(0); setStep(1)
