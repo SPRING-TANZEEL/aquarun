@@ -124,6 +124,7 @@ export async function postDeliveryJournal(delivery, customerId, tenantId, isRide
     const subTotal = Number(delivery.total_amount || 0)         // pre-tax
     const taxAmount = Math.round(Number(delivery.tax_amount || 0))
 const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
+    if (grandTotal <= 0) { console.log('postDeliveryJournal skipped — total is 0'); return null }
     const cashReceived = Number(delivery.amount_received || 0)
     const creditPortion = Number(delivery.credit_amount || 0)
     const paymentMethod = delivery.payment_method
@@ -255,6 +256,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
 export async function postPaymentJournal(payment, tenantId, isRiderEntry = true) {
   try {
     const amount = Number(payment.amount || 0)
+    if (amount <= 0) { console.log('postPaymentJournal skipped - amount is 0'); return null }
     const paymentMethod = payment.payment_method
     const lines = []
 
@@ -361,6 +363,7 @@ export async function postJazzCashConfirmationJournal(record, recordType, tenant
 export async function postRiderExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
+    if (amount <= 0) { console.log('postRiderExpenseJournal skipped - amount is 0'); return null }
     const expenseAcc = getExpenseAccount(expense.expense_type || expense.category || 'other', true)
 
     const lines = [
@@ -398,6 +401,7 @@ export async function postRiderExpenseJournal(expense, tenantId) {
 export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
+    if (amount <= 0) { console.log('postOfficeExpenseJournal skipped - amount is 0'); return null }
     // Use custom COA account if provided, otherwise use category mapping
     // Salary payments settle the payable â€” DR 2100, not expense account
     const expenseAcc = expense.category === 'salary'
@@ -449,6 +453,7 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
 export async function postSalaryPaymentJournal(payment, tenantId) {
   try {
     const amountPaid = Number(payment.amount_paid || 0)
+    if (amountPaid <= 0) { console.log('postSalaryPaymentJournal skipped - amount is 0'); return null }
     const totalAdvances = Number(payment.total_advances || 0)
     const monthlySalary = Number(payment.monthly_salary || 0)
     const cashAcc = getCashAccount(payment.payment_method || 'cash')
@@ -515,6 +520,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
 export async function postSalaryAdvanceJournal(advance, tenantId) {
   try {
     const amount = Number(advance.amount || 0)
+    if (amount <= 0) { console.log('postSalaryAdvanceJournal skipped - amount is 0'); return null }
     const cashAcc = getCashAccount(advance.payment_method || 'cash')
 
     const lines = [
@@ -602,6 +608,7 @@ export async function postCommissionAccrualJournal(delivery, tenantId) {
 export async function postCashTransferJournal(transfer, tenantId) {
   try {
     const amount = Number(transfer.amount || 0)
+    if (amount <= 0) { console.log('postCashTransferJournal skipped - amount is 0'); return null }
     const transferType = transfer.transfer_type || 'cash'
     const toAcc = getCashAccount(transferType)
 
@@ -639,6 +646,7 @@ export async function postCashTransferJournal(transfer, tenantId) {
 export async function postStockPurchaseJournal(purchase, tenantId) {
   try {
     const amount = Number(purchase.total_cost || 0)
+    if (amount <= 0) { console.log('postStockPurchaseJournal skipped - amount is 0'); return null }
     const cashAcc = getCashAccount(purchase.payment_method || 'cash')
 
     // Determine inventory account based on product type
@@ -682,6 +690,7 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
 export async function postOwnerTransactionJournal(transaction, tenantId) {
   try {
     const amount = Number(transaction.amount || 0)
+    if (amount <= 0) { console.log('postOwnerTransactionJournal skipped - amount is 0'); return null }
     const cashAcc = getCashAccount(transaction.account || 'cash')
     const isInjection = transaction.transaction_type === 'injection'
     const lines = []
@@ -721,6 +730,7 @@ export async function postOwnerTransactionJournal(transaction, tenantId) {
 export async function postAccountTransferJournal(transfer, tenantId) {
   try {
     const amount = Number(transfer.amount || 0)
+    if (amount <= 0) { console.log('postCashTransferJournal skipped - amount is 0'); return null }
     const fromAcc = getCashAccount(transfer.from_account)
     const toAcc = getCashAccount(transfer.to_account)
 
