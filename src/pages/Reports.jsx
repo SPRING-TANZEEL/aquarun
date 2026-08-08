@@ -613,12 +613,14 @@ function CustomerLedger({ tenantId }) {
       const isCash = p.payment_method === 'cash'
       const isConfirmedJazz = p.payment_method === 'jazzcash' && p.jazzcash_confirmed
       const isPendingJazz = p.payment_method === 'jazzcash' && !p.jazzcash_confirmed
+      const isConfirmedDigital = ['easypaisa', 'bank'].includes(p.payment_method) && p.jazzcash_confirmed
+      const isPendingDigital = ['easypaisa', 'bank'].includes(p.payment_method) && !p.jazzcash_confirmed
       entries.push({
         date: p.created_at, type: 'payment',
-        description: 'Payment — ' + p.payment_method + (isPendingJazz ? ' (Pending)' : ''),
+        description: 'Payment — ' + p.payment_method + (isPendingJazz || isPendingDigital ? ' (Pending)' : ''),
         debit: 0,
-        credit: isCash || isConfirmedJazz ? Number(p.amount) : 0,
-        pendingAmount: isPendingJazz ? Number(p.amount) : 0,
+        credit: isCash || isConfirmedJazz || isConfirmedDigital ? Number(p.amount) : 0,
+        pendingAmount: isPendingJazz || isPendingDigital ? Number(p.amount) : 0,
         payment_method: p.payment_method
       })
     })
