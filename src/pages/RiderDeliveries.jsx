@@ -391,7 +391,10 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       total, received, creditPortion, paymentMethod,
       bottlesReturned, qty19l,
       newBottlesWithCustomer: Math.max(0, Number(selectedOrder.customers?.our_bottles_placed || 0) + qty19l - bottlesReturned),
-      savedOffline: !isOnline
+      savedOffline: !isOnline,
+      deliveryRaw: { ...savedDelivery, invoice_number: invoiceNumber },
+      customerRaw: selectedOrder.customers,
+      invoiceNumber: savedDelivery?.invoice_number || null
     })
     setPaymentMethod(null)
     setCashReceived('')
@@ -561,6 +564,70 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               style={{ padding: '4px 12px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px' }}>
               OK
             </button>
+            {success?.deliveryRaw && (
+              <button onClick={() => {
+                const win = window.open('', '_blank')
+                const d = success.deliveryRaw
+                const c = success.customerRaw
+                const qty19l = Number(d.qty_19l || 0)
+                const qtyHalf = Number(d.qty_half_litre || 0)
+                const qty1_5l = Number(d.qty_1_5l || 0)
+                const rate = Number(d.rate_applied || c?.rate_19l || 0)
+                const subTotal = qty19l * rate + qtyHalf * Number(c?.rate_half_litre || 0) + qty1_5l * Number(c?.rate_1_5l || 0)
+                const tax = Math.round(Number(d.tax_amount || 0))
+                const grandTotal = subTotal + tax
+                const amountPaid = Number(d.amount_received || grandTotal)
+                const balanceDue = Math.max(0, grandTotal - amountPaid)
+                const today = new Date().toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })
+                const payLabel = d.payment_method === 'cash' ? 'Cash' : d.payment_method === 'jazzcash' ? 'JazzCash' : d.payment_method === 'easypaisa' ? 'EasyPaisa' : 'Credit'
+                win.document.write(`<!DOCTYPE html>
+<html><head><title>Receipt</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Courier New', monospace; width: 76mm; margin: 0 auto; font-size: 11px; color: #000; padding: 2mm; }
+  @media print { button { display: none !important; } @page { size: 80mm auto; margin: 0mm 2mm; } body { width: 76mm; } }
+</style>
+</head><body>
+  <div style="text-align:center;margin-bottom:8px">
+    <p style="font-weight:700;font-size:14px;margin:0 0 2px">${bizSettings.business_name || 'AquaRun'}</p>
+    ${bizSettings.business_tagline ? `<p style="font-size:9px;margin:0 0 2px;font-style:italic">${bizSettings.business_tagline}</p>` : ''}
+    ${bizSettings.business_address ? `<p style="font-size:9px;margin:0 0 2px">${bizSettings.business_address}</p>` : ''}
+    ${bizSettings.ntn_number ? `<p style="font-size:9px;margin:0 0 2px">NTN: ${bizSettings.ntn_number}</p>` : ''}
+    ${bizSettings.complaint_number ? `<p style="font-size:9px;margin:0">Tel: ${bizSettings.complaint_number}</p>` : ''}
+  </div>
+  <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:5px 0;margin:6px 0">
+    <div style="display:flex;justify-content:space-between;font-size:10px"><span>Invoice:</span><span style="font-weight:700">${d.invoice_number || '—'}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px"><span>Date:</span><span>${today}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px"><span>Customer:</span><span style="font-weight:600">${c?.full_name || 'Walk-in'}</span></div>
+    ${c?.mobile ? `<div style="display:flex;justify-content:space-between;font-size:10px"><span>Mobile:</span><span>${c.mobile}</span></div>` : ''}
+  </div>
+  <div style="margin:6px 0">
+    ${qty19l > 0 ? `<div style="margin-bottom:4px"><div style="font-size:10px;font-weight:600">19 Litre Water Bottle</div><div style="display:flex;justify-content:space-between;font-size:10px;padding-left:4px"><span>${qty19l} x Rs.${rate.toLocaleString()}</span><span style="font-weight:600">Rs. ${(qty19l * rate).toLocaleString()}</span></div></div>` : ''}
+    ${qtyHalf > 0 ? `<div style="margin-bottom:4px"><div style="font-size:10px;font-weight:600">Half Litre Water Bottle</div><div style="display:flex;justify-content:space-between;font-size:10px;padding-left:4px"><span>${qtyHalf} x Rs.${Number(c?.rate_half_litre || 0).toLocaleString()}</span><span style="font-weight:600">Rs. ${(qtyHalf * Number(c?.rate_half_litre || 0)).toLocaleString()}</span></div></div>` : ''}
+    ${qty1_5l > 0 ? `<div style="margin-bottom:4px"><div style="font-size:10px;font-weight:600">1.5 Litre Water Bottle</div><div style="display:flex;justify-content:space-between;font-size:10px;padding-left:4px"><span>${qty1_5l} x Rs.${Number(c?.rate_1_5l || 0).toLocaleString()}</span><span style="font-weight:600">Rs. ${(qty1_5l * Number(c?.rate_1_5l || 0)).toLocaleString()}</span></div></div>` : ''}
+  </div>
+  <div style="border-top:1px dashed #000;padding-top:5px;margin-top:4px">
+    <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>Subtotal</span><span>Rs. ${subTotal.toLocaleString()}</span></div>
+    ${tax > 0 ? `<div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:2px"><span>Tax</span><span>Rs. ${tax.toLocaleString()}</span></div>` : ''}
+    <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;border-top:1px dashed #000;margin-top:4px;padding-top:4px"><span>TOTAL</span><span>Rs. ${grandTotal.toLocaleString()}</span></div>
+    <div style="font-size:10px;margin-top:4px">Payment: ${payLabel}</div>
+    ${d.payment_method === 'cash' ? `
+    <div style="display:flex;justify-content:space-between;font-size:10px;margin-top:4px"><span>Amount Paid</span><span>Rs. ${amountPaid.toLocaleString()}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;margin-top:2px;border-top:1px dashed #000;padding-top:3px"><span>Balance Due</span><span>Rs. ${balanceDue.toLocaleString()}</span></div>` : ''}
+  </div>
+  <div style="text-align:center;margin-top:10px;border-top:1px dashed #000;padding-top:7px">
+    <p style="font-size:10px;margin:0 0 2px;font-weight:600">Thank you for your business!</p>
+    ${bizSettings.whatsapp_number ? `<p style="font-size:9px;margin:0 0 3px">WhatsApp: ${bizSettings.whatsapp_number}</p>` : ''}
+    <p style="font-size:8px;margin:0;color:#999">Powered by AquaRun</p>
+  </div>
+</body></html>`)
+                win.document.close()
+                win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
+              }}
+                style={{ padding: '4px 12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
+              🧾 Print Receipt
+            </button>
+            )}
             {success?.customerMobile && (() => {
               const phone = success.customerMobile.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
               const waNumber = phone ? `92${phone}` : ''
