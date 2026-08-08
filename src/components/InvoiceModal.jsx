@@ -207,35 +207,42 @@ export default function InvoiceModal({ deliveries, customer, settings, onClose, 
           </table>
 
           {/* Totals + QR */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', marginBottom: '24px', gap: '16px' }}>
 
             {/* QR Codes — left side */}
-            {(settings.jazzcash_qr || settings.easypaisa_qr || settings.bank_qr) && (
-              <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                {settings.jazzcash_qr && (
-                  <div style={{ textAlign: 'center' }}>
-                    <img src={settings.jazzcash_qr} alt="JazzCash QR" style={{ width: '90px', height: '90px', border: '2px solid #e65100', borderRadius: '6px', display: 'block', marginBottom: '4px', objectFit: 'contain' }} />
-                    <p style={{ fontSize: '9px', fontWeight: '700', color: '#e65100', margin: '0 0 1px' }}>JazzCash</p>
-                    {settings.jazzcash_number_1 && <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.jazzcash_number_1}</p>}
+            {(settings.jazzcash_qr || settings.easypaisa_qr || settings.bank_qr) && (() => {
+              const qrCount = [settings.jazzcash_qr, settings.easypaisa_qr, settings.bank_qr].filter(Boolean).length
+              const qrSize = qrCount === 1 ? '130px' : qrCount === 2 ? '110px' : '90px'
+              const fontSize = qrCount === 1 ? '11px' : qrCount === 2 ? '10px' : '9px'
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0, fontStyle: 'italic' }}>📱 Scan to Pay</p>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    {settings.jazzcash_qr && (
+                      <div style={{ textAlign: 'center' }}>
+                        <img src={settings.jazzcash_qr} alt="JazzCash QR" style={{ width: qrSize, height: qrSize, border: '2px solid #e65100', borderRadius: '8px', display: 'block', marginBottom: '4px', objectFit: 'contain' }} />
+                        <p style={{ fontSize: fontSize, fontWeight: '700', color: '#e65100', margin: '0 0 1px' }}>JazzCash</p>
+                        {settings.jazzcash_number_1 && <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.jazzcash_number_1}</p>}
+                      </div>
+                    )}
+                    {settings.easypaisa_qr && (
+                      <div style={{ textAlign: 'center' }}>
+                        <img src={settings.easypaisa_qr} alt="EasyPaisa QR" style={{ width: qrSize, height: qrSize, border: '2px solid #1a7a4a', borderRadius: '8px', display: 'block', marginBottom: '4px', objectFit: 'contain' }} />
+                        <p style={{ fontSize: fontSize, fontWeight: '700', color: '#1a7a4a', margin: '0 0 1px' }}>EasyPaisa</p>
+                        {settings.jazzcash_number_2 && <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.jazzcash_number_2}</p>}
+                      </div>
+                    )}
+                    {settings.bank_qr && (
+                      <div style={{ textAlign: 'center' }}>
+                        <img src={settings.bank_qr} alt="Bank QR" style={{ width: qrSize, height: qrSize, border: '2px solid #0f4c81', borderRadius: '8px', display: 'block', marginBottom: '4px', objectFit: 'contain' }} />
+                        <p style={{ fontSize: fontSize, fontWeight: '700', color: '#0f4c81', margin: '0 0 1px' }}>{settings.bank_name || 'Bank'}</p>
+                        {settings.bank_account_number && <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.bank_account_number}</p>}
+                      </div>
+                    )}
                   </div>
-                )}
-                {settings.easypaisa_qr && (
-                  <div style={{ textAlign: 'center' }}>
-                    <img src={settings.easypaisa_qr} alt="EasyPaisa QR" style={{ width: '90px', height: '90px', border: '2px solid #1a7a4a', borderRadius: '6px', display: 'block', marginBottom: '4px', objectFit: 'contain' }} />
-                    <p style={{ fontSize: '9px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 1px' }}>EasyPaisa</p>
-                    {settings.jazzcash_number_2 && <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.jazzcash_number_2}</p>}
-                  </div>
-                )}
-                {settings.bank_qr && (
-                  <div style={{ textAlign: 'center' }}>
-                    <img src={settings.bank_qr} alt="Bank QR" style={{ width: '90px', height: '90px', border: '2px solid #0f4c81', borderRadius: '6px', display: 'block', marginBottom: '4px', objectFit: 'contain' }} />
-                    <p style={{ fontSize: '9px', fontWeight: '700', color: '#0f4c81', margin: '0 0 1px' }}>{settings.bank_name || 'Bank'}</p>
-                    {settings.bank_account_number && <p style={{ fontSize: '9px', color: '#555', margin: 0 }}>{settings.bank_account_number}</p>}
-                  </div>
-                )}
-                <p style={{ fontSize: '10px', color: '#888', margin: 0, fontStyle: 'italic', alignSelf: 'center' }}>📱 Scan to Pay</p>
-              </div>
-            )}
+                </div>
+              )
+            })()}
 
             {/* Totals — right */}
             <div style={{ width: '300px', border: '1px solid #e0e8ff', borderRadius: '10px', overflow: 'hidden', flexShrink: 0 }}>
