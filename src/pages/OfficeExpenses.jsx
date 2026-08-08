@@ -44,7 +44,7 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     const { data } = await supabase.from('chart_of_accounts')
       .select('account_code, account_name, account_subtype')
       .eq('tenant_id', tenantId)
-      .eq('account_type', 'expense')
+      .in('account_type', ['expense', 'asset'])
       .eq('is_active', true)
       .order('account_code')
     setCoaAccounts(data || [])
