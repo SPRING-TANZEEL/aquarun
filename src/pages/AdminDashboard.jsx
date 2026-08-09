@@ -23,7 +23,7 @@ const menuItems = [
   { key: 'quicksale', icon: '⚡', label: 'Quick Sale & Payment' },
   { key: 'orders', icon: '📦', label: 'Orders' },
   { key: 'tracking', icon: '📡', label: 'Live Tracking' },
-  { key: 'riders', icon: '🚴', label: 'Riders' },
+  { key: 'riders', icon: '🚴', label: 'Riders & Staff' },
   { key: 'cashtransfer', icon: '💸', label: 'Cash Transfers' },
   { key: 'jazzcash', icon: '💳', label: 'Digital Payments' },
   { key: 'salary', icon: '💼', label: 'Salary & Expenses' },
