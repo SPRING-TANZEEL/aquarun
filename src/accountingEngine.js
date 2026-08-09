@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-// â”€â”€â”€ CORE JOURNAL POSTING FUNCTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ CORE JOURNAL POSTING FUNCTION ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 async function postJournalEntry({ date, referenceType, referenceId, narration, lines, tenantId }) {
   const totalAmount = lines.reduce((s, l) => s + (l.debit || 0), 0)
 
@@ -37,9 +37,9 @@ async function postJournalEntry({ date, referenceType, referenceId, narration, l
   return entry.id
 }
 
-// â”€â”€â”€ HELPER: GET CASH ACCOUNT BY PAYMENT METHOD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ HELPER: GET CASH ACCOUNT BY PAYMENT METHOD ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 // For CEO/admin direct accounts
-// Actual accounts â€” use for expenses, purchases, salaries (money leaves immediately)
+// Actual accounts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use for expenses, purchases, salaries (money leaves immediately)
 function getCashAccount(paymentMethod) {
   switch (paymentMethod) {
     case 'jazzcash':   return { code: '1002', name: 'JazzCash Account' }
@@ -49,7 +49,7 @@ function getCashAccount(paymentMethod) {
   }
 }
 
-// Clearing accounts â€” use for sales/payments pending confirmation
+// Clearing accounts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use for sales/payments pending confirmation
 function getClearingAccount(paymentMethod) {
   switch (paymentMethod) {
     case 'jazzcash':   return { code: '1102', name: 'JazzCash Clearing - Pending' }
@@ -59,7 +59,7 @@ function getClearingAccount(paymentMethod) {
   }
 }
 
-// â”€â”€â”€ HELPER: GET SALES ACCOUNT BY BOTTLE TYPE â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ HELPER: GET SALES ACCOUNT BY BOTTLE TYPE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 function getSalesBreakdown(delivery) {
   const lines = []
   const qty19l = Number(delivery.qty_19l || 0)
@@ -74,14 +74,14 @@ function getSalesBreakdown(delivery) {
   } else if (qty15l > 0 && qty19l === 0 && qtyHalf === 0) {
     lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L', credit: totalAmount })
   } else {
-    // Mixed â€” split proportionally or post to 4001
+    // Mixed ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â split proportionally or post to 4001
     lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: totalAmount })
   }
 
   return lines
 }
 
-// â”€â”€â”€ HELPER: GET EXPENSE ACCOUNT BY CATEGORY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ HELPER: GET EXPENSE ACCOUNT BY CATEGORY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 function getExpenseAccount(category, isRider = false) {
   // Rider-specific mapping
   const riderMap = {
@@ -114,8 +114,8 @@ function getExpenseAccount(category, isRider = false) {
   return map[category] || { code: '6009', name: 'Other Expenses' }
 }
 
-// â”€â”€â”€ 1. POST DELIVERY JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Compound entry â€” debit side uses full amount including tax
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 1. POST DELIVERY JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// Compound entry ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â debit side uses full amount including tax
 // Credit side splits: pre-tax amount to sales accounts + tax to 2300 Tax Payable
 // isRiderEntry = true when rider logs delivery (rider_id is NOT NULL)
 // isRiderEntry = false when admin logs via Quick Sale (rider_id IS NULL)
@@ -130,7 +130,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     const paymentMethod = delivery.payment_method
     const lines = []
 
-    // â”€â”€ DEBIT SIDE â€” full amount including tax â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ DEBIT SIDE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â full amount including tax ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     if (paymentMethod === 'cash') {
       if (cashReceived > 0) {
         if (isRiderEntry) {
@@ -158,7 +158,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
 
-    // â”€â”€ CREDIT SIDE â€” split sales by each income stream â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ CREDIT SIDE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â split sales by each income stream ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     const qty19l  = Number(delivery.qty_19l          || 0)
     const qtyHalf = Number(delivery.qty_half_litre   || 0)
     const qty15l  = Number(delivery.qty_1_5l         || 0)
@@ -176,12 +176,12 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     const productItems = delivery.product_items || []
     const productTotal = productItems.reduce((s, p) => s + ((p.qty || 0) * (p.price || 0)), 0)
 
-    // Water sales lines â€” only post if amount > 0
+    // Water sales lines ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â only post if amount > 0
     if (amt19l  > 0) lines.push({ account_code: '4001', account_name: 'Water Sales - 19L',         credit: amt19l  })
     if (amtHalf > 0) lines.push({ account_code: '4002', account_name: 'Water Sales - Half Litre',   credit: amtHalf })
     if (amt15l  > 0) lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L',         credit: amt15l  })
 
-    // Extra products â€” each gets its own line under Product Sales 4004
+    // Extra products ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â each gets its own line under Product Sales 4004
     if (productTotal > 0) {
       // If multiple products group by product name for clarity
       const productGroups = {}
@@ -195,13 +195,13 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       })
     }
 
-    // If nothing posted yet (e.g. all rates are 0) â€” fallback to subTotal on 4001
+    // If nothing posted yet (e.g. all rates are 0) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â fallback to subTotal on 4001
     const totalCredited = amt19l + amtHalf + amt15l + productTotal
     if (totalCredited === 0 && subTotal > 0) {
       lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: subTotal })
     }
 
-    // Rounding correction â€” if credited amounts don't add up to subTotal due to rate differences
+    // Rounding correction ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â if credited amounts don't add up to subTotal due to rate differences
     const creditDiff = subTotal - totalCredited
     if (Math.abs(creditDiff) > 0 && Math.abs(creditDiff) < 2 && totalCredited > 0) {
       // Add small rounding difference to the largest sales line
@@ -209,17 +209,17 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       if (lastWaterLine) lastWaterLine.credit = +(lastWaterLine.credit + creditDiff).toFixed(2)
     }
 
-    // Tax portion â†’ Tax Payable (only if tax > 0)
+    // Tax portion ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Tax Payable (only if tax > 0)
     if (taxAmount > 0) {
       lines.push({ account_code: '2300', account_name: 'Tax Payable', credit: taxAmount })
     }
 
     // Build narration with all products
     const narrationParts = [
-      qty19l  > 0 ? `${qty19l}Ã—19L`       : '',
-      qtyHalf > 0 ? `${qtyHalf}Ã—Half`     : '',
-      qty15l  > 0 ? `${qty15l}Ã—1.5L`      : '',
-      ...productItems.filter(p => p.qty > 0).map(p => `${p.qty}Ã—${p.name}`),
+      qty19l  > 0 ? `${qty19l}ÃƒÆ’Ã¢â‚¬â€19L`       : '',
+      qtyHalf > 0 ? `${qtyHalf}ÃƒÆ’Ã¢â‚¬â€Half`     : '',
+      qty15l  > 0 ? `${qty15l}ÃƒÆ’Ã¢â‚¬â€1.5L`      : '',
+      ...productItems.filter(p => p.qty > 0).map(p => `${p.qty}ÃƒÆ’Ã¢â‚¬â€${p.name}`),
     ].filter(Boolean).join(' + ')
 
     const entryId = await postJournalEntry({
@@ -227,7 +227,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
-      narration: `Delivery â€” ${narrationParts} â€” ${paymentMethod} â€” ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` â€” tax Rs.${taxAmount}` : ''}`,
+      narration: `Delivery ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${narrationParts} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${paymentMethod} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â tax Rs.${taxAmount}` : ''}`,
       lines
     })
 
@@ -250,7 +250,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
   }
 }
 
-// â”€â”€â”€ 2. POST PAYMENT JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 2. POST PAYMENT JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 // isRiderEntry = true when rider collects payment (rider_id NOT NULL)
 // isRiderEntry = false when admin records payment directly
 export async function postPaymentJournal(payment, tenantId, isRiderEntry = true) {
@@ -261,7 +261,7 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
     const lines = []
 
     if (paymentMethod === 'cash') {
-      // Cash collection â€” rider holding or direct to CEO
+      // Cash collection ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rider holding or direct to CEO
       if (isRiderEntry) {
         lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: amount })
       } else {
@@ -270,12 +270,12 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: amount })
 
     } else if (paymentMethod === 'jazzcash') {
-      // Jazz payment â€” unconfirmed goes to clearing
+      // Jazz payment ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â unconfirmed goes to clearing
       lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: amount })
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: amount })
 
     } else if (paymentMethod === 'easypaisa') {
-      // EasyPaisa â€” goes to its clearing
+      // EasyPaisa ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â goes to its clearing
       lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: amount })
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: amount })
     }
@@ -287,7 +287,7 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
       date: payment.payment_date || new Date().toISOString().split('T')[0],
       referenceType: 'payment',
       referenceId: payment.id,
-      narration: `Customer payment â€” ${paymentMethod} â€” ${isRiderEntry ? 'collected by rider' : 'recorded by admin'}`,
+      narration: `Customer payment ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${paymentMethod} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${isRiderEntry ? 'collected by rider' : 'recorded by admin'}`,
       lines
     })
 
@@ -305,8 +305,8 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
   }
 }
 
-// â”€â”€â”€ 3. POST JAZZCASH/EASYPAISA CONFIRMATION JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€
-// When admin confirms jazz/easypaisa â€” moves from clearing to actual account
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 3. POST JAZZCASH/EASYPAISA CONFIRMATION JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// When admin confirms jazz/easypaisa ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â moves from clearing to actual account
 export async function postJazzCashConfirmationJournal(record, recordType, tenantId) {
   try {
     const amount = Number(record.total_with_tax || record.total_amount || record.amount || 0)
@@ -333,9 +333,9 @@ export async function postJazzCashConfirmationJournal(record, recordType, tenant
     }
 
     // Build narration with customer name + invoice/reference
-    const invoiceRef = record.invoice_number ? ` Â· Inv# ${record.invoice_number}` : ''
+    const invoiceRef = record.invoice_number ? ` Ãƒâ€šÃ‚Â· Inv# ${record.invoice_number}` : ''
     const typeLabel  = recordType === 'payment' ? 'Balance Payment' : 'Sale'
-    const narration  = `${methodLabel} confirmed â€” ${typeLabel}${customerName ? ` â€” ${customerName}` : ''}${invoiceRef} â€” Rs. ${amount.toLocaleString()}`
+    const narration  = `${methodLabel} confirmed ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${typeLabel}${customerName ? ` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${customerName}` : ''}${invoiceRef} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rs. ${amount.toLocaleString()}`
 
     const lines = [
       { account_code: actualAcc.code,    account_name: actualAcc.name,    debit: amount  },
@@ -358,8 +358,8 @@ export async function postJazzCashConfirmationJournal(record, recordType, tenant
   }
 }
 
-// â”€â”€â”€ 4. POST RIDER EXPENSE JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Rider spends from his holding cash â€” reduces what he owes to office
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 4. POST RIDER EXPENSE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// Rider spends from his holding cash ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â reduces what he owes to office
 export async function postRiderExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
@@ -369,7 +369,7 @@ export async function postRiderExpenseJournal(expense, tenantId) {
     const lines = [
       // Debit the correct expense account
       { account_code: expenseAcc.code, account_name: expenseAcc.name, debit: amount },
-      // Credit rider holding â€” rider spent from his cash, reduces what he owes
+      // Credit rider holding ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rider spent from his cash, reduces what he owes
       { account_code: '1101', account_name: 'Receivable from Riders', credit: amount }
     ]
 
@@ -378,7 +378,7 @@ export async function postRiderExpenseJournal(expense, tenantId) {
       date: expense.expense_date || new Date().toISOString().split('T')[0],
       referenceType: 'rider_expense',
       referenceId: expense.id,
-      narration: `Rider expense â€” ${expense.expense_type || expense.category || 'general'} â€” ${expense.description || ''} â€” deducted from rider holding`,
+      narration: `Rider expense ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${expense.expense_type || expense.category || 'general'} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${expense.description || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â deducted from rider holding`,
       lines
     })
 
@@ -396,14 +396,14 @@ export async function postRiderExpenseJournal(expense, tenantId) {
   }
 }
 
-// â”€â”€â”€ 5. POST OFFICE EXPENSE JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Admin pays expense directly from cash/jazz/bank â€” no change needed
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 5. POST OFFICE EXPENSE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// Admin pays expense directly from cash/jazz/bank ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no change needed
 export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
     if (amount <= 0) { console.log('postOfficeExpenseJournal skipped - amount is 0'); return null }
     // Use custom COA account if provided, otherwise use category mapping
-    // Salary payments settle the payable â€” DR 2100, not expense account
+    // Salary payments settle the payable ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DR 2100, not expense account
     const expenseAcc = expense.category === 'salary'
       ? { code: '2100', name: 'Salary Payable' }
       : expense._customAccount
@@ -423,7 +423,7 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
       date: expense.expense_date || new Date().toISOString().split('T')[0],
       referenceType: 'office_expense',
       referenceId: expense.id,
-      narration: `Office expense â€” ${expense.category} â€” ${expense.description || ''} â€” paid from ${expense.payment_method || 'cash'}`,
+      narration: `Office expense - ${expense.category} - ${expense.description || ""} - paid from ${expense.payment_method || "cash"}`,
       lines
     })
 
@@ -441,13 +441,13 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
   }
 }
 
-// â”€â”€â”€ 6. POST SALARY PAYMENT JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 6. POST SALARY PAYMENT JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 // Two compound entries:
-// Entry 1 â€” Salary accrual:
-//   DR 6001 Rider Salaries (full salary â€” hits P&L)
+// Entry 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Salary accrual:
+//   DR 6001 Rider Salaries (full salary ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â hits P&L)
 //     CR 1104 Salary Advances to Riders (recover advances from asset)
 //     CR 2100 Salary Payable (remaining balance payable)
-// Entry 2 â€” Cash payment:
+// Entry 2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Cash payment:
 //   DR 2100 Salary Payable
 //     CR cash account
 export async function postSalaryPaymentJournal(payment, tenantId) {
@@ -459,7 +459,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
     const cashAcc = getCashAccount(payment.payment_method || 'cash')
     const date = payment.payment_date || new Date().toISOString().split('T')[0]
 
-    // Entry 1 â€” Salary accrual (only if full salary is known)
+    // Entry 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Salary accrual (only if full salary is known)
     if (monthlySalary > 0) {
       const accrualLines = [
         // Full salary expense hits P&L
@@ -480,12 +480,12 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
         date,
         referenceType: 'salary_accrual',
         referenceId: payment.id,
-        narration: `Salary accrual â€” ${payment.month_year || ''} â€” total Rs. ${monthlySalary} less advances Rs. ${totalAdvances}`,
+        narration: `Salary accrual ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${payment.month_year || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â total Rs. ${monthlySalary} less advances Rs. ${totalAdvances}`,
         lines: accrualLines
       })
     }
 
-    // Entry 2 â€” Cash payment settles salary payable
+    // Entry 2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Cash payment settles salary payable
     const paymentLines = [
       { account_code: '2100', account_name: 'Salary Payable', debit: amountPaid },
       { account_code: cashAcc.code, account_name: cashAcc.name, credit: amountPaid }
@@ -496,7 +496,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
       date,
       referenceType: 'salary_payment',
       referenceId: payment.id,
-      narration: `Salary paid â€” ${payment.month_year || ''} â€” Rs. ${amountPaid} via ${payment.payment_method || 'cash'}`,
+      narration: `Salary paid ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${payment.month_year || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rs. ${amountPaid} via ${payment.payment_method || 'cash'}`,
       lines: paymentLines
     })
 
@@ -514,9 +514,9 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
   }
 }
 
-// â”€â”€â”€ 7. POST SALARY ADVANCE JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Advance paid from cash â€” DR 1104 Salary Advances to Riders (Asset)  CR cash account
-// Does NOT hit P&L â€” sits as asset until recovered at salary payment time
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 7. POST SALARY ADVANCE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// Advance paid from cash ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DR 1104 Salary Advances to Riders (Asset)  CR cash account
+// Does NOT hit P&L ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â sits as asset until recovered at salary payment time
 export async function postSalaryAdvanceJournal(advance, tenantId) {
   try {
     const amount = Number(advance.amount || 0)
@@ -533,7 +533,7 @@ export async function postSalaryAdvanceJournal(advance, tenantId) {
       date: new Date().toISOString().split('T')[0],
       referenceType: 'salary_advance',
       referenceId: advance.id,
-      narration: `Salary advance â€” ${advance.notes || ''} â€” paid from ${advance.payment_method || 'cash'}`,
+      narration: `Salary advance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${advance.notes || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â paid from ${advance.payment_method || 'cash'}`,
       lines
     })
 
@@ -551,7 +551,7 @@ export async function postSalaryAdvanceJournal(advance, tenantId) {
   }
 }
 
-// â”€â”€â”€ 8. POST COMMISSION ACCRUAL JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 8. POST COMMISSION ACCRUAL JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 // Auto-accrues commission earned per delivery for commission-based riders
 // DR 6001 Rider Salaries  CR 2100 Salary Payable
 export async function postCommissionAccrualJournal(delivery, tenantId) {
@@ -591,7 +591,7 @@ export async function postCommissionAccrualJournal(delivery, tenantId) {
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'commission_accrual',
       referenceId: delivery.id,
-      narration: `Commission accrual â€” ${rider.full_name} â€” ${qty19l}Ã—19L + ${qtyHalf}Ã—Half + ${qty15l}Ã—1.5L = Rs. ${commission}`,
+      narration: `Commission accrual ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${rider.full_name} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${qty19l}ÃƒÆ’Ã¢â‚¬â€19L + ${qtyHalf}ÃƒÆ’Ã¢â‚¬â€Half + ${qty15l}ÃƒÆ’Ã¢â‚¬â€1.5L = Rs. ${commission}`,
       lines
     })
 
@@ -602,7 +602,7 @@ export async function postCommissionAccrualJournal(delivery, tenantId) {
   }
 }
 
-// â”€â”€â”€ 9. POST CASH TRANSFER FROM RIDER JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 9. POST CASH TRANSFER FROM RIDER JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 // Rider transfers holding cash/jazz to CEO office
 // DR cash/jazz/easypaisa account  CR 1101 Receivable from Riders
 export async function postCashTransferJournal(transfer, tenantId) {
@@ -624,7 +624,7 @@ export async function postCashTransferJournal(transfer, tenantId) {
       date: transfer.transfer_date || new Date().toISOString().split('T')[0],
       referenceType: 'cash_transfer',
       referenceId: transfer.id,
-      narration: `Rider cash transfer to office â€” ${transferType} â€” clears rider holding`,
+      narration: `Rider cash transfer to office ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${transferType} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â clears rider holding`,
       lines
     })
 
@@ -642,7 +642,7 @@ export async function postCashTransferJournal(transfer, tenantId) {
   }
 }
 
-// â”€â”€â”€ 10. POST STOCK PURCHASE JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 10. POST STOCK PURCHASE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 export async function postStockPurchaseJournal(purchase, tenantId) {
   try {
     const amount = Number(purchase.total_cost || 0)
@@ -650,16 +650,16 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
     const cashAcc = getCashAccount(purchase.payment_method || 'cash')
 
     // Determine inventory account based on product type
-    // Raw material â†’ 1200, Trading â†’ 1202, Finished Good â†’ 1201
+    // Raw material ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 1200, Trading ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 1202, Finished Good ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 1201
     const productType = purchase.product_type || 'raw_material'
     let inventoryAcc = { code: '1200', name: 'Inventory - Raw Materials' }
     if (productType === 'trading') inventoryAcc = { code: '1202', name: 'Inventory - Trading Items' }
     if (productType === 'finished_good') inventoryAcc = { code: '1201', name: 'Inventory - Finished Goods' }
 
     const lines = [
-      // DR Inventory (Balance Sheet) â€” cost sits here until sold
+      // DR Inventory (Balance Sheet) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â cost sits here until sold
       { account_code: inventoryAcc.code, account_name: inventoryAcc.name, debit: amount },
-      // CR Cash/Bank/JazzCash â€” money goes out
+      // CR Cash/Bank/JazzCash ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â money goes out
       { account_code: cashAcc.code, account_name: cashAcc.name, credit: amount }
     ]
 
@@ -668,7 +668,7 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
       date: purchase.purchase_date || new Date().toISOString().split('T')[0],
       referenceType: 'stock_purchase',
       referenceId: purchase.id,
-      narration: `Stock purchase â€” ${purchase.supplier || 'supplier'} â€” paid from ${purchase.payment_method || 'cash'}`,
+      narration: `Stock purchase ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${purchase.supplier || 'supplier'} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â paid from ${purchase.payment_method || 'cash'}`,
       lines
     })
 
@@ -686,7 +686,7 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
   }
 }
 
-// â”€â”€â”€ 11. POST OWNER TRANSACTION JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 11. POST OWNER TRANSACTION JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 export async function postOwnerTransactionJournal(transaction, tenantId) {
   try {
     const amount = Number(transaction.amount || 0)
@@ -708,7 +708,7 @@ export async function postOwnerTransactionJournal(transaction, tenantId) {
       date: transaction.transaction_date || new Date().toISOString().split('T')[0],
       referenceType: 'owner_transaction',
       referenceId: transaction.id,
-      narration: `Owner ${isInjection ? 'capital injection' : 'drawing'} â€” ${cashAcc.name}`,
+      narration: `Owner ${isInjection ? 'capital injection' : 'drawing'} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${cashAcc.name}`,
       lines
     })
 
@@ -726,7 +726,7 @@ export async function postOwnerTransactionJournal(transaction, tenantId) {
   }
 }
 
-// â”€â”€â”€ 12. POST ACCOUNT TRANSFER JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 12. POST ACCOUNT TRANSFER JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 export async function postAccountTransferJournal(transfer, tenantId) {
   try {
     const amount = Number(transfer.amount || 0)
@@ -744,7 +744,7 @@ export async function postAccountTransferJournal(transfer, tenantId) {
       date: transfer.transfer_date || new Date().toISOString().split('T')[0],
       referenceType: 'account_transfer',
       referenceId: transfer.id,
-      narration: `Internal transfer â€” ${fromAcc.name} to ${toAcc.name}`,
+      narration: `Internal transfer ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${fromAcc.name} to ${toAcc.name}`,
       lines
     })
 
@@ -762,7 +762,7 @@ export async function postAccountTransferJournal(transfer, tenantId) {
   }
 }
 
-// â”€â”€â”€ 13. REVERSE JOURNAL ENTRY (for void) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 13. REVERSE JOURNAL ENTRY (for void) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 export async function reverseJournalEntry(originalEntryId, referenceId, referenceType, tenantId) {
   try {
     const { data: originalLines } = await supabase
@@ -785,7 +785,7 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
       date: new Date().toISOString().split('T')[0],
       referenceType: referenceType + '_reversal',
       referenceId: referenceId,
-      narration: `Reversal â€” ${referenceType} voided`,
+      narration: `Reversal ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${referenceType} voided`,
       lines: reversalLines
     })
 
@@ -796,7 +796,7 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
   }
 }
 
-// â”€â”€â”€ 14. POST CUSTOMER OPENING BALANCE JOURNAL â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 14. POST CUSTOMER OPENING BALANCE JOURNAL ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
 // Called when new customer is saved with opening_balance > 0
 export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
   try {
@@ -805,12 +805,12 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
 
     const lines = amount > 0
       ? [
-          // Customer owes us â€” debit AR
+          // Customer owes us ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â debit AR
           { account_code: '1100', account_name: 'Accounts Receivable', debit: Math.abs(amount), credit: 0 },
           { account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Math.abs(amount) }
         ]
       : [
-          // Customer has advance â€” debit Owner Capital
+          // Customer has advance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â debit Owner Capital
           { account_code: '3001', account_name: 'Owner Capital', debit: Math.abs(amount), credit: 0 },
           { account_code: '2200', account_name: 'Advance from Customers', debit: 0, credit: Math.abs(amount) }
         ]
@@ -820,7 +820,7 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
       date: new Date().toISOString().split('T')[0],
       referenceType: 'opening_balance',
       referenceId: customer.id,
-      narration: `Opening balance â€” ${customer.full_name} â€” ${amount > 0 ? 'receivable' : 'advance'}`,
+      narration: `Opening balance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${customer.full_name} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${amount > 0 ? 'receivable' : 'advance'}`,
       lines
     })
 
@@ -831,8 +831,8 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
   }
 }
 
-// â”€â”€â”€ 15. POST SALES TAX JOURNAL ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Called when delivery has tax â€” DR AR (tax portion)  CR 2300 Tax Payable
+// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 15. POST SALES TAX JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// Called when delivery has tax ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DR AR (tax portion)  CR 2300 Tax Payable
 export async function postSalesTaxJournal(delivery, taxAmount, tenantId) {
   try {
     if (!taxAmount || taxAmount <= 0) return null
@@ -847,7 +847,7 @@ export async function postSalesTaxJournal(delivery, taxAmount, tenantId) {
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'sales_tax',
       referenceId: delivery.id,
-      narration: `Sales tax â€” ${delivery.invoice_number || ''} â€” Rs. ${taxAmount} @ ${delivery.tax_rate || 0}%`,
+      narration: `Sales tax ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${delivery.invoice_number || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rs. ${taxAmount} @ ${delivery.tax_rate || 0}%`,
       lines
     })
 
