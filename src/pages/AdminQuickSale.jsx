@@ -345,19 +345,19 @@ export default function AdminQuickSale({ tenantId }) {
           style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: mode === 'sale' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'sale' ? '#0f4c81' : 'white', color: mode === 'sale' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
           <span style={{ fontSize: '20px' }}>⚡</span>
           <span>Quick Sale</span>
-          <span style={{ fontSize: '11px', opacity: 0.8 }}>Sell products to customer</span>
+          <span style={{ fontSize: '11px', opacity: 0.8 }}> </span>
         </button>
         <button onClick={() => { setMode('payment'); setSuccess(null) }}
           style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: mode === 'payment' ? '#1a7a4a' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'payment' ? '#1a7a4a' : 'white', color: mode === 'payment' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
           <span style={{ fontSize: '20px' }}>💰</span>
           <span>Receive Payment</span>
-          <span style={{ fontSize: '11px', opacity: 0.8 }}>Collect outstanding balance</span>
+          <span style={{ fontSize: '11px', opacity: 0.8 }}> </span>
         </button>
         <button onClick={() => { setMode('return'); setSuccess(null); setReturnCustomer(null); setReturnSearch(''); setReturnQty(0) }}
           style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: mode === 'return' ? '#e65100' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'return' ? '#e65100' : 'white', color: mode === 'return' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
           <span style={{ fontSize: '20px' }}>🫙</span>
           <span>Return Bottles</span>
-          <span style={{ fontSize: '11px', opacity: 0.8 }}>Customer returning bottles</span>
+          <span style={{ fontSize: '11px', opacity: 0.8 }}> </span>
         </button>
       </div>
 
