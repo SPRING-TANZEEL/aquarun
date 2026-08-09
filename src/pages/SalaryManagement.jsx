@@ -28,8 +28,11 @@ function StatusBadge({ remaining, totalPaid }) {
 }
 
 export default function SalaryManagement({ adminUser, tenantId }) {
+  const [staffTab,        setStaffTab]        = useState('riders') // 'riders' | 'other_staff'
   const [riders,          setRiders]          = useState([])
+  const [otherStaff,      setOtherStaff]      = useState([])
   const [riderSummaries,  setRiderSummaries]  = useState([])
+  const [staffSummaries,  setStaffSummaries]  = useState([])
   const [advances,        setAdvances]        = useState([])
   const [salaryPayments,  setSalaryPayments]  = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
@@ -38,7 +41,6 @@ export default function SalaryManagement({ adminUser, tenantId }) {
   const [activeTab,       setActiveTab]       = useState('overview')
   const [selectedMonth,   setSelectedMonth]   = useState(new Date().toISOString().slice(0, 7))
 
-  // Pay form state
   const [payingRider, setPayingRider] = useState(null)
   const [payType,     setPayType]     = useState(null)
   const [payAmount,   setPayAmount]   = useState('')
@@ -52,9 +54,13 @@ export default function SalaryManagement({ adminUser, tenantId }) {
   async function fetchData() {
     setLoading(true)
     try {
-      const { data: ridersData } = await supabase.from('riders')
+      const { data: allStaff } = await supabase.from('riders')
         .select('*').eq('tenant_id', tenantId).eq('is_active', true).order('created_at')
-      setRiders(ridersData || [])
+
+      const ridersData    = (allStaff || []).filter(r => !r.staff_type || r.staff_type === 'rider')
+      const otherStaffData = (allStaff || []).filter(r => r.staff_type === 'other_staff')
+      setRiders(ridersData)
+      setOtherStaff(otherStaffData)
 
       const { data: advancesData } = await supabase.from('salary_advances')
         .select('*, rider:rider_id(full_name, monthly_salary, salary_type)')
@@ -68,7 +74,6 @@ export default function SalaryManagement({ adminUser, tenantId }) {
         .order('created_at', { ascending: false })
       setPendingRequests(pendingData || [])
 
-      // ── Key fix: filter by month_year not payment_date ──
       const { data: allSalaryPaid } = await supabase.from('salary_payments')
         .select('rider_id, amount_paid, payment_date, payment_method, month_year')
         .eq('tenant_id', tenantId).eq('month_year', selectedMonth)
@@ -77,8 +82,9 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       const monthStart = selectedMonth + '-01'
       const nextMonth  = new Date(new Date(monthStart).setMonth(new Date(monthStart).getMonth() + 1)).toISOString().split('T')[0]
 
+      // Build rider summaries
       const summaries = []
-      for (const r of ridersData || []) {
+      for (const r of ridersData) {
         const riderAdvances  = advancesData?.filter(a => a.rider_id === r.id && a.status === 'approved') || []
         const totalAdvances  = riderAdvances.reduce((s, a) => s + Number(a.amount), 0)
         const totalPaid      = allSalaryPaid?.filter(p => p.rider_id === r.id).reduce((s, p) => s + Number(p.amount_paid), 0) || 0
@@ -113,6 +119,20 @@ export default function SalaryManagement({ adminUser, tenantId }) {
         summaries.push({ ...r, baseSalary, fixedPart, commissionPart, totalAdvances, totalPaid, remaining, advances: riderAdvances, commissionBreakdown, payHistory: riderPayHistory })
       }
       setRiderSummaries(summaries)
+
+      // Build other staff summaries
+      const staffSum = []
+      for (const r of otherStaffData) {
+        const staffAdvances  = advancesData?.filter(a => a.rider_id === r.id && a.status === 'approved') || []
+        const totalAdvances  = staffAdvances.reduce((s, a) => s + Number(a.amount), 0)
+        const totalPaid      = allSalaryPaid?.filter(p => p.rider_id === r.id).reduce((s, p) => s + Number(p.amount_paid), 0) || 0
+        const payHistory     = allSalaryPaid?.filter(p => p.rider_id === r.id) || []
+        const baseSalary     = Number(r.monthly_salary || 0)
+        const remaining      = baseSalary - totalAdvances - totalPaid
+        staffSum.push({ ...r, baseSalary, totalAdvances, totalPaid, remaining, advances: staffAdvances, payHistory })
+      }
+      setStaffSummaries(staffSum)
+
     } catch (err) {
       console.error('SalaryManagement fetchData error:', err)
       alert('Error loading salary data: ' + err.message)
@@ -127,7 +147,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     setPayMethod('cash')
     setPayNote('')
     setPayDate(new Date().toISOString().split('T')[0])
-    const summary = riderSummaries.find(r => r.id === rider.id)
+    const summary = [...riderSummaries, ...staffSummaries].find(r => r.id === rider.id)
     setPayAmount(type === 'salary' ? String(Math.max(0, summary?.remaining || 0)) : '')
   }
 
@@ -155,7 +175,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
   async function processPayment() {
     if (!payAmount || Number(payAmount) <= 0) return alert('Please enter amount')
     setSaving(true)
-    const summary = riderSummaries.find(r => r.id === payingRider.id)
+    const summary = [...riderSummaries, ...staffSummaries].find(r => r.id === payingRider.id)
 
     if (payType === 'advance') {
       const { data: advance, error } = await supabase.from('salary_advances').insert([{
@@ -188,6 +208,162 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     { key: 'expenses',  label: '🏢 Office Expenses' },
   ]
 
+  function SummaryCard({ r, isRider }) {
+    return (
+      <div style={{ background: 'white', borderRadius: 12, padding: '18px 20px', marginBottom: 14, boxShadow: '0 2px 10px rgba(0,0,0,0.07)', border: r.is_main_rider ? '2px solid #ffe082' : '1px solid #eee' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+          <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>
+            {isRider ? (r.is_main_rider ? '⭐ ' : '🛵 ') : '👤 '}{r.full_name}
+            {!isRider && r.department && <span style={{ fontSize: 11, color: '#888', fontWeight: 400, marginLeft: 8 }}>({r.department})</span>}
+          </p>
+          <StatusBadge remaining={r.remaining} totalPaid={r.totalPaid} />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+          {isRider ? (
+            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: r.salary_type === 'commission' ? '#e8f5e9' : r.salary_type === 'fixed_commission' ? '#e3f0ff' : '#f3e5f5', color: r.salary_type === 'commission' ? '#1a7a4a' : r.salary_type === 'fixed_commission' ? '#0f4c81' : '#7b1fa2' }}>
+              {r.salary_type === 'commission' ? '📦 Commission' : r.salary_type === 'fixed_commission' ? '💰+📦 Fixed+Comm' : '💰 Fixed'}
+            </span>
+          ) : (
+            <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: '#e3f0ff', color: '#0f4c81' }}>
+              💰 Fixed Monthly
+            </span>
+          )}
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={() => openPayForm(r, 'advance')}
+              style={{ padding: '7px 12px', background: '#fff3e0', color: '#e65100', border: '1.5px solid #ffcc80', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+              💰 Advance
+            </button>
+            <button onClick={() => openPayForm(r, 'salary')} disabled={r.remaining <= 0}
+              style={{ padding: '7px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', background: r.remaining <= 0 ? '#e0e0e0' : '#1a7a4a', color: r.remaining <= 0 ? '#aaa' : 'white', cursor: r.remaining <= 0 ? 'not-allowed' : 'pointer' }}>
+              {r.remaining <= 0 ? '✅ Paid' : '💵 Pay'}
+            </button>
+          </div>
+        </div>
+
+        {/* Commission Breakdown — riders only */}
+        {isRider && (r.salary_type === 'fixed_commission' || r.salary_type === 'commission') && r.commissionBreakdown && (
+          <div style={{ background: '#f8f9fa', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#555', margin: '0 0 8px' }}>Commission Breakdown</p>
+            {r.salary_type === 'fixed_commission' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #eee', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>Fixed Monthly Salary</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#0f4c81' }}>Rs. {fmt(r.fixedPart)}</span>
+              </div>
+            )}
+            {r.commissionBreakdown.rate19l > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <span style={{ fontSize: 12, color: '#888' }}>19L × {r.commissionBreakdown.total19l} × Rs. {r.commissionBreakdown.rate19l}</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#1a7a4a' }}>Rs. {fmt(r.commissionBreakdown.commission19l)}</span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Summary Cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+          {[
+            { label: 'Monthly Salary', value: r.baseSalary, color: '#0f4c81', bg: '#f0f7ff' },
+            { label: 'Advances Given', value: r.totalAdvances, color: '#e65100', bg: '#fff3e0' },
+            { label: 'Salary Paid',    value: r.totalPaid,    color: '#1a7a4a', bg: '#e8f5e9' },
+            { label: 'Remaining',      value: r.remaining,    color: r.remaining >= 0 ? '#1a7a4a' : '#c62828', bg: r.remaining >= 0 ? '#e8f5e9' : '#ffebee' },
+          ].map(card => (
+            <div key={card.label} style={{ textAlign: 'center', padding: '10px 8px', background: card.bg, borderRadius: 8 }}>
+              <p style={{ fontSize: 10, color: '#888', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{card.label}</p>
+              <p style={{ fontSize: 15, fontWeight: 800, color: card.color, margin: 0 }}>Rs. {fmt(card.value)}</p>
+            </div>
+          ))}
+        </div>
+
+        {r.payHistory?.length > 0 && (
+          <div style={{ background: '#f0fff4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a', margin: '0 0 6px' }}>💵 Payment History — {monthLabel}</p>
+            {r.payHistory.map((p, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: i < r.payHistory.length - 1 ? '1px solid #d1fae5' : 'none' }}>
+                <span style={{ fontSize: 12, color: '#555' }}>{new Date(p.payment_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })} — {p.payment_method || 'cash'}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a' }}>Rs. {fmt(p.amount_paid)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {r.advances.length > 0 && (
+          <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 12, marginBottom: 4 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Advances This Month</p>
+            {r.advances.map(a => (
+              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                <span style={{ fontSize: 12, color: '#888' }}>{new Date(a.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })} — {a.notes || ''}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#e65100' }}>Rs. {fmt(a.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pay Form */}
+        {payingRider?.id === r.id && payType && (
+          <div style={{ marginTop: 16, padding: 18, background: payType === 'advance' ? '#fff8f0' : '#f0f7ff', borderRadius: 10, border: `1.5px solid ${payType === 'advance' ? '#ffcc80' : '#c8e0ff'}` }}>
+            <p style={{ fontSize: 15, fontWeight: 800, color: payType === 'advance' ? '#e65100' : '#0f4c81', marginBottom: 4 }}>
+              {payType === 'advance' ? '💰 Give Advance to ' : '💵 Pay Salary to '}{r.full_name}
+            </p>
+            <p style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
+              {payType === 'advance' ? 'Advance will be deducted from salary at month end' : `Earned: Rs. ${fmt(r.baseSalary)} − Advances: Rs. ${fmt(r.totalAdvances)} = Remaining: Rs. ${fmt(r.remaining)}`}
+            </p>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Pay From</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              {PAYMENT_METHODS.map(m => (
+                <button key={m.key} onClick={() => setPayMethod(m.key)}
+                  style={{ flex: 1, minWidth: 72, padding: '10px 6px', border: '2px solid', borderColor: payMethod === m.key ? '#0f4c81' : '#eee', borderRadius: 8, cursor: 'pointer', background: payMethod === m.key ? '#e3f0ff' : 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                  <span style={{ fontSize: 18 }}>{m.icon}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: payMethod === m.key ? '#0f4c81' : '#555' }}>{m.label}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 5, fontWeight: 700 }}>Amount (Rs.)</label>
+                <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
+                  style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 20, fontWeight: 700, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }} />
+              </div>
+              {payType === 'salary' && (
+                <div style={{ flex: 1 }}>
+                  <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 5, fontWeight: 700 }}>Payment Date</label>
+                  <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} max={new Date().toISOString().split('T')[0]}
+                    style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', color: '#333' }} />
+                </div>
+              )}
+            </div>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 5, fontWeight: 700 }}>Note (optional)</label>
+              <input value={payNote} onChange={e => setPayNote(e.target.value)} placeholder={payType === 'advance' ? 'Reason for advance...' : 'e.g. Month end payment'}
+                style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', color: '#333' }} />
+            </div>
+            <div style={{ background: 'white', borderRadius: 8, padding: '10px 12px', marginBottom: 14, border: '1px solid #e0e0e0', fontSize: 11, color: '#555', fontFamily: 'monospace' }}>
+              <p style={{ fontWeight: 700, margin: '0 0 5px', fontFamily: 'system-ui', fontSize: 11, color: '#0f4c81' }}>📖 Journal Entry Preview</p>
+              {payType === 'advance' ? (
+                <>
+                  <p style={{ margin: '0 0 2px' }}>DR 1104 Salary Advances — Rs. {fmt(payAmount)}</p>
+                  <p style={{ margin: 0 }}>CR {payMethod === 'cash' ? '1001 Cash in Hand' : payMethod === 'jazzcash' ? '1002 JazzCash' : payMethod === 'easypaisa' ? '1004 EasyPaisa' : '1003 Bank'} — Rs. {fmt(payAmount)}</p>
+                </>
+              ) : (
+                <>
+                  <p style={{ margin: '0 0 2px' }}>1. DR 6001 Salaries Rs. {fmt(r.baseSalary)} → CR 1104 Advances Rs. {fmt(r.totalAdvances)} + CR 2100 Payable Rs. {fmt(Math.max(0, r.remaining))}</p>
+                  <p style={{ margin: 0 }}>2. DR 2100 Salary Payable Rs. {fmt(payAmount)} → CR {payMethod === 'cash' ? '1001 Cash' : payMethod === 'jazzcash' ? '1002 JazzCash' : payMethod === 'easypaisa' ? '1004 EasyPaisa' : '1003 Bank'}</p>
+                </>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button onClick={closePayForm} style={{ flex: 1, padding: 12, background: '#f5f5f5', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Cancel</button>
+              <button onClick={processPayment} disabled={saving}
+                style={{ flex: 2, padding: 12, background: saving ? '#e0e0e0' : payType === 'advance' ? '#e65100' : '#1a7a4a', color: saving ? '#aaa' : 'white', border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}>
+                {saving ? '⏳ Processing...' : payType === 'advance' ? '✓ Give Advance' : '✓ Confirm Salary Payment'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   if (loading) return (
     <div style={{ padding: 60, textAlign: 'center' }}>
       <p style={{ fontSize: 32, margin: '0 0 12px' }}>💼</p>
@@ -195,273 +371,79 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     </div>
   )
 
+  const currentSummaries = staffTab === 'riders' ? riderSummaries : staffSummaries
+
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-
-      {/* Page Header */}
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a2e', margin: '0 0 4px' }}>💼 Salary & Expenses</h2>
-        <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Manage rider salaries, advances and office expenses.</p>
+        <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Manage staff salaries, advances and office expenses.</p>
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 6, background: 'white', padding: 5, borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: 20 }}>
+      {/* Main Tabs */}
+      <div style={{ display: 'flex', gap: 6, background: 'white', padding: 5, borderRadius: 10, boxShadow: '0 2px 8px rgba(0,0,0,0.07)', marginBottom: 16 }}>
         {tabs.map(t => (
-          <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-            flex: 1, padding: '9px 8px', border: 'none', borderRadius: 7, cursor: 'pointer',
-            background: activeTab === t.key ? '#0f4c81' : 'transparent',
-            color: activeTab === t.key ? 'white' : '#666',
-            fontWeight: activeTab === t.key ? 700 : 500, fontSize: 13,
-          }}>{t.label}</button>
+          <button key={t.key} onClick={() => setActiveTab(t.key)} style={{ flex: 1, padding: '9px 8px', border: 'none', borderRadius: 7, cursor: 'pointer', background: activeTab === t.key ? '#0f4c81' : 'transparent', color: activeTab === t.key ? 'white' : '#666', fontWeight: activeTab === t.key ? 700 : 500, fontSize: 13 }}>{t.label}</button>
         ))}
       </div>
 
-      {/* ══ OVERVIEW ══ */}
       {activeTab === 'overview' && (
         <div>
-          {/* Month selector */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18 }}>
-            <label style={{ fontSize: 13, color: '#555', fontWeight: 700 }}>📅 Month:</label>
-            <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
-              style={{ padding: '8px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, outline: 'none', color: '#333' }} />
-            <span style={{ fontSize: 13, color: '#888' }}>{monthLabel}</span>
-          </div>
-
-          {riderSummaries.map(r => (
-            <div key={r.id} style={{
-              background: 'white', borderRadius: 12, padding: '18px 20px', marginBottom: 14,
-              boxShadow: '0 2px 10px rgba(0,0,0,0.07)',
-              border: r.is_main_rider ? '2px solid #ffe082' : '1px solid #eee',
-            }}>
-              {/* Rider header */}
-              {/* Row 1 — Name + Status badge */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e', margin: 0 }}>
-                  {r.is_main_rider ? '⭐ ' : '🚴 '}{r.full_name}
-                </p>
-                <StatusBadge remaining={r.remaining} totalPaid={r.totalPaid} />
-              </div>
-              {/* Row 2 — Salary type + Action buttons in one line */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <span style={{
-                  padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 600,
-                  background: r.salary_type === 'commission' ? '#e8f5e9' : r.salary_type === 'fixed_commission' ? '#e3f0ff' : '#f3e5f5',
-                  color: r.salary_type === 'commission' ? '#1a7a4a' : r.salary_type === 'fixed_commission' ? '#0f4c81' : '#7b1fa2',
-                }}>
-                  {r.salary_type === 'commission' ? '📦 Commission' : r.salary_type === 'fixed_commission' ? '💰+📦 Fixed+Comm' : '💰 Fixed'}
-                </span>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => openPayForm(r, 'advance')}
-                    style={{ padding: '7px 12px', background: '#fff3e0', color: '#e65100', border: '1.5px solid #ffcc80', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    💰 Advance
-                  </button>
-                  <button onClick={() => openPayForm(r, 'salary')}
-                    disabled={r.remaining <= 0}
-                    style={{
-                      padding: '7px 12px', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-                      background: r.remaining <= 0 ? '#e0e0e0' : '#1a7a4a',
-                      color: r.remaining <= 0 ? '#aaa' : 'white',
-                      cursor: r.remaining <= 0 ? 'not-allowed' : 'pointer',
-                    }}>
-                    {r.remaining <= 0 ? '✅ Paid' : '💵 Pay'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Commission Breakdown */}
-              {(r.salary_type === 'fixed_commission' || r.salary_type === 'commission') && r.commissionBreakdown && (
-                <div style={{ background: '#f8f9fa', borderRadius: 8, padding: '12px 14px', marginBottom: 14 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', margin: '0 0 8px' }}>
-                    {r.salary_type === 'fixed_commission' ? 'Salary Breakdown' : 'Commission Breakdown'}
-                  </p>
-                  {r.salary_type === 'fixed_commission' && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #eee', marginBottom: 6 }}>
-                      <span style={{ fontSize: 12, color: '#555', fontWeight: 600 }}>Fixed Monthly Salary</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#0f4c81' }}>Rs. {fmt(r.fixedPart)}</span>
-                    </div>
-                  )}
-                  {r.commissionBreakdown.rate19l > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span style={{ fontSize: 12, color: '#888' }}>19L × {r.commissionBreakdown.total19l} × Rs. {r.commissionBreakdown.rate19l}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1a7a4a' }}>Rs. {fmt(r.commissionBreakdown.commission19l)}</span>
-                    </div>
-                  )}
-                  {r.commissionBreakdown.rateHalf > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span style={{ fontSize: 12, color: '#888' }}>Half × {r.commissionBreakdown.totalHalf} × Rs. {r.commissionBreakdown.rateHalf}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1a7a4a' }}>Rs. {fmt(r.commissionBreakdown.commissionHalf)}</span>
-                    </div>
-                  )}
-                  {r.commissionBreakdown.rate15l > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span style={{ fontSize: 12, color: '#888' }}>1.5L × {r.commissionBreakdown.total15l} × Rs. {r.commissionBreakdown.rate15l}</span>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#1a7a4a' }}>Rs. {fmt(r.commissionBreakdown.commission15l)}</span>
-                    </div>
-                  )}
-                  {r.salary_type === 'fixed_commission' && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderTop: '1px solid #ddd', marginTop: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#333' }}>Total Earned</span>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: '#0f4c81' }}>Rs. {fmt(r.baseSalary)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Summary Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
-                {[
-                  { label: r.salary_type === 'fixed' ? 'Monthly Salary' : 'Total Earned', value: r.baseSalary, color: '#0f4c81', bg: '#f0f7ff' },
-                  { label: 'Advances Given',  value: r.totalAdvances, color: '#e65100', bg: '#fff3e0' },
-                  { label: 'Salary Paid',     value: r.totalPaid,     color: '#1a7a4a', bg: '#e8f5e9' },
-                  { label: 'Remaining',       value: r.remaining,     color: r.remaining >= 0 ? '#1a7a4a' : '#c62828', bg: r.remaining >= 0 ? '#e8f5e9' : '#ffebee' },
-                ].map(card => (
-                  <div key={card.label} style={{ textAlign: 'center', padding: '10px 8px', background: card.bg, borderRadius: 8 }}>
-                    <p style={{ fontSize: 10, color: '#888', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>{card.label}</p>
-                    <p style={{ fontSize: 15, fontWeight: 800, color: card.color, margin: 0 }}>Rs. {fmt(card.value)}</p>
-                  </div>
-                ))}
-              </div>
-
-              {r.remaining < 0 && (
-                <div style={{ background: '#fff3e0', borderRadius: 8, padding: '8px 12px', marginBottom: 10 }}>
-                  <p style={{ fontSize: 12, color: '#e65100', margin: 0 }}>⚠️ Advances exceed earnings by Rs. {fmt(Math.abs(r.remaining))} — will carry forward to next month.</p>
-                </div>
-              )}
-
-              {/* Payment History */}
-              {r.payHistory?.length > 0 && (
-                <div style={{ background: '#f0fff4', border: '1px solid #86efac', borderRadius: 8, padding: '10px 14px', marginBottom: 12 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a', margin: '0 0 6px' }}>💵 Salary Payment History — {monthLabel}</p>
-                  {r.payHistory.map((p, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '3px 0', borderBottom: i < r.payHistory.length - 1 ? '1px solid #d1fae5' : 'none' }}>
-                      <span style={{ fontSize: 12, color: '#555' }}>
-                        {new Date(p.payment_date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        {' — '}{p.payment_method || 'cash'}
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a' }}>Rs. {fmt(p.amount_paid)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Advances Detail */}
-              {r.advances.length > 0 && (
-                <div style={{ borderTop: '1px solid #f0f0f0', paddingTop: 12, marginBottom: 4 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Advances This Month</p>
-                  {r.advances.map(a => (
-                    <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                      <span style={{ fontSize: 12, color: '#888' }}>
-                        {new Date(a.created_at).toLocaleDateString('en-PK', { day: '2-digit', month: 'short' })}
-                        {' — '}{a.requested_from === 'ceo' ? 'CEO' : 'Main Rider'}
-                        {a.notes ? ` — ${a.notes}` : ''}
-                      </span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#e65100' }}>Rs. {fmt(a.amount)}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Pay Form */}
-              {payingRider?.id === r.id && payType && (
-                <div style={{ marginTop: 16, padding: 18, background: payType === 'advance' ? '#fff8f0' : '#f0f7ff', borderRadius: 10, border: `1.5px solid ${payType === 'advance' ? '#ffcc80' : '#c8e0ff'}` }}>
-                  <p style={{ fontSize: 15, fontWeight: 800, color: payType === 'advance' ? '#e65100' : '#0f4c81', marginBottom: 4 }}>
-                    {payType === 'advance' ? '💰 Give Advance to ' : '💵 Pay Salary to '}{r.full_name}
-                  </p>
-                  <p style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
-                    {payType === 'advance'
-                      ? 'Advance will be deducted from salary at month end'
-                      : `Earned: Rs. ${fmt(r.baseSalary)} − Advances: Rs. ${fmt(r.totalAdvances)} = Remaining: Rs. ${fmt(r.remaining)}`}
-                  </p>
-
-                  {/* Payment Method */}
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 8 }}>Pay From</p>
-                  <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                    {PAYMENT_METHODS.map(m => (
-                      <button key={m.key} onClick={() => setPayMethod(m.key)}
-                        style={{ flex: 1, minWidth: 72, padding: '10px 6px', border: '2px solid', borderColor: payMethod === m.key ? '#0f4c81' : '#eee', borderRadius: 8, cursor: 'pointer', background: payMethod === m.key ? '#e3f0ff' : 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
-                        <span style={{ fontSize: 18 }}>{m.icon}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: payMethod === m.key ? '#0f4c81' : '#555' }}>{m.label}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
-                    <div style={{ flex: 1 }}>
-                      <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 5, fontWeight: 700 }}>Amount (Rs.)</label>
-                      <input type="number" value={payAmount} onChange={e => setPayAmount(e.target.value)}
-                        style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 20, fontWeight: 700, outline: 'none', boxSizing: 'border-box', textAlign: 'center' }} />
-                    </div>
-                    {payType === 'salary' && (
-                      <div style={{ flex: 1 }}>
-                        <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 5, fontWeight: 700 }}>Payment Date</label>
-                        <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)}
-                          max={new Date().toISOString().split('T')[0]}
-                          style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', color: '#333' }} />
-                      </div>
-                    )}
-                  </div>
-
-                  <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 12, color: '#555', display: 'block', marginBottom: 5, fontWeight: 700 }}>Note (optional)</label>
-                    <input value={payNote} onChange={e => setPayNote(e.target.value)}
-                      placeholder={payType === 'advance' ? 'Reason for advance...' : 'e.g. Month end payment'}
-                      style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: 8, fontSize: 13, outline: 'none', boxSizing: 'border-box', color: '#333' }} />
-                  </div>
-
-                  {/* Journal Preview */}
-                  <div style={{ background: 'white', borderRadius: 8, padding: '10px 12px', marginBottom: 14, border: '1px solid #e0e0e0', fontSize: 11, color: '#555', fontFamily: 'monospace' }}>
-                    <p style={{ fontWeight: 700, margin: '0 0 5px', fontFamily: 'system-ui', fontSize: 11, color: '#0f4c81' }}>📖 Journal Entry Preview</p>
-                    {payType === 'advance' ? (
-                      <>
-                        <p style={{ margin: '0 0 2px' }}>DR 1104 Salary Advances to Riders — Rs. {fmt(payAmount)}</p>
-                        <p style={{ margin: 0 }}>CR {payMethod === 'cash' ? '1001 Cash in Hand' : payMethod === 'jazzcash' ? '1002 JazzCash Account' : payMethod === 'easypaisa' ? '1004 EasyPaisa Account' : '1003 Bank Account'} — Rs. {fmt(payAmount)}</p>
-                      </>
-                    ) : (
-                      <>
-                        <p style={{ margin: '0 0 2px' }}>1. DR 6001 Rider Salaries Rs. {fmt(r.baseSalary)} → CR 1104 Advances Rs. {fmt(r.totalAdvances)} + CR 2100 Payable Rs. {fmt(Math.max(0, r.remaining))}</p>
-                        <p style={{ margin: 0 }}>2. DR 2100 Salary Payable Rs. {fmt(payAmount)} → CR {payMethod === 'cash' ? '1001 Cash' : payMethod === 'jazzcash' ? '1002 JazzCash' : payMethod === 'easypaisa' ? '1004 EasyPaisa' : '1003 Bank'}</p>
-                      </>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={closePayForm}
-                      style={{ flex: 1, padding: 12, background: '#f5f5f5', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                      Cancel
-                    </button>
-                    <button onClick={processPayment} disabled={saving}
-                      style={{ flex: 2, padding: 12, background: saving ? '#e0e0e0' : payType === 'advance' ? '#e65100' : '#1a7a4a', color: saving ? '#aaa' : 'white', border: 'none', borderRadius: 8, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}>
-                      {saving ? '⏳ Processing...' : payType === 'advance' ? '✓ Give Advance' : '✓ Confirm Salary Payment'}
-                    </button>
-                  </div>
-                </div>
-              )}
+          {/* Month + Staff type tabs */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <label style={{ fontSize: 13, color: '#555', fontWeight: 700 }}>📅 Month:</label>
+              <input type="month" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)}
+                style={{ padding: '8px 14px', border: '1.5px solid #e0e0e0', borderRadius: 8, fontSize: 14, outline: 'none', color: '#333' }} />
+              <span style={{ fontSize: 13, color: '#888' }}>{monthLabel}</span>
             </div>
-          ))}
-
-          {/* Total Summary */}
-          <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '18px 20px' }}>
-            <p style={{ color: '#93c5fd', fontSize: 12, margin: '0 0 14px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Total Summary — {monthLabel}
-            </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+            {/* Staff type sub-tabs */}
+            <div style={{ display: 'flex', gap: 6, background: '#f0f4f8', padding: 4, borderRadius: 8 }}>
               {[
-                { label: 'Total Salary + Commission', value: riderSummaries.reduce((s, r) => s + r.baseSalary, 0),    color: '#60a5fa' },
-                { label: 'Total Advances Given',      value: riderSummaries.reduce((s, r) => s + r.totalAdvances, 0), color: '#fde68a' },
-                { label: 'Total Salary Paid',         value: riderSummaries.reduce((s, r) => s + r.totalPaid, 0),     color: '#6ee7b7' },
-                { label: 'Total Remaining Payable',   value: riderSummaries.reduce((s, r) => s + Math.max(0, r.remaining), 0), color: '#fca5a5' },
-              ].map(row => (
-                <div key={row.label} style={{ textAlign: 'center', padding: '12px 10px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
-                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{row.label}</p>
-                  <p style={{ fontSize: 18, fontWeight: 800, color: row.color, margin: 0 }}>Rs. {fmt(row.value)}</p>
-                </div>
+                { key: 'riders', label: `🛵 Riders (${riderSummaries.length})` },
+                { key: 'other_staff', label: `👥 Other Staff (${staffSummaries.length})` },
+              ].map(t => (
+                <button key={t.key} onClick={() => setStaffTab(t.key)}
+                  style={{ padding: '7px 14px', border: 'none', borderRadius: 6, cursor: 'pointer', background: staffTab === t.key ? '#0f4c81' : 'transparent', color: staffTab === t.key ? 'white' : '#666', fontWeight: staffTab === t.key ? 700 : 500, fontSize: 12 }}>
+                  {t.label}
+                </button>
               ))}
             </div>
           </div>
+
+          {currentSummaries.length === 0 ? (
+            <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+              <p style={{ fontSize: 40, margin: '0 0 12px' }}>{staffTab === 'riders' ? '🛵' : '👥'}</p>
+              <p style={{ color: '#888', fontSize: 14 }}>No {staffTab === 'riders' ? 'riders' : 'other staff'} found. Add them in Staff Management.</p>
+            </div>
+          ) : (
+            currentSummaries.map(r => <SummaryCard key={r.id} r={r} isRider={staffTab === 'riders'} />)
+          )}
+
+          {/* Total Summary */}
+          {currentSummaries.length > 0 && (
+            <div style={{ background: 'linear-gradient(135deg, #1a1a2e, #0f3460)', borderRadius: 12, padding: '18px 20px' }}>
+              <p style={{ color: '#93c5fd', fontSize: 12, margin: '0 0 14px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                Total Summary — {monthLabel} — {staffTab === 'riders' ? 'Riders' : 'Other Staff'}
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
+                {[
+                  { label: 'Total Salary', value: currentSummaries.reduce((s, r) => s + r.baseSalary, 0), color: '#60a5fa' },
+                  { label: 'Total Advances', value: currentSummaries.reduce((s, r) => s + r.totalAdvances, 0), color: '#fde68a' },
+                  { label: 'Total Paid', value: currentSummaries.reduce((s, r) => s + r.totalPaid, 0), color: '#6ee7b7' },
+                  { label: 'Total Remaining', value: currentSummaries.reduce((s, r) => s + Math.max(0, r.remaining), 0), color: '#fca5a5' },
+                ].map(row => (
+                  <div key={row.label} style={{ textAlign: 'center', padding: '12px 10px', background: 'rgba(255,255,255,0.07)', borderRadius: 8 }}>
+                    <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', margin: '0 0 5px', textTransform: 'uppercase', letterSpacing: 0.5 }}>{row.label}</p>
+                    <p style={{ fontSize: 18, fontWeight: 800, color: row.color, margin: 0 }}>Rs. {fmt(row.value)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* ══ PENDING REQUESTS ══ */}
       {activeTab === 'pending' && (
         <div>
           <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>Advance requests sent directly to CEO/Admin for approval.</p>
@@ -476,9 +458,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
                 <div>
                   <p style={{ fontSize: 16, fontWeight: 800, color: '#1a1a2e', margin: '0 0 4px' }}>🚴 {r.rider?.full_name}</p>
-                  <p style={{ fontSize: 12, color: '#888', margin: '0 0 2px' }}>
-                    {new Date(r.created_at).toLocaleString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                  <p style={{ fontSize: 12, color: '#888', margin: '0 0 2px' }}>{new Date(r.created_at).toLocaleString('en-PK', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
                   <p style={{ fontSize: 12, color: '#555', margin: '0 0 2px' }}>Month: {r.month_year}</p>
                   {r.notes && <p style={{ fontSize: 12, color: '#555', margin: '4px 0 0', fontStyle: 'italic' }}>"{r.notes}"</p>}
                 </div>
@@ -486,9 +466,7 @@ export default function SalaryManagement({ adminUser, tenantId }) {
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <button onClick={() => rejectRequest(r)} disabled={processing === r.id}
-                  style={{ flex: 1, padding: '11px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
-                  ✕ Reject
-                </button>
+                  style={{ flex: 1, padding: '11px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>✕ Reject</button>
                 <button onClick={() => approveRequest(r)} disabled={processing === r.id}
                   style={{ flex: 2, padding: '11px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
                   {processing === r.id ? '⏳ Processing...' : '✓ Approve Advance'}
@@ -499,7 +477,6 @@ export default function SalaryManagement({ adminUser, tenantId }) {
         </div>
       )}
 
-      {/* ══ OFFICE EXPENSES ══ */}
       {activeTab === 'expenses' && (
         <OfficeExpenses rider={adminUser} isCEO={true} tenantId={tenantId} />
       )}
