@@ -52,17 +52,11 @@ export default function AdminQuickSale({ tenantId }) {
 
   async function fetchProducts() {
     const { data } = await supabase.from('products')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true)
-      .eq('is_saleable', true)
+      .select('*').eq('tenant_id', tenantId).eq('is_active', true).eq('is_saleable', true)
       .order('product_type').order('name')
     setProducts(data || [])
     const q = {}; const r = {}
-    data?.forEach(p => {
-      q[p.id] = 0
-      r[p.id] = Number(p.sale_price) || 0
-    })
+    data?.forEach(p => { q[p.id] = 0; r[p.id] = Number(p.sale_price) || 0 })
     setQuantities(q); setRates(r)
   }
 
@@ -117,6 +111,28 @@ export default function AdminQuickSale({ tenantId }) {
     return { qtyHalf, qty15l }
   }
 
+  function getSaleLabel() {
+    const labels = {
+      cash: '💵 Cash Sale',
+      jazzcash: '📱 JazzCash Sale',
+      easypaisa: '💚 EasyPaisa Sale',
+      bank: '🏦 Bank Sale',
+      credit: '📋 Credit Sale'
+    }
+    return labels[paymentMethod] || 'Sale'
+  }
+
+  function getSaleBg() {
+    const bgs = {
+      cash: 'linear-gradient(135deg,#1a7a4a,#2e7d32)',
+      jazzcash: 'linear-gradient(135deg,#9c27b0,#7b1fa2)',
+      easypaisa: 'linear-gradient(135deg,#2e7d32,#1b5e20)',
+      bank: 'linear-gradient(135deg,#0f4c81,#0d3a61)',
+      credit: 'linear-gradient(135deg,#f44336,#c62828)'
+    }
+    return bgs[paymentMethod] || bgs.cash
+  }
+
   // ── RECEIVE PAYMENT ─────────────────────────────────────────────
   async function receivePayment() {
     if (!paymentCustomer) return alert('Please select a customer')
@@ -124,40 +140,33 @@ export default function AdminQuickSale({ tenantId }) {
     setSaving(true)
 
     const amount = Number(paymentAmount)
-    const isJazz = paymentMethodReceipt === 'jazzcash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethodReceipt)
 
     const { data: savedPayment, error } = await supabase.from('payments').insert([{
-      tenant_id: tenantId,
-      customer_id: paymentCustomer.id,
-      amount,
+      tenant_id: tenantId, customer_id: paymentCustomer.id, amount,
       payment_method: paymentMethodReceipt,
       payment_date: new Date().toISOString().split('T')[0],
       jazzcash_confirmed: !isPending,
       notes: paymentNotes || `Payment received from ${paymentCustomer.full_name}`,
-      is_voided: false,
-      rider_id: null
+      is_voided: false, rider_id: null
     }]).select().single()
 
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
     if (!isPending) {
-      const newBalance = Number(paymentCustomer.balance || 0) - amount
-      await supabase.from('customers').update({ balance: newBalance })
+      await supabase.from('customers').update({ balance: Number(paymentCustomer.balance || 0) - amount })
         .eq('id', paymentCustomer.id).eq('tenant_id', tenantId)
     }
 
     try {
-      const { postPaymentJournal } = AccountingEngine
-      await postPaymentJournal(savedPayment, tenantId, false)
+      await AccountingEngine.postPaymentJournal(savedPayment, tenantId, false)
     } catch (err) { console.error('Journal error:', err) }
 
     setSuccess({
       type: 'payment', name: paymentCustomer.full_name, amount,
       method: paymentMethodReceipt,
       newBalance: !isPending ? Number(paymentCustomer.balance || 0) - amount : paymentCustomer.balance,
-      jazzPending: isPending,
-      customerMobile: paymentCustomer.mobile || ''
+      jazzPending: isPending, customerMobile: paymentCustomer.mobile || ''
     })
     setPaymentCustomer(null); setPaymentSearch(''); setPaymentAmount(''); setPaymentNotes('')
     setSaving(false)
@@ -175,104 +184,58 @@ export default function AdminQuickSale({ tenantId }) {
     const walkinName = selectedCustomer?.full_name || customerName || 'Walk-in Customer'
     const descParts = []
     if (qty19l > 0) descParts.push(`19L×${qty19l}@Rs.${rate19l}`)
-    bottleProducts.filter(p => (quantities[p.id] || 0) > 0).forEach(p => {
-      descParts.push(`${p.name}×${quantities[p.id]}@Rs.${rates[p.id]}`)
-    })
-    extraProducts.filter(p => (quantities[p.id] || 0) > 0).forEach(p => {
-      descParts.push(`${p.name}×${quantities[p.id]}@Rs.${rates[p.id]}`)
-    })
+    bottleProducts.filter(p => (quantities[p.id] || 0) > 0).forEach(p => { descParts.push(`${p.name}×${quantities[p.id]}@Rs.${rates[p.id]}`) })
+    extraProducts.filter(p => (quantities[p.id] || 0) > 0).forEach(p => { descParts.push(`${p.name}×${quantities[p.id]}@Rs.${rates[p.id]}`) })
 
     const deliveryData = {
-      tenant_id: tenantId,
-      customer_id: selectedCustomer?.id || null,
-      rider_id: null,
-      qty_19l: qty19l,
-      qty_half_litre: qtyHalf,
-      qty_1_5l: qty15l,
-      rate_applied: rate19l || 0,
-      total_amount: subTotal,
+      tenant_id: tenantId, customer_id: selectedCustomer?.id || null, rider_id: null,
+      qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
+      rate_applied: rate19l || 0, total_amount: subTotal,
       payment_method: paymentMethod,
       amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : total,
       credit_amount: paymentMethod === 'credit' ? total : 0,
       jazzcash_confirmed: false,
-      delivered_at: new Date(saleDate).toISOString(),
-      is_voided: false,
+      delivered_at: new Date(saleDate).toISOString(), is_voided: false,
       bottles_returned: bottlesReturned,
       notes: [walkinName !== 'Walk-in Customer' ? `Customer: ${walkinName}` : '', descParts.join(' | '), notes].filter(Boolean).join(' — '),
-      tax_rate: taxRate,
-      tax_amount: taxAmount,
-      total_with_tax: total
+      tax_rate: taxRate, tax_amount: taxAmount, total_with_tax: total
     }
 
     const { data: savedDelivery, error } = await supabase.from('deliveries').insert([deliveryData]).select().single()
     if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-    // Save all line items to delivery_items
     const deliveryItems = []
-    if (qty19l > 0) {
-      deliveryItems.push({
-        tenant_id: tenantId, delivery_id: savedDelivery.id,
-        product_id: null, product_name: '19 Litre Water Bottle',
-        bottle_type: '19l', qty: qty19l,
-        rate: rate19l || 0, amount: qty19l * (rate19l || 0)
-      })
-    }
+    if (qty19l > 0) deliveryItems.push({ tenant_id: tenantId, delivery_id: savedDelivery.id, product_id: null, product_name: '19 Litre Water Bottle', bottle_type: '19l', qty: qty19l, rate: rate19l || 0, amount: qty19l * (rate19l || 0) })
     bottleProducts.forEach(p => {
       if ((quantities[p.id] || 0) > 0) {
         const rate = rates[p.id] || Number(p.sale_price) || 0
-        deliveryItems.push({
-          tenant_id: tenantId, delivery_id: savedDelivery.id,
-          product_id: p.id, product_name: p.name,
-          bottle_type: p.bottle_type, qty: quantities[p.id],
-          rate, amount: quantities[p.id] * rate
-        })
+        deliveryItems.push({ tenant_id: tenantId, delivery_id: savedDelivery.id, product_id: p.id, product_name: p.name, bottle_type: p.bottle_type, qty: quantities[p.id], rate, amount: quantities[p.id] * rate })
       }
     })
     extraProducts.forEach(p => {
       if ((quantities[p.id] || 0) > 0) {
         const rate = rates[p.id] || Number(p.sale_price) || 0
-        deliveryItems.push({
-          tenant_id: tenantId, delivery_id: savedDelivery.id,
-          product_id: p.id, product_name: p.name,
-          bottle_type: null, qty: quantities[p.id],
-          rate, amount: quantities[p.id] * rate
-        })
+        deliveryItems.push({ tenant_id: tenantId, delivery_id: savedDelivery.id, product_id: p.id, product_name: p.name, bottle_type: null, qty: quantities[p.id], rate, amount: quantities[p.id] * rate })
       }
     })
-    if (deliveryItems.length > 0) {
-      await supabase.from('delivery_items').insert(deliveryItems)
-    }
+    if (deliveryItems.length > 0) await supabase.from('delivery_items').insert(deliveryItems)
 
     const allSoldProducts = products.filter(p => (quantities[p.id] || 0) > 0)
     for (const p of allSoldProducts) {
       const qtySold = quantities[p.id]
       const avgCost = Number(p.average_cost || p.purchase_price || 0)
       const cogsCost = qtySold * avgCost
-
-      await supabase.from('products')
-        .update({ current_stock: Math.max(0, Number(p.current_stock || 0) - qtySold) })
-        .eq('id', p.id).eq('tenant_id', tenantId)
-
+      await supabase.from('products').update({ current_stock: Math.max(0, Number(p.current_stock || 0) - qtySold) }).eq('id', p.id).eq('tenant_id', tenantId)
       if ((p.product_type === 'finished_good' || p.product_type === 'trading') && cogsCost > 0) {
         try {
-          const { data: je } = await supabase.from('journal_entries').insert([{
-            tenant_id: tenantId,
-            entry_date: saleDate,
-            reference_type: 'cogs',
-            reference_id: savedDelivery.id,
-            narration: `COGS — ${p.name} × ${qtySold} sold`,
-            total_amount: cogsCost,
-            created_by: 'admin'
-          }]).select().single()
+          const { data: je } = await supabase.from('journal_entries').insert([{ tenant_id: tenantId, entry_date: saleDate, reference_type: 'cogs', reference_id: savedDelivery.id, narration: `COGS — ${p.name} × ${qtySold} sold`, total_amount: cogsCost, created_by: 'admin' }]).select().single()
           if (je) {
             const saleAmount = Number(p.selling_price || p.unit_cost || 0) * qtySold
             const drAccount = paymentMethod === 'cash' ? '1001' : paymentMethod === 'jazzcash' ? '1002' : '1100'
             const drName = paymentMethod === 'cash' ? 'Cash in Hand' : paymentMethod === 'jazzcash' ? 'JazzCash Account' : 'Accounts Receivable'
             await supabase.from('journal_entry_lines').insert([
-              // COGS entry
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: '5003', account_name: 'Cost of Goods Sold', debit: cogsCost, credit: 0 },
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: p.product_type === 'trading' ? '1202' : '1201', account_name: p.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods', debit: 0, credit: cogsCost },
-              // Revenue entry
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: drAccount, account_name: drName, debit: saleAmount, credit: 0 },
               { tenant_id: tenantId, journal_entry_id: je.id, account_code: '4004', account_name: 'Other Product Sales', debit: 0, credit: saleAmount },
             ])
@@ -282,43 +245,32 @@ export default function AdminQuickSale({ tenantId }) {
     }
 
     if (paymentMethod === 'credit' && selectedCustomer) {
-      await supabase.from('customers')
-        .update({ balance: Number(selectedCustomer.balance || 0) + total })
-        .eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+      await supabase.from('customers').update({ balance: Number(selectedCustomer.balance || 0) + total }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
     }
 
     if (selectedCustomer && (qty19l > 0 || bottlesReturned > 0)) {
       const currentBottles = Number(selectedCustomer.our_bottles_placed || 0)
-      await supabase.from('customers')
-        .update({ our_bottles_placed: Math.max(0, currentBottles + qty19l - bottlesReturned) })
-        .eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+      await supabase.from('customers').update({ our_bottles_placed: Math.max(0, currentBottles + qty19l - bottlesReturned) }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
     }
 
     try {
-      const { postDeliveryJournal } = AccountingEngine
-      await postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
+      await AccountingEngine.postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
     } catch (err) { console.error('Journal post error:', err) }
 
-    // Generate invoice number
     try {
       const year = new Date().getFullYear()
       const counterKey = `invoice_counter_${year}`
-      const { data: counterRows } = await supabase.from('business_settings')
-        .select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey)
+      const { data: counterRows } = await supabase.from('business_settings').select('setting_value').eq('tenant_id', tenantId).eq('setting_key', counterKey)
       const counter = Number(counterRows?.[0]?.setting_value || 0) + 1
       const { data: tenantData } = await supabase.from('tenants').select('tenant_code').eq('id', tenantId).single()
       const code = tenantData?.tenant_code || 'INV'
       const invoiceNumber = `${code}-${year}-${String(counter).padStart(4, '0')}`
-      await supabase.from('business_settings').upsert(
-        { tenant_id: tenantId, setting_key: counterKey, setting_value: String(counter) },
-        { onConflict: 'tenant_id,setting_key' }
-      )
+      await supabase.from('business_settings').upsert({ tenant_id: tenantId, setting_key: counterKey, setting_value: String(counter) }, { onConflict: 'tenant_id,setting_key' })
       await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
       setLastDelivery({ ...savedDelivery, invoice_number: invoiceNumber, tax_amount: taxAmount, total_with_tax: total, _customer: selectedCustomer })
     } catch (err) { console.error('Invoice number error:', err) }
 
     setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id, customerMobile: selectedCustomer?.mobile || '', newBalance: selectedCustomer ? (paymentMethod === 'credit' ? Number(selectedCustomer.balance || 0) + total : Number(selectedCustomer.balance || 0)) : 0 })
-
     setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
     setSaleDate(new Date().toISOString().split('T')[0])
     setSelectedCustomer(null); setCustomerSearch('')
@@ -326,59 +278,49 @@ export default function AdminQuickSale({ tenantId }) {
     setSaving(false)
   }
 
-  const inp = {
-    width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0',
-    borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box',
-    background: 'white', color: '#333', caretColor: '#0f4c81'
-  }
-  const card = {
-    background: 'white', borderRadius: '12px', padding: '16px',
-    marginBottom: '12px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)',
-    border: '1px solid #f0f0f0'
-  }
+  const inp = { width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', background: 'white', color: '#333', caretColor: '#0f4c81' }
+  const card = { background: 'white', borderRadius: '12px', padding: '12px 14px', marginBottom: '10px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', border: '1px solid #f0f0f0' }
 
   function SmallNumBtn({ val, onDec, onInc, color = '#0f4c81' }) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <button onClick={onDec}
-          style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #ddd', background: '#f5f5f5', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>−</button>
+        <button onClick={onDec} style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1.5px solid #ddd', background: '#f5f5f5', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>−</button>
         <span style={{ fontSize: '18px', fontWeight: '700', minWidth: '24px', textAlign: 'center', color: val > 0 ? color : '#ccc' }}>{val}</span>
-        <button onClick={onInc}
-          style={{ width: '32px', height: '32px', borderRadius: '50%', border: `1.5px solid ${color}`, background: color, color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>+</button>
+        <button onClick={onInc} style={{ width: '32px', height: '32px', borderRadius: '50%', border: `1.5px solid ${color}`, background: color, color: 'white', fontSize: '16px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>+</button>
       </div>
     )
   }
 
   return (
     <div>
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '16px' }}>
         <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: '0 0 4px' }}>⚡ Quick Sale & Payment</h2>
         <p style={{ fontSize: '13px', color: '#888', margin: 0 }}>Walk-in sales and customer payment receipts</p>
       </div>
 
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
         <button onClick={() => { setMode('sale'); setSuccess(null) }}
-          style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: mode === 'sale' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'sale' ? '#0f4c81' : 'white', color: mode === 'sale' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '22px' }}>⚡</span>
+          style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: mode === 'sale' ? '#0f4c81' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'sale' ? '#0f4c81' : 'white', color: mode === 'sale' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+          <span style={{ fontSize: '20px' }}>⚡</span>
           <span>Quick Sale</span>
           <span style={{ fontSize: '11px', opacity: 0.8 }}>Sell products to customer</span>
         </button>
         <button onClick={() => { setMode('payment'); setSuccess(null) }}
-          style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: mode === 'payment' ? '#1a7a4a' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'payment' ? '#1a7a4a' : 'white', color: mode === 'payment' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-          <span style={{ fontSize: '22px' }}>💰</span>
+          style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: mode === 'payment' ? '#1a7a4a' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'payment' ? '#1a7a4a' : 'white', color: mode === 'payment' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+          <span style={{ fontSize: '20px' }}>💰</span>
           <span>Receive Payment</span>
           <span style={{ fontSize: '11px', opacity: 0.8 }}>Collect outstanding balance</span>
         </button>
       </div>
 
       {success && (
-        <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '12px', padding: '14px 16px', marginBottom: '16px' }}>
+        <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '12px', padding: '14px 16px', marginBottom: '14px' }}>
           {success.type === 'payment' ? (
             <>
               <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Payment Received!</p>
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.name}</p>
-              <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>Rs. {success.amount.toLocaleString()} — {success.method === 'jazzcash' ? '📱 JazzCash' : '💵 Cash'}</p>
-              {success.jazzPending && <p style={{ fontSize: '12px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>⚠️ JazzCash — confirm in reconciliation to update balance</p>}
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a', margin: '0 0 2px' }}>Rs. {success.amount.toLocaleString()} — {success.method}</p>
+              {success.jazzPending && <p style={{ fontSize: '12px', color: '#e65100', margin: '4px 0 0', fontWeight: '600' }}>⚠️ Pending — confirm in reconciliation to update balance</p>}
               {!success.jazzPending && <p style={{ fontSize: '12px', color: '#555', margin: '4px 0 0' }}>New balance: <strong style={{ color: success.newBalance > 0 ? '#f44336' : '#1a7a4a' }}>Rs. {Math.abs(success.newBalance).toLocaleString()} {success.newBalance > 0 ? 'outstanding' : success.newBalance < 0 ? 'advance' : 'clear'}</strong></p>}
             </>
           ) : (
@@ -403,47 +345,18 @@ export default function AdminQuickSale({ tenantId }) {
               const customerPhone = rawPhone.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
               const waNumber = customerPhone ? `92${customerPhone}` : ''
               const bizName = settings.business_name || 'AquaRun'
-              const balanceMsg = success?.newBalance > 0
-                ? `\n⚠️ Outstanding Balance: Rs. ${success.newBalance.toLocaleString()}`
-                : success?.newBalance < 0
-                ? `\n✅ Advance Credit: Rs. ${Math.abs(success.newBalance).toLocaleString()}`
-                : `\n✅ Account Clear`
-              const msg = `*${bizName} — Sale Receipt*\n\n` +
-                `👤 Customer: ${success.name}\n` +
-                `📦 Items: ${success.desc}\n` +
-                `💰 Amount: Rs. ${success.total.toLocaleString()}\n` +
-                `💳 Payment: ${success.paymentMethod}${balanceMsg}\n\n` +
-                `_Thank you for your business!_\n_${bizName}_`
-              const url = waNumber
-                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
-                : `https://wa.me/?text=${encodeURIComponent(msg)}`
-              return (
-                <button onClick={() => window.open(url, '_blank')}
-                  style={{ padding: '5px 14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                  💬 WhatsApp
-                </button>
-              )
+              const balanceMsg = success?.newBalance > 0 ? `\n⚠️ Outstanding Balance: Rs. ${success.newBalance.toLocaleString()}` : success?.newBalance < 0 ? `\n✅ Advance Credit: Rs. ${Math.abs(success.newBalance).toLocaleString()}` : `\n✅ Account Clear`
+              const msg = `*${bizName} — Sale Receipt*\n\n👤 Customer: ${success.name}\n📦 Items: ${success.desc}\n💰 Amount: Rs. ${success.total.toLocaleString()}\n💳 Payment: ${success.paymentMethod}${balanceMsg}\n\n_Thank you for your business!_\n_${bizName}_`
+              const url = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+              return <button onClick={() => window.open(url, '_blank')} style={{ padding: '5px 14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>💬 WhatsApp</button>
             })()}
             {success?.type === 'payment' && success?.customerMobile && (() => {
               const phone = success.customerMobile.replace(/\D/g, '').replace(/^0/, '').replace(/^92/, '')
               const waNumber = phone ? `92${phone}` : ''
               const bizName = settings.business_name || 'AquaRun'
-              const msg = `*${bizName} — Payment Received*\n\n` +
-                `👤 Customer: ${success.name}\n` +
-                `💰 Amount Received: Rs. ${success.amount.toLocaleString()}\n` +
-                `💳 Method: ${success.method}\n` +
-                (success.jazzPending ? `⚠️ Pending confirmation\n` : ``) +
-                (!success.jazzPending ? `📊 New Balance: Rs. ${Math.abs(success.newBalance).toLocaleString()}${success.newBalance > 0 ? ' (outstanding)' : success.newBalance < 0 ? ' CR' : ' (clear)'}` : '') +
-                `\n\n_Thank you!_\n_${bizName}_`
-              const url = waNumber
-                ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
-                : `https://wa.me/?text=${encodeURIComponent(msg)}`
-              return (
-                <button onClick={() => window.open(url, '_blank')}
-                  style={{ padding: '5px 14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-                  💬 WhatsApp
-                </button>
-              )
+              const msg = `*${bizName} — Payment Received*\n\n👤 Customer: ${success.name}\n💰 Amount Received: Rs. ${success.amount.toLocaleString()}\n💳 Method: ${success.method}\n${success.jazzPending ? `⚠️ Pending confirmation\n` : ''}${!success.jazzPending ? `📊 New Balance: Rs. ${Math.abs(success.newBalance).toLocaleString()}${success.newBalance > 0 ? ' (outstanding)' : success.newBalance < 0 ? ' CR' : ' (clear)'}` : ''}\n\n_Thank you!_\n_${bizName}_`
+              const url = waNumber ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`
+              return <button onClick={() => window.open(url, '_blank')} style={{ padding: '5px 14px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>💬 WhatsApp</button>
             })()}
           </div>
         </div>
@@ -453,11 +366,11 @@ export default function AdminQuickSale({ tenantId }) {
       {mode === 'payment' && (
         <div>
           <div style={card}>
-            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase' }}>Select Customer *</p>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>Select Customer *</p>
             {paymentCustomer ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', background: '#e3f0ff', borderRadius: '8px', border: '1px solid #c8d8ff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#e3f0ff', borderRadius: '8px', border: '1px solid #c8d8ff' }}>
                 <div>
-                  <p style={{ fontWeight: '700', fontSize: '15px', margin: '0 0 4px', color: '#0f4c81' }}>{paymentCustomer.full_name}</p>
+                  <p style={{ fontWeight: '700', fontSize: '14px', margin: '0 0 2px', color: '#0f4c81' }}>{paymentCustomer.full_name}</p>
                   <p style={{ fontSize: '12px', color: '#555', margin: '0 0 2px' }}>{paymentCustomer.mobile} · {paymentCustomer.customer_code}</p>
                   <p style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: Number(paymentCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}>
                     Outstanding: Rs. {Math.abs(Number(paymentCustomer.balance || 0)).toLocaleString()}
@@ -492,30 +405,31 @@ export default function AdminQuickSale({ tenantId }) {
           </div>
 
           <div style={card}>
-            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase' }}>Payment Method</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>Payment Method</p>
+            <div style={{ display: 'flex', gap: '8px' }}>
               {[
                 { key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' },
-                { key: 'jazzcash', label: 'JazzCash', urdu: 'جیز کیش', icon: '📱', color: '#9c27b0' },
-                ...(settings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'EasyPaisa', urdu: 'ایزی پیسہ', icon: '💚', color: '#4caf50' }] : []),
+                { key: 'jazzcash', label: 'JazzCash', urdu: 'JZC', icon: '📱', color: '#9c27b0' },
+                ...(settings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'EasyPaisa', urdu: 'EP', icon: '💚', color: '#4caf50' }] : []),
                 ...(settings?.bank_name ? [{ key: 'bank', label: 'Bank', urdu: 'بینک', icon: '🏦', color: '#0f4c81' }] : []),
               ].map(pm => (
                 <button key={pm.key} onClick={() => setPaymentMethodReceipt(pm.key)}
-                  style={{ flex: 1, padding: '14px', border: '2px solid', borderColor: paymentMethodReceipt === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethodReceipt === pm.key ? pm.color : 'white', color: paymentMethodReceipt === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                  <span style={{ fontSize: '24px' }}>{pm.icon}</span>
-                  <span>{pm.urdu} {pm.label}</span>
+                  style={{ flex: 1, padding: '10px 4px', border: '2px solid', borderColor: paymentMethodReceipt === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethodReceipt === pm.key ? pm.color : 'white', color: paymentMethodReceipt === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+                  <span style={{ fontSize: '20px' }}>{pm.icon}</span>
+                  <span>{pm.urdu}</span>
+                  <span style={{ fontSize: '10px', opacity: 0.8 }}>{pm.label}</span>
                 </button>
               ))}
             </div>
-            {paymentMethodReceipt === 'jazzcash' && <p style={{ fontSize: '12px', color: '#9c27b0', margin: '10px 0 0', background: '#f3e5f5', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>📱 JazzCash payment will be pending until confirmed in JazzCash Reconciliation</p>}
-            {paymentMethodReceipt === 'easypaisa' && <p style={{ fontSize: '12px', color: '#4caf50', margin: '10px 0 0', background: '#e8f5e9', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>💚 EasyPaisa: {settings?.jazzcash_number_2} — {settings?.jazzcash_name_2} — pending until confirmed</p>}
-            {paymentMethodReceipt === 'bank' && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '10px 0 0', background: '#e3f0ff', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>🏦 {settings?.bank_name} — {settings?.bank_account_title} — {settings?.bank_account_number} — pending until confirmed</p>}
-            {paymentMethodReceipt === 'cash' && <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '10px 0 0', background: '#e8f5e9', padding: '8px 12px', borderRadius: '8px', fontWeight: '600' }}>💵 Cash goes directly to CEO Cash in Hand — balance updated immediately</p>}
+            {paymentMethodReceipt === 'jazzcash' && <p style={{ fontSize: '12px', color: '#9c27b0', margin: '8px 0 0', background: '#f3e5f5', padding: '7px 10px', borderRadius: '8px', fontWeight: '600' }}>📱 JazzCash — pending until confirmed in reconciliation</p>}
+            {paymentMethodReceipt === 'easypaisa' && <p style={{ fontSize: '12px', color: '#4caf50', margin: '8px 0 0', background: '#e8f5e9', padding: '7px 10px', borderRadius: '8px', fontWeight: '600' }}>💚 EasyPaisa: {settings?.jazzcash_number_2} — pending until confirmed</p>}
+            {paymentMethodReceipt === 'bank' && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '8px 0 0', background: '#e3f0ff', padding: '7px 10px', borderRadius: '8px', fontWeight: '600' }}>🏦 {settings?.bank_name} — {settings?.bank_account_number} — pending until confirmed</p>}
+            {paymentMethodReceipt === 'cash' && <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '8px 0 0', background: '#e8f5e9', padding: '7px 10px', borderRadius: '8px', fontWeight: '600' }}>💵 Cash goes directly to CEO Cash in Hand</p>}
           </div>
 
           <div style={card}>
-            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase' }}>Amount Received (Rs.)</p>
-            <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0" style={{ ...inp, fontSize: '28px', fontWeight: '700', textAlign: 'center', marginBottom: '10px' }} />
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>Amount Received (Rs.)</p>
+            <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)} placeholder="0" style={{ ...inp, fontSize: '28px', fontWeight: '700', textAlign: 'center', marginBottom: '8px' }} />
             {paymentCustomer && Number(paymentCustomer.balance) > 0 && (
               <button onClick={() => setPaymentAmount(String(paymentCustomer.balance))} style={{ width: '100%', padding: '8px', background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#0f4c81', fontWeight: '600' }}>
                 Full Balance: Rs. {Number(paymentCustomer.balance).toLocaleString()}
@@ -524,20 +438,20 @@ export default function AdminQuickSale({ tenantId }) {
           </div>
 
           <div style={card}>
-            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>Notes (optional)</p>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '6px', textTransform: 'uppercase' }}>Notes (optional)</p>
             <input value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)} placeholder="e.g. Monthly payment, partial payment..." style={inp} />
           </div>
 
           <div style={card}>
             {paymentCustomer && paymentAmount && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '14px', padding: '12px', background: '#f0f7ff', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', padding: '10px 12px', background: '#f0f7ff', borderRadius: '8px' }}>
                 <span style={{ fontSize: '15px', fontWeight: '700', color: '#333' }}>Amount to Receive</span>
-                <span style={{ fontSize: '28px', fontWeight: '800', color: '#0f4c81' }}>Rs. {Number(paymentAmount).toLocaleString()}</span>
+                <span style={{ fontSize: '26px', fontWeight: '800', color: '#0f4c81' }}>Rs. {Number(paymentAmount).toLocaleString()}</span>
               </div>
             )}
             <button onClick={receivePayment} disabled={saving}
-              style={{ width: '100%', padding: '15px', background: paymentMethodReceipt === 'cash' ? 'linear-gradient(135deg,#1a7a4a,#2e7d32)' : 'linear-gradient(135deg,#9c27b0,#7b1fa2)', color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-              {saving ? '⏳ Saving...' : `✓ ${paymentMethodReceipt === 'cash' ? '💵 Receive Cash' : '📱 Record JazzCash'} — Rs. ${Number(paymentAmount || 0).toLocaleString()}`}
+              style={{ width: '100%', padding: '14px', background: paymentMethodReceipt === 'cash' ? 'linear-gradient(135deg,#1a7a4a,#2e7d32)' : paymentMethodReceipt === 'jazzcash' ? 'linear-gradient(135deg,#9c27b0,#7b1fa2)' : paymentMethodReceipt === 'easypaisa' ? 'linear-gradient(135deg,#2e7d32,#1b5e20)' : 'linear-gradient(135deg,#0f4c81,#0d3a61)', color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+              {saving ? '⏳ Saving...' : `✓ ${paymentMethodReceipt === 'cash' ? '💵 Receive Cash' : paymentMethodReceipt === 'jazzcash' ? '📱 Record JazzCash' : paymentMethodReceipt === 'easypaisa' ? '💚 Record EasyPaisa' : '🏦 Record Bank'} — Rs. ${Number(paymentAmount || 0).toLocaleString()}`}
             </button>
           </div>
         </div>
@@ -549,25 +463,26 @@ export default function AdminQuickSale({ tenantId }) {
 
           {/* LEFT COLUMN */}
           <div>
+            {/* Payment Method */}
             <div style={card}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Payment Method</p>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Payment Method</p>
+              <div style={{ display: 'flex', gap: '6px' }}>
                 {[
-                  { key: 'cash', label: 'Cash', urdu: 'نقد', icon: '💵', color: '#1a7a4a' },
-                  { key: 'jazzcash', label: 'JazzCash', urdu: 'JZC', icon: '📱', color: '#9c27b0' },
+                  { key: 'cash',      label: 'Cash',      urdu: 'نقد',     icon: '💵', color: '#1a7a4a' },
+                  { key: 'jazzcash',  label: 'JazzCash',  urdu: 'JZC',     icon: '📱', color: '#9c27b0' },
                   ...(settings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'EasyPaisa', urdu: 'EP', icon: '💚', color: '#4caf50' }] : []),
                   ...(settings?.bank_name ? [{ key: 'bank', label: 'Bank', urdu: 'بینک', icon: '🏦', color: '#0f4c81' }] : []),
-                  { key: 'credit', label: 'Credit', urdu: 'ادھار', icon: '📋', color: '#f44336' },
+                  { key: 'credit',    label: 'Credit',    urdu: 'ادھار',   icon: '📋', color: '#f44336' },
                 ].map(pm => (
-                  <button key={pm.key} onClick={() => { setPaymentMethod(pm.key) }}
-                    style={{ flex: 1, padding: '12px 4px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
-                    <span style={{ fontSize: '20px' }}>{pm.icon}</span>
+                  <button key={pm.key} onClick={() => setPaymentMethod(pm.key)}
+                    style={{ flex: 1, padding: '10px 4px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                    <span style={{ fontSize: '18px' }}>{pm.icon}</span>
                     <span>{pm.urdu}</span>
                     <span style={{ fontSize: '10px', opacity: 0.8 }}>{pm.label}</span>
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: '11px', fontWeight: '600', margin: '10px 0 0', padding: '6px 10px', borderRadius: '6px', background: paymentMethod === 'cash' ? '#e8f5e9' : paymentMethod === 'jazzcash' ? '#f3e5f5' : paymentMethod === 'easypaisa' ? '#e8f5e9' : paymentMethod === 'bank' ? '#e3f0ff' : '#ffebee', color: paymentMethod === 'cash' ? '#1a7a4a' : paymentMethod === 'jazzcash' ? '#9c27b0' : paymentMethod === 'easypaisa' ? '#4caf50' : paymentMethod === 'bank' ? '#0f4c81' : '#f44336' }}>
+              <p style={{ fontSize: '11px', fontWeight: '600', margin: '8px 0 0', padding: '6px 10px', borderRadius: '6px', background: paymentMethod === 'cash' ? '#e8f5e9' : paymentMethod === 'jazzcash' ? '#f3e5f5' : paymentMethod === 'easypaisa' ? '#e8f5e9' : paymentMethod === 'bank' ? '#e3f0ff' : '#ffebee', color: paymentMethod === 'cash' ? '#1a7a4a' : paymentMethod === 'jazzcash' ? '#9c27b0' : paymentMethod === 'easypaisa' ? '#4caf50' : paymentMethod === 'bank' ? '#0f4c81' : '#f44336' }}>
                 {paymentMethod === 'cash' && '💵 Goes to CEO Cash in Hand'}
                 {paymentMethod === 'jazzcash' && '📱 Goes to CEO JazzCash — confirm in reconciliation'}
                 {paymentMethod === 'easypaisa' && '💚 EasyPaisa — pending until confirmed'}
@@ -576,12 +491,13 @@ export default function AdminQuickSale({ tenantId }) {
               </p>
             </div>
 
+            {/* Customer */}
             <div style={card}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                 Customer {paymentMethod === 'credit' ? <span style={{ color: '#f44336' }}>★ Required</span> : <span style={{ color: '#aaa', fontWeight: '400' }}>(Optional)</span>}
               </p>
               {selectedCustomer ? (
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#e3f0ff', borderRadius: '8px', border: '1px solid #c8d8ff' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#e3f0ff', borderRadius: '8px', border: '1px solid #c8d8ff' }}>
                   <div>
                     <p style={{ fontWeight: '700', fontSize: '14px', margin: '0 0 2px', color: '#0f4c81' }}>{selectedCustomer.full_name}</p>
                     <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>{selectedCustomer.mobile} · Balance: <strong style={{ color: Number(selectedCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}>Rs. {Math.abs(Number(selectedCustomer.balance || 0)).toLocaleString()}</strong></p>
@@ -590,16 +506,15 @@ export default function AdminQuickSale({ tenantId }) {
                 </div>
               ) : (
                 <div>
-                  {paymentMethod !== 'credit' && <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in name (optional)" style={{ ...inp, marginBottom: '8px' }} />}
+                  {paymentMethod !== 'credit' && <input value={customerName} onChange={e => setCustomerName(e.target.value)} placeholder="Walk-in name (optional)" style={{ ...inp, marginBottom: '6px' }} />}
                   <input value={customerSearch} onChange={e => searchCustomer(e.target.value)} placeholder="Search by name, mobile or ID..." style={inp} />
                   {customerResults.length > 0 && (
                     <div style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', marginTop: '4px' }}>
                       {customerResults.map(c => (
-                        <div key={c.id} onClick={() => selectCustomer(c)} style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white' }}>
+                        <div key={c.id} onClick={() => selectCustomer(c)} style={{ padding: '8px 12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white' }}>
                           <div>
                             <p style={{ fontWeight: '600', fontSize: '13px', margin: '0 0 1px' }}>{c.full_name}</p>
                             <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
-                            {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <p style={{ fontSize: '12px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: '0 0 2px' }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
@@ -613,31 +528,40 @@ export default function AdminQuickSale({ tenantId }) {
               )}
             </div>
 
-            <div style={card}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sale Date</p>
-              <input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)} max={new Date().toISOString().split('T')[0]} style={{ ...inp, fontSize: '15px' }} />
-              {saleDate !== new Date().toISOString().split('T')[0] && <p style={{ fontSize: '11px', color: '#e65100', margin: '6px 0 0', fontWeight: '600' }}>⚠️ Back-dated entry — {new Date(saleDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
+            {/* Sale Date */}
+            <div style={{ ...card, padding: '8px 12px', marginBottom: '8px' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Sale Date</p>
+              <input type="date" value={saleDate} onChange={e => setSaleDate(e.target.value)} max={new Date().toISOString().split('T')[0]} style={{ ...inp, fontSize: '14px' }} />
+              {saleDate !== new Date().toISOString().split('T')[0] && <p style={{ fontSize: '11px', color: '#e65100', margin: '5px 0 0', fontWeight: '600' }}>⚠️ Back-dated — {new Date(saleDate).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}</p>}
             </div>
 
-            <div style={card}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
-              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
-            </div>
-
-            <div style={{ ...card, border: '1px solid #fff3e0' }}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#e65100', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>🫙 Empty Bottles Returned</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', justifyContent: 'center' }}>
-                <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
-                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
-                <span style={{ fontSize: '28px', fontWeight: '700', minWidth: '40px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
-                <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
-                  style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
+            {/* 19L Bottle — moved here */}
+            <div style={{ ...card, border: '2px solid #c8d8ff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81', margin: '0 0 1px' }}>🍶 19 Litre Bottle</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Main product · select quantity and rate</p>
+                </div>
+                <SmallNumBtn val={qty19l} onDec={() => setQty19l(Math.max(0, qty19l - 1))} onInc={() => setQty19l(qty19l + 1)} />
               </div>
-              {bottlesReturned > 0 && selectedCustomer && (
-                <p style={{ fontSize: '11px', color: '#e65100', margin: '8px 0 0', textAlign: 'center', fontWeight: '600' }}>
-                  🫙 {bottlesReturned} empty bottle{bottlesReturned > 1 ? 's' : ''} returned by {selectedCustomer.full_name}
-                </p>
-              )}
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Rate per bottle (Rs.)</p>
+              <div style={{ display: isMobile ? 'grid' : 'flex', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : undefined, flexWrap: isMobile ? undefined : 'nowrap', gap: '5px', marginBottom: '8px' }}>
+                {RATES_19L.map(r => (
+                  <button key={r} onClick={() => setRate19l(r)}
+                    style={{ padding: '7px 4px', border: '2px solid', borderColor: rate19l === r ? '#0f4c81' : '#eee', borderRadius: '7px', cursor: 'pointer', background: rate19l === r ? '#0f4c81' : '#f8f9fa', color: rate19l === r ? 'white' : '#333', fontWeight: '700', fontSize: '12px', textAlign: 'center' }}>
+                    Rs.{r}
+                  </button>
+                ))}
+              </div>
+              <input type="number" value={rate19l || ''} onChange={e => setRate19l(e.target.value === '' ? null : Number(e.target.value))} placeholder="Or type custom rate..."
+                style={{ ...inp, fontSize: '14px', fontWeight: '700', textAlign: 'center', borderColor: rate19l ? '#0f4c81' : '#ddd' }} />
+              {rate19l && qty19l > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700', margin: '6px 0 0', textAlign: 'center', background: '#e3f0ff', padding: '6px', borderRadius: '7px' }}>{qty19l} × Rs.{rate19l} = <strong>Rs. {(qty19l * rate19l).toLocaleString()}</strong></p>}
+            </div>
+
+            {/* Notes */}
+            <div style={{ ...card, padding: '8px 12px', marginBottom: '8px' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
             </div>
 
             {/* Total & Submit */}
@@ -658,42 +582,38 @@ export default function AdminQuickSale({ tenantId }) {
                   <span>Rs. {taxAmount.toLocaleString()}</span>
                 </div>
               )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #eee', paddingTop: '10px', marginTop: '8px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '2px solid #eee', paddingTop: '10px', marginTop: '8px', marginBottom: '12px' }}>
                 <span style={{ fontSize: '16px', fontWeight: '700', color: '#333' }}>Total Amount</span>
-                <span style={{ fontSize: '32px', fontWeight: '800', color: '#0f4c81', letterSpacing: '-1px' }}>Rs. {total.toLocaleString()}</span>
+                <span style={{ fontSize: '30px', fontWeight: '800', color: '#0f4c81', letterSpacing: '-1px' }}>Rs. {total.toLocaleString()}</span>
               </div>
-              {paymentMethod === 'credit' && selectedCustomer && <p style={{ fontSize: '12px', color: '#f44336', background: '#ffebee', padding: '8px 10px', borderRadius: '6px', marginBottom: '10px', fontWeight: '600' }}>📋 Rs. {total.toLocaleString()} will be added to {selectedCustomer.full_name}'s balance</p>}
+              {paymentMethod === 'credit' && selectedCustomer && <p style={{ fontSize: '12px', color: '#f44336', background: '#ffebee', padding: '7px 10px', borderRadius: '6px', marginBottom: '10px', fontWeight: '600' }}>📋 Rs. {total.toLocaleString()} will be added to {selectedCustomer.full_name}'s balance</p>}
               <button onClick={postSale} disabled={saving}
-                style={{ width: '100%', padding: '15px', background: paymentMethod === 'cash' ? 'linear-gradient(135deg,#1a7a4a,#2e7d32)' : paymentMethod === 'jazzcash' ? 'linear-gradient(135deg,#9c27b0,#7b1fa2)' : 'linear-gradient(135deg,#f44336,#c62828)', color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                {saving ? '⏳ Saving...' : `✓ ${paymentMethod === 'cash' ? '💵 Cash Sale' : paymentMethod === 'jazzcash' ? '📱 JazzCash Sale' : '📋 Credit Sale'} — Rs. ${total.toLocaleString()}`}
+                style={{ width: '100%', padding: '14px', background: getSaleBg(), color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
+                {saving ? '⏳ Saving...' : `✓ ${getSaleLabel()} — Rs. ${total.toLocaleString()}`}
               </button>
             </div>
           </div>
 
-          {/* RIGHT COLUMN — Products */}
+          {/* RIGHT COLUMN — Other Products */}
           <div>
-            <div style={{ ...card, border: '2px solid #c8d8ff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <div>
-                  <p style={{ fontSize: '16px', fontWeight: '700', color: '#0f4c81', margin: '0 0 2px' }}>🍶 19 Litre Bottle</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Main product · select quantity and rate</p>
+            {/* Empty Bottles Returned */}
+            <div style={{ ...card, border: '1px solid #fff3e0', padding: isMobile ? '10px 14px' : '8px 14px', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#e65100', margin: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🫙 Empty Bottles Returned</p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <button onClick={() => setBottlesReturned(Math.max(0, bottlesReturned - 1))}
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '16px', cursor: 'pointer' }}>−</button>
+                  <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '32px', textAlign: 'center', color: bottlesReturned > 0 ? '#e65100' : '#ccc' }}>{bottlesReturned}</span>
+                  <button onClick={() => setBottlesReturned(bottlesReturned + 1)}
+                    style={{ width: '32px', height: '32px', borderRadius: '50%', border: '1px solid #e65100', background: '#e65100', color: 'white', fontSize: '16px', cursor: 'pointer' }}>+</button>
                 </div>
-                <SmallNumBtn val={qty19l} onDec={() => setQty19l(Math.max(0, qty19l - 1))} onInc={() => setQty19l(qty19l + 1)} />
               </div>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '8px' }}>Rate per bottle (Rs.)</p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
-                {RATES_19L.map(r => (
-                  <button key={r} onClick={() => setRate19l(r)}
-                    style={{ padding: '8px 14px', border: '2px solid', borderColor: rate19l === r ? '#0f4c81' : '#eee', borderRadius: '8px', cursor: 'pointer', background: rate19l === r ? '#0f4c81' : '#f8f9fa', color: rate19l === r ? 'white' : '#333', fontWeight: '700', fontSize: '13px' }}>
-                    Rs.{r}
-                  </button>
-                ))}
-              </div>
-              <input type="number" value={rate19l || ''} onChange={e => setRate19l(e.target.value === '' ? null : Number(e.target.value))} placeholder="Or type custom rate..."
-                style={{ ...inp, fontSize: '15px', fontWeight: '700', textAlign: 'center', borderColor: rate19l ? '#0f4c81' : '#ddd' }} />
-              {rate19l && qty19l > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700', margin: '8px 0 0', textAlign: 'center', background: '#e3f0ff', padding: '8px', borderRadius: '8px' }}>{qty19l} × Rs.{rate19l} = <strong>Rs. {(qty19l * rate19l).toLocaleString()}</strong></p>}
+              {bottlesReturned > 0 && selectedCustomer && (
+                <p style={{ fontSize: '11px', color: '#e65100', margin: '6px 0 0', fontWeight: '600' }}>
+                  🫙 {bottlesReturned} empty bottle{bottlesReturned > 1 ? 's' : ''} returned by {selectedCustomer.full_name}
+                </p>
+              )}
             </div>
-
             {bottleProducts.map(p => (
               <div key={p.id} style={card}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -708,13 +628,13 @@ export default function AdminQuickSale({ tenantId }) {
                     {(quantities[p.id] || 0) > 0 && (
                       <input type="number" value={rates[p.id] || ''} onChange={e => setRates(r => ({ ...r, [p.id]: Number(e.target.value) || 0 }))}
                         placeholder="Rate"
-                        style={{ width: '75px', padding: '7px 8px', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '13px', fontWeight: '700', outline: 'none', textAlign: 'center', color: '#333', background: 'white' }} />
+                        style={{ width: '70px', padding: '6px 8px', border: '1.5px solid #ddd', borderRadius: '6px', fontSize: '13px', fontWeight: '700', outline: 'none', textAlign: 'center', color: '#333', background: 'white' }} />
                     )}
                     <SmallNumBtn val={quantities[p.id] || 0} onDec={() => setQuantities(q => ({ ...q, [p.id]: Math.max(0, (q[p.id] || 0) - 1) }))} onInc={() => setQuantities(q => ({ ...q, [p.id]: (q[p.id] || 0) + 1 }))} />
                   </div>
                 </div>
                 {(quantities[p.id] || 0) > 0 && (rates[p.id] || 0) > 0 && (
-                  <p style={{ fontSize: '11px', color: '#0f4c81', fontWeight: '600', margin: '6px 0 0', textAlign: 'right' }}>
+                  <p style={{ fontSize: '11px', color: '#0f4c81', fontWeight: '600', margin: '5px 0 0', textAlign: 'right' }}>
                     {quantities[p.id]} × Rs.{rates[p.id]} = Rs. {((quantities[p.id] || 0) * (rates[p.id] || 0)).toLocaleString()}
                   </p>
                 )}
@@ -723,9 +643,9 @@ export default function AdminQuickSale({ tenantId }) {
 
             {extraProducts.length > 0 && (
               <div style={card}>
-                <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Other Products</p>
+                <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Other Products</p>
                 {extraProducts.map((p, i) => (
-                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < extraProducts.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: i < extraProducts.length - 1 ? '1px solid #f5f5f5' : 'none' }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontSize: '13px', fontWeight: '600', margin: '0 0 1px', color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</p>
                       <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
@@ -737,11 +657,11 @@ export default function AdminQuickSale({ tenantId }) {
                       {(quantities[p.id] || 0) > 0 && (
                         <input type="number" value={rates[p.id] || ''} onChange={e => setRates(r => ({ ...r, [p.id]: Number(e.target.value) || 0 }))}
                           placeholder="Rate"
-                          style={{ width: '65px', padding: '5px 6px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '12px', fontWeight: '700', outline: 'none', textAlign: 'center', color: '#333', background: 'white' }} />
+                          style={{ width: '60px', padding: '5px 6px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '12px', fontWeight: '700', outline: 'none', textAlign: 'center', color: '#333', background: 'white' }} />
                       )}
-                      <button onClick={() => setQuantities(q => ({ ...q, [p.id]: Math.max(0, (q[p.id] || 0) - 1) }))} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>−</button>
+                      <button onClick={() => setQuantities(q => ({ ...q, [p.id]: Math.max(0, (q[p.id] || 0) - 1) }))} style={{ width: '26px', height: '26px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>−</button>
                       <span style={{ fontSize: '14px', fontWeight: '700', minWidth: '20px', textAlign: 'center', color: (quantities[p.id] || 0) > 0 ? '#0f4c81' : '#ccc' }}>{quantities[p.id] || 0}</span>
-                      <button onClick={() => setQuantities(q => ({ ...q, [p.id]: (q[p.id] || 0) + 1 }))} style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>+</button>
+                      <button onClick={() => setQuantities(q => ({ ...q, [p.id]: (q[p.id] || 0) + 1 }))} style={{ width: '26px', height: '26px', borderRadius: '50%', border: '1px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700' }}>+</button>
                     </div>
                   </div>
                 ))}
