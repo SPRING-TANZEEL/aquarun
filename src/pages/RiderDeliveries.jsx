@@ -9,14 +9,14 @@ import {
 const RATES = [90, 100, 110, 120, 150, 160, 170, 180]
 
 const REMARK_TYPES = [
-  { key: 'not_home',      labelEn: 'Not at Home',    labelUr: 'Ú¯Ú¾Ø± Ù¾Ø± Ù†ÛÛŒÚº',     icon: 'ðŸ ' },
-  { key: 'has_water',     labelEn: 'Has Water',       labelUr: 'Ù¾Ø§Ù†ÛŒ Ù…ÙˆØ¬ÙˆØ¯ ÛÛ’',   icon: 'ðŸ’§' },
-  { key: 'wont_purchase', labelEn: "Won't Buy",       labelUr: 'Ù†ÛÛŒÚº Ø®Ø±ÛŒØ¯ÛŒÚº Ú¯Û’', icon: 'ðŸš«' },
-  { key: 'shifted',       labelEn: 'Shifted House',   labelUr: 'Ú¯Ú¾Ø± Ø¨Ø¯Ù„ Ù„ÛŒØ§',    icon: 'ðŸšï¸' },
-  { key: 'vacation',      labelEn: 'On Vacation',     labelUr: 'Ú†Ú¾Ù¹ÛŒ Ù¾Ø± ÛÛŒÚº',    icon: 'âœˆï¸' },
-  { key: 'no_response',   labelEn: 'No Response',     labelUr: 'Ú©ÙˆØ¦ÛŒ Ø¬ÙˆØ§Ø¨ Ù†ÛÛŒÚº', icon: 'ðŸ“µ' },
-  { key: 'office_closed', labelEn: 'Office Closed',   labelUr: 'Ø¯ÙØªØ± Ø¨Ù†Ø¯',        icon: 'ðŸ¢' },
-  { key: 'other',         labelEn: 'Other',           labelUr: 'Ø¯ÛŒÚ¯Ø±',            icon: 'ðŸ’¬' },
+  { key: 'not_home',      labelEn: 'Not at Home',    labelUr: 'گھر پر نہیں',     icon: '🏠' },
+  { key: 'has_water',     labelEn: 'Has Water',       labelUr: 'پانی موجود ہے',   icon: '💧' },
+  { key: 'wont_purchase', labelEn: "Won't Buy",       labelUr: 'نہیں خریدیں گے', icon: '🚫' },
+  { key: 'shifted',       labelEn: 'Shifted House',   labelUr: 'گھر بدل لیا',    icon: '🏚️' },
+  { key: 'vacation',      labelEn: 'On Vacation',     labelUr: 'چھٹی پر ہیں',    icon: '✈️' },
+  { key: 'no_response',   labelEn: 'No Response',     labelUr: 'کوئی جواب نہیں', icon: '📵' },
+  { key: 'office_closed', labelEn: 'Office Closed',   labelUr: 'دفتر بند',        icon: '🏢' },
+  { key: 'other',         labelEn: 'Other',           labelUr: 'دیگر',            icon: '💬' },
 ]
 
 export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, salesTaxRate = 16 }) {
@@ -169,7 +169,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     return subTotal() + taxAmount()
   }
 
-  // â”€â”€ GENERATE TODAY'S SCHEDULED ORDERS â”€â”€
+  // ── GENERATE TODAY'S SCHEDULED ORDERS ──
   async function generateTodaySchedule() {
     if (!isOnline) return alert('Internet required')
     setGeneratingSchedule(true)
@@ -213,14 +213,14 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         qty_1_5l: Number(customer.default_qty_1_5l) || 0,
         delivery_date: today,
         status: 'assigned',
-        notes: 'Auto â€” Recurring schedule'
+        notes: 'Auto — Recurring schedule'
       }])
       created++
     }
 
     setGeneratingSchedule(false)
     setScheduleGenerated(true)
-    alert(`âœ… ${created} orders created Â· ${skipped} already existed`)
+    alert(`✅ ${created} orders created · ${skipped} already existed`)
     fetchOrders()
   }
 
@@ -336,9 +336,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       })
       if (riderItems.length > 0) await supabase.from('delivery_items').insert(riderItems)
 
-      // Balance calculated dynamically from customer_balances view â€” no manual update needed
+      // Balance calculated dynamically from customer_balances view — no manual update needed
 
-      // âœ… Update our_bottles_placed
+      // ✅ Update our_bottles_placed
       // + qty delivered - bottles returned by customer
       const currentBottles = Number(selectedOrder.customers?.our_bottles_placed || 0)
       const currentOtherBrands = Number(selectedOrder.customers?.other_brand_bottles_held || 0)
@@ -384,7 +384,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     } else {
       await savePendingDelivery(deliveryData)
       await updateOrderStatusOffline(selectedOrder.id, 'completed')
-      // Balance calculated dynamically from customer_balances view â€” no manual update needed
+      // Balance calculated dynamically from customer_balances view — no manual update needed
     }
 
     setSuccess({
@@ -454,9 +454,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     await fetchOrders()
 
     if (needsReview) {
-      alert(`âš ï¸ 3 attempts failed for ${selectedOrder.customers?.full_name}. Admin has been notified.`)
+      alert(`⚠️ 3 attempts failed for ${selectedOrder.customers?.full_name}. Admin has been notified.`)
     } else {
-      alert(`âœ… Order rescheduled to tomorrow (Attempt ${newAttempts}/3)`)
+      alert(`✅ Order rescheduled to tomorrow (Attempt ${newAttempts}/3)`)
     }
   }
 
@@ -464,7 +464,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
         <button onClick={() => setVal(Math.max(min, val - 1))}
-          style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>âˆ’</button>
+          style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #ddd', background: '#f5f5f5', fontSize: '18px', cursor: 'pointer' }}>−</button>
         <span style={{ fontSize: '22px', fontWeight: '700', minWidth: '30px', textAlign: 'center' }}>{val}</span>
         <button onClick={() => setVal(val + 1)}
           style={{ width: '36px', height: '36px', borderRadius: '50%', border: '1px solid #0f4c81', background: '#0f4c81', color: 'white', fontSize: '18px', cursor: 'pointer' }}>+</button>
@@ -482,7 +482,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>ðŸ“¦ My Deliveries</h2>
+        <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', margin: 0 }}>📦 My Deliveries</h2>
         {orders.length > 0 && (() => {
           const stops = orders
             .filter(o => o.customers?.latitude || o.customers?.address)
@@ -501,7 +501,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             <a href={routeUrl}
               target="_blank" rel="noreferrer"
               style={{ padding: '8px 14px', background: '#1a7a4a', color: 'white', borderRadius: 8, fontSize: 13, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-              ðŸ—ºï¸ My Route
+              🗺️ My Route
             </a>
           )
         })()}
@@ -511,7 +511,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         <div style={{ background: 'white', borderRadius: 10, padding: '12px 14px', marginBottom: 12, boxShadow: '0 2px 6px rgba(0,0,0,0.06)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>
-              ðŸ“¦ Today's Progress
+              📦 Today's Progress
             </span>
             <span style={{ fontSize: 12, fontWeight: 700, color: '#1a7a4a' }}>
               {completedCount} / {completedCount + orders.length} completed
@@ -528,7 +528,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           </div>
           {completedCount + orders.length > 0 && (
             <p style={{ fontSize: 11, color: '#888', margin: '4px 0 0' }}>
-              {orders.length} remaining Â· {Math.round((completedCount / (completedCount + orders.length)) * 100)}% done
+              {orders.length} remaining · {Math.round((completedCount / (completedCount + orders.length)) * 100)}% done
             </p>
           )}
         </div>
@@ -536,28 +536,28 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
       {!isOnline && (
         <p style={{ fontSize: '12px', color: '#ea580c', marginBottom: '12px', background: '#fff7ed', padding: '6px 10px', borderRadius: '6px', border: '1px solid #fed7aa' }}>
-          ðŸ“µ Offline â€” deliveries will sync when internet is available
+          📵 Offline — deliveries will sync when internet is available
         </p>
       )}
 
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px 16px', marginBottom: '16px' }}>
-          <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>âœ… Delivery Completed!</p>
-          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} â€” Rs. {success.total.toLocaleString()}</p>
+          <p style={{ fontWeight: '700', color: '#1b5e20', marginBottom: '4px' }}>✅ Delivery Completed!</p>
+          <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>{success.customer} — Rs. {success.total.toLocaleString()}</p>
           {success.received > 0 && <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>Cash: Rs. {success.received.toLocaleString()}</p>}
           {success.creditPortion > 0 && <p style={{ fontSize: '13px', color: '#f44336', margin: '0 0 2px' }}>Credit: Rs. {success.creditPortion.toLocaleString()}</p>}
           <p style={{ fontSize: '13px', color: '#e65100', margin: '0 0 2px' }}>
-            ðŸ«™ Delivered: {success.qty19l} Â· Returned: {success.bottlesReturned} Â· Our bottles now with customer: {success.newBottlesWithCustomer}
+            🫙 Delivered: {success.qty19l} · Returned: {success.bottlesReturned} · Our bottles now with customer: {success.newBottlesWithCustomer}
           </p>
           {success.savedOffline && (
-            <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>ðŸ“µ Saved offline â€” will sync later</p>
+            <p style={{ fontSize: '12px', color: '#ea580c', margin: '4px 0 0', fontWeight: '600' }}>📵 Saved offline — will sync later</p>
           )}
           {currentOrderIndex !== null && currentOrderIndex + 1 < orders.length && (
             <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.5)', borderRadius: 8 }}>
-              <p style={{ fontSize: 12, color: '#1a7a4a', fontWeight: 700, margin: '0 0 2px' }}>â­ Next Stop:</p>
+              <p style={{ fontSize: 12, color: '#1a7a4a', fontWeight: 700, margin: '0 0 2px' }}>⏭ Next Stop:</p>
               <p style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#1b5e20' }}>{orders[currentOrderIndex + 1]?.customers?.full_name}</p>
               {orders[currentOrderIndex + 1]?.customers?.address && (
-                <p style={{ fontSize: 11, color: '#2e7d32', margin: '1px 0 0' }}>ðŸ“ {orders[currentOrderIndex + 1]?.customers?.address}</p>
+                <p style={{ fontSize: 11, color: '#2e7d32', margin: '1px 0 0' }}>📍 {orders[currentOrderIndex + 1]?.customers?.address}</p>
               )}
             </div>
           )}
@@ -598,7 +598,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     ${bizSettings.complaint_number ? `<p style="font-size:9px;margin:0">Tel: ${bizSettings.complaint_number}</p>` : ''}
   </div>
   <div style="border-top:1px dashed #000;border-bottom:1px dashed #000;padding:5px 0;margin:6px 0">
-    <div style="display:flex;justify-content:space-between;font-size:10px"><span>Invoice:</span><span style="font-weight:700">${d.invoice_number || 'â€”'}</span></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px"><span>Invoice:</span><span style="font-weight:700">${d.invoice_number || '—'}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:10px"><span>Date:</span><span>${today}</span></div>
     <div style="display:flex;justify-content:space-between;font-size:10px"><span>Customer:</span><span style="font-weight:600">${c?.full_name || 'Walk-in'}</span></div>
     ${c?.mobile ? `<div style="display:flex;justify-content:space-between;font-size:10px"><span>Mobile:</span><span>${c.mobile}</span></div>` : ''}
@@ -623,11 +623,11 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     <p style="font-size:8px;margin:0;color:#999">Powered by AquaRun</p>
   </div>
 </body></html>`)
-                    win.document.close()
+                win.document.close()
                     setTimeout(() => { try { win.focus(); win.print(); } catch(e) {} }, 2500)
               }}
                 style={{ padding: '4px 12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
-              ðŸ§¾ Print Receipt
+              🧾 Print Receipt
             </button>
             )}
             {success?.customerMobile && (() => {
@@ -635,14 +635,14 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               const waNumber = phone ? `92${phone}` : ''
               const bizName = bizSettings.business_name || 'AquaRun'
               const items = [
-                success.qty19l > 0 ? `19L Ã— ${success.qty19l}` : '',
+                success.qty19l > 0 ? `19L × ${success.qty19l}` : '',
               ].filter(Boolean).join(', ')
-              const msg = `*${bizName} â€” Delivery Receipt*\n\n` +
-                `ðŸ‘¤ ${success.customer}\n` +
-                `ðŸ“¦ ${items}\n` +
-                `ðŸ’° Total: Rs. ${success.total.toLocaleString()}\n` +
-                `ðŸ’³ Payment: ${success.paymentMethod}\n` +
-                (success.creditPortion > 0 ? `ðŸ“‹ Credit: Rs. ${success.creditPortion.toLocaleString()}\n` : '') +
+              const msg = `*${bizName} — Delivery Receipt*\n\n` +
+                `👤 ${success.customer}\n` +
+                `📦 ${items}\n` +
+                `💰 Total: Rs. ${success.total.toLocaleString()}\n` +
+                `💳 Payment: ${success.paymentMethod}\n` +
+                (success.creditPortion > 0 ? `📋 Credit: Rs. ${success.creditPortion.toLocaleString()}\n` : '') +
                 `\n_Thank you!_\n_${bizName}_`
               const url = waNumber
                 ? `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`
@@ -650,7 +650,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               return (
                 <button onClick={() => window.open(url, '_blank')}
                   style={{ padding: '4px 12px', background: '#25d366', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
-                  ðŸ’¬ WhatsApp
+                  💬 WhatsApp
                 </button>
               )
             })()}
@@ -678,25 +678,25 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               <div style={{ flex: 1 }}>
                 <p style={{ fontWeight: '700', fontSize: '16px', margin: '0 0 4px' }}>{selectedOrder.customers?.full_name}</p>
                 {selectedOrder.customers?.address && (
-                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>ðŸ“ {selectedOrder.customers.address}</p>
+                  <p style={{ fontSize: '12px', opacity: 0.8, margin: '0 0 2px' }}>📍 {selectedOrder.customers.address}</p>
                 )}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 2px' }}>
-                  <p style={{ fontSize: '12px', opacity: 0.8, margin: 0 }}>ðŸ“ž {selectedOrder.customers?.mobile}</p>
+                  <p style={{ fontSize: '12px', opacity: 0.8, margin: 0 }}>📞 {selectedOrder.customers?.mobile}</p>
                   {selectedOrder.customers?.mobile && (
                     <a href={`tel:${selectedOrder.customers.mobile}`}
                       style={{ padding: '3px 10px', background: 'rgba(255,255,255,0.25)', color: 'white', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none', border: '1px solid rgba(255,255,255,0.4)' }}>
-                      ðŸ“² Call
+                      📲 Call
                     </a>
                   )}
                 </div>
                 {selectedOrder.notes && (
-                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', background: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>ðŸ“ {selectedOrder.notes}</p>
+                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', background: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>📝 {selectedOrder.notes}</p>
                 )}
                 {selectedOrder.customers?.delivery_notes && (
-                  <p style={{ fontSize: '11px', opacity: 0.9, margin: '4px 0 0', background: 'rgba(255,165,0,0.3)', padding: '4px 8px', borderRadius: 6 }}>âš ï¸ {selectedOrder.customers.delivery_notes}</p>
+                  <p style={{ fontSize: '11px', opacity: 0.9, margin: '4px 0 0', background: 'rgba(255,165,0,0.3)', padding: '4px 8px', borderRadius: 6 }}>⚠️ {selectedOrder.customers.delivery_notes}</p>
                 )}
                 {selectedOrder.customers?.notes && (
-                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', background: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>ðŸ’¬ {selectedOrder.customers.notes}</p>
+                  <p style={{ fontSize: '11px', opacity: 0.7, margin: '4px 0 0', background: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>💬 {selectedOrder.customers.notes}</p>
                 )}
               </div>
               <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: '12px' }}>
@@ -706,7 +706,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 </p>
                 {ourBottles > 0 && (
                   <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '6px', padding: '4px 8px' }}>
-                    <p style={{ fontSize: '11px', opacity: 0.9, margin: 0 }}>ðŸ«™ {ourBottles} our bottles</p>
+                    <p style={{ fontSize: '11px', opacity: 0.9, margin: 0 }}>🫙 {ourBottles} our bottles</p>
                   </div>
                 )}
               </div>
@@ -725,12 +725,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               })()} target="_blank" rel="noreferrer"
                 onClick={() => setNavigating(true)}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: '10px', padding: '10px 18px', background: navigating ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.25)', color: 'white', borderRadius: '8px', fontSize: '14px', fontWeight: '700', textDecoration: 'none', width: '100%', justifyContent: 'center', border: '2px solid rgba(255,255,255,0.4)' }}>
-                {navigating ? 'ðŸ§­ Navigating â€” Tap to record delivery below' : 'â–¶ Navigate to Customer'}
+                {navigating ? '🧭 Navigating — Tap to record delivery below' : '▶ Navigate to Customer'}
               </a>
             )}
             {navigating && (
               <div style={{ marginTop: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.15)', borderRadius: 8, textAlign: 'center' }}>
-                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', margin: 0, fontWeight: 600 }}>ðŸ“± Arrived? Scroll down to record delivery</p>
+                <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.9)', margin: 0, fontWeight: 600 }}>📱 Arrived? Scroll down to record delivery</p>
               </div>
             )}
           </div>
@@ -739,7 +739,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           {hasChurnIntelligence ? (
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #f0f0f0' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>
-              ðŸ“ Visit Remark <span style={{ fontSize: 11, color: '#aaa', fontWeight: 400 }}>(optional)</span>
+              📝 Visit Remark <span style={{ fontSize: 11, color: '#aaa', fontWeight: 400 }}>(optional)</span>
             </p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: selectedRemark === 'other' ? 10 : 0 }}>
               {REMARK_TYPES.map(r => (
@@ -763,14 +763,14 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               </div>
             )}
             {remarkSaved && (
-              <p style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 700, margin: '6px 0 0' }}>âœ… Remark saved</p>
+              <p style={{ fontSize: 11, color: '#1a7a4a', fontWeight: 700, margin: '6px 0 0' }}>✅ Remark saved</p>
             )}
 
-            {/* Reschedule button â€” shown when remark selected */}
+            {/* Reschedule button — shown when remark selected */}
             {selectedRemark && selectedRemark !== 'vacation' && selectedRemark !== 'has_water' && (
               <div style={{ marginTop: 12, padding: '10px 12px', background: '#fff3e0', borderRadius: 8, border: '1px solid #ffcc80' }}>
                 <p style={{ fontSize: 12, color: '#e65100', fontWeight: 600, margin: '0 0 8px' }}>
-                  Customer not available â€” reschedule this order?
+                  Customer not available — reschedule this order?
                   {(selectedOrder.delivery_attempts || 0) > 0 && (
                     <span style={{ marginLeft: 6, fontSize: 11, background: '#e65100', color: 'white', padding: '1px 7px', borderRadius: 10 }}>
                       Attempt {(selectedOrder.delivery_attempts || 0) + 1}/3
@@ -779,7 +779,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 </p>
                 <button onClick={rescheduleOrder} disabled={rescheduling}
                   style={{ width: '100%', padding: '10px', background: rescheduling ? '#e0e0e0' : '#e65100', color: 'white', border: 'none', borderRadius: 8, cursor: rescheduling ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 700 }}>
-                  {rescheduling ? 'â³ Rescheduling...' : 'ðŸ“… Reschedule to Tomorrow'}
+                  {rescheduling ? '⏳ Rescheduling...' : '📅 Reschedule to Tomorrow'}
                 </button>
               </div>
             )}
@@ -787,8 +787,8 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
 
           ) : (
             <div style={{ background: '#f8f9fa', borderRadius: 10, padding: '12px 14px', marginBottom: 12, border: '1.5px dashed #ddd', textAlign: 'center' }}>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>ðŸ”’ Visit Remarks</p>
-              <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>Premium feature â€” contact admin to enable</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#888', margin: '0 0 3px' }}>🔒 Visit Remarks</p>
+              <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>Premium feature — contact admin to enable</p>
             </div>
           )}
 
@@ -825,12 +825,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           {/* Extra Products */}
           {selectedOrder?.product_items?.length > 0 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #f3e8ff' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#7c3aed', marginBottom: '14px' }}>ðŸ“¦ Other Products</p>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: '#7c3aed', marginBottom: '14px' }}>📦 Other Products</p>
               {selectedOrder.product_items.map((p, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: i < selectedOrder.product_items.length - 1 ? '12px' : 0 }}>
                   <div>
                     <p style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 2px' }}>{p.name}</p>
-                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Rs. {p.price || 0} each Â· Ordered: {p.qty}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Rs. {p.price || 0} each · Ordered: {p.qty}</p>
                   </div>
                   {numBtn(productQtys[p.product_id] ?? p.qty, val => setProductQtys(q => ({ ...q, [p.product_id]: val })))}
                 </div>
@@ -838,11 +838,11 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             </div>
           )}
 
-          {/* âœ… BOTTLES RETURNED */}
+          {/* ✅ BOTTLES RETURNED */}
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #fff3e0' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>ðŸ«™ Empty Bottles Returned</p>
+                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>🫙 Empty Bottles Returned</p>
                 <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>
                   Customer currently has: <strong>{ourBottles}</strong> of our bottles
                 </p>
@@ -860,7 +860,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           {/* Rate */}
           {qty19l > 0 && (
             <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Rate â€” 19L</p>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Rate — 19L</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {RATES.map(r => (
                   <button key={r} onClick={() => setSelectedRate(r)}
@@ -877,11 +877,11 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               {[
-                { key: 'cash', label: 'Ù†Ù‚Ø¯', sublabel: 'Cash', color: '#1a7a4a' },
-                { key: 'jazzcash', label: 'Ø¬ÛŒØ² Ú©ÛŒØ´', sublabel: 'JazzCash', color: '#9c27b0' },
-                ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'Ø§ÛŒØ²ÛŒ Ù¾ÛŒØ³Û', sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
-                ...(bizSettings?.bank_name ? [{ key: 'bank', label: 'Ø¨ÛŒÙ†Ú©', sublabel: 'Bank', color: '#0f4c81' }] : []),
-                { key: 'credit', label: 'Ø§Ø¯Ú¾Ø§Ø±', sublabel: 'Credit', color: '#f44336' },
+                { key: 'cash', label: 'نقد', sublabel: 'Cash', color: '#1a7a4a' },
+                { key: 'jazzcash', label: 'جیز کیش', sublabel: 'JazzCash', color: '#9c27b0' },
+                ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'ایزی پیسہ', sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
+                ...(bizSettings?.bank_name ? [{ key: 'bank', label: 'بینک', sublabel: 'Bank', color: '#0f4c81' }] : []),
+                { key: 'credit', label: 'ادھار', sublabel: 'Credit', color: '#f44336' },
               ].map(pm => (
                 <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); setCashReceived('') }}
                   style={{ flex: 1, padding: '14px 8px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -918,19 +918,19 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 )}
                 {cashReceived && cashReceivedNum >= total && (
                   <div style={{ marginTop: '10px', padding: '8px 10px', background: '#e8f5e9', borderRadius: '8px' }}>
-                    <p style={{ fontSize: '12px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>âœ… Full payment â€” no credit</p>
+                    <p style={{ fontSize: '12px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>✅ Full payment — no credit</p>
                   </div>
                 )}
                 {!cashReceived && (
                   <div style={{ marginTop: '8px', padding: '8px 10px', background: '#fff8e1', borderRadius: '8px' }}>
-                    <p style={{ fontSize: '11px', color: '#b45309', margin: 0 }}>âš ï¸ Leave empty or enter 0 to add full amount to credit</p>
+                    <p style={{ fontSize: '11px', color: '#b45309', margin: 0 }}>⚠️ Leave empty or enter 0 to add full amount to credit</p>
                   </div>
                 )}
               </div>
             )}
             {isPending && (
               <div style={{ marginTop: '10px', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
-                <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>âš ï¸ Digital payment goes to office â€” admin will confirm.</p>
+                <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Digital payment goes to office — admin will confirm.</p>
               </div>
             )}
           </div>
@@ -942,16 +942,16 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
               <p style={{ fontSize: '28px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {total.toLocaleString()}</p>
             </div>
             {!isOnline && (
-              <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>ðŸ“µ Will save offline and sync later</p>
+              <p style={{ fontSize: '12px', color: '#ea580c', margin: '0 0 10px', textAlign: 'center' }}>📵 Will save offline and sync later</p>
             )}
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={() => { setSelectedOrder(null); setCashReceived(''); setBottlesReturned(0) }}
                 style={{ flex: 1, padding: '14px', background: '#f5f5f5', color: '#555', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
-                â† Back
+                ← Back
               </button>
               <button onClick={completeDelivery} disabled={saving}
                 style={{ flex: 2, padding: '14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700' }}>
-                {saving ? 'Saving...' : 'âœ“ Complete Delivery'}
+                {saving ? 'Saving...' : '✓ Complete Delivery'}
               </button>
             </div>
           </div>
@@ -976,7 +976,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             <p style={{ textAlign: 'center', color: '#888', padding: '40px' }}>Loading...</p>
           ) : orders.length === 0 ? (
             <div style={{ background: 'white', borderRadius: '12px', padding: '40px', textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-              <p style={{ fontSize: '40px', marginBottom: '12px' }}>âœ…</p>
+              <p style={{ fontSize: '40px', marginBottom: '12px' }}>✅</p>
               <p style={{ fontWeight: '700', color: '#1a7a4a', marginBottom: '4px' }}>All done!</p>
               <p style={{ color: '#888', fontSize: '13px' }}>No pending deliveries.</p>
             </div>
@@ -992,22 +992,22 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' }}>
-                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: o.is_priority ? '#c62828' : '#0f4c81', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>{o.is_priority ? 'ðŸ”´' : idx + 1}</span>
+                          <span style={{ width: '22px', height: '22px', borderRadius: '50%', background: o.is_priority ? '#c62828' : '#0f4c81', color: 'white', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: '700', flexShrink: 0 }}>{o.is_priority ? '🔴' : idx + 1}</span>
                           <p style={{ fontWeight: '700', fontSize: '15px', margin: 0, color: '#333' }}>{o.customers?.full_name}</p>
                           {o.is_priority && <span style={{ fontSize: 10, background: '#c62828', color: '#fff', padding: '2px 7px', borderRadius: 20, fontWeight: 700, whiteSpace: 'nowrap' }}>URGENT</span>}
                         </div>
                         {o.customers?.address && (
-                          <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px 30px' }}>ðŸ“ {o.customers.address}</p>
+                          <p style={{ fontSize: '12px', color: '#888', margin: '0 0 2px 30px' }}>📍 {o.customers.address}</p>
                         )}
-                        <p style={{ fontSize: '12px', color: '#888', margin: '0 0 6px 30px' }}>ðŸ“ž {o.customers?.mobile}</p>
+                        <p style={{ fontSize: '12px', color: '#888', margin: '0 0 6px 30px' }}>📞 {o.customers?.mobile}</p>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginLeft: '30px' }}>
-                          {o.qty_19l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>ðŸ¶ {o.qty_19l} Ã— 19L</span>}
-                          {o.qty_half_litre > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>ðŸ’§ {o.qty_half_litre} Ã— Half</span>}
-                          {o.qty_1_5l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>ðŸ§´ {o.qty_1_5l} Ã— 1.5L</span>}
+                          {o.qty_19l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🍶 {o.qty_19l} × 19L</span>}
+                          {o.qty_half_litre > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>💧 {o.qty_half_litre} × Half</span>}
+                          {o.qty_1_5l > 0 && <span style={{ fontSize: '12px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🧴 {o.qty_1_5l} × 1.5L</span>}
                           {o.product_items?.map((p, i) => (
-                            <span key={i} style={{ fontSize: '12px', background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>ðŸ“¦ {p.qty} Ã— {p.name}</span>
+                            <span key={i} style={{ fontSize: '12px', background: '#f3e8ff', color: '#7c3aed', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>📦 {p.qty} × {p.name}</span>
                           ))}
-                          {ourBottles > 0 && <span style={{ fontSize: '12px', background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>ðŸ«™ {ourBottles} bottles</span>}
+                          {ourBottles > 0 && <span style={{ fontSize: '12px', background: '#fff3e0', color: '#e65100', padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>🫙 {ourBottles} bottles</span>}
                         </div>
                         {o.notes && <p style={{ fontSize: '11px', color: '#aaa', margin: '4px 0 0 30px' }}>{o.notes}</p>}
                       </div>
@@ -1028,10 +1028,10 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                           })()} target="_blank" rel="noreferrer"
                             onClick={e => e.stopPropagation()}
                             style={{ display: 'inline-block', padding: '4px 8px', background: '#e3f0ff', color: '#0f4c81', borderRadius: 6, fontSize: 11, fontWeight: 700, textDecoration: 'none', marginBottom: 4 }}>
-                            ðŸ“ Nav
+                            📍 Nav
                           </a>
                         )}
-                        <span style={{ fontSize: '20px', color: '#ccc', display: 'block' }}>â€º</span>
+                        <span style={{ fontSize: '20px', color: '#ccc', display: 'block' }}>›</span>
                       </div>
                     </div>
                   </div>
