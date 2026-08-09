@@ -32,6 +32,11 @@ export default function AdminQuickSale({ tenantId }) {
   const [paymentSearchResults, setPaymentSearchResults] = useState([])
   const [paymentCustomer, setPaymentCustomer] = useState(null)
   const [paymentNotes, setPaymentNotes] = useState('')
+  const [returnCustomer, setReturnCustomer] = useState(null)
+  const [returnSearch, setReturnSearch] = useState('')
+  const [returnSearchResults, setReturnSearchResults] = useState([])
+  const [returnQty, setReturnQty] = useState(0)
+  const [returnSaving, setReturnSaving] = useState(false)
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -278,6 +283,41 @@ export default function AdminQuickSale({ tenantId }) {
     setSaving(false)
   }
 
+  async function processBottleReturn() {
+    if (!returnCustomer) return alert('Please select a customer')
+    if (returnQty <= 0) return alert('Please enter bottles to return')
+    if (returnQty > Number(returnCustomer.our_bottles_placed || 0)) return alert('Cannot return more bottles than customer has (' + returnCustomer.our_bottles_placed + ' bottles)')
+    setReturnSaving(true)
+    try {
+      // Update customer bottle count
+      const newCount = Number(returnCustomer.our_bottles_placed || 0) - returnQty
+      await supabase.from('customers').update({ our_bottles_placed: Math.max(0, newCount) })
+        .eq('id', returnCustomer.id).eq('tenant_id', tenantId)
+
+      // Post bottle movement journal (negative = returning)
+      const { data: bottleProduct } = await supabase.from('products')
+        .select('average_cost').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
+      const bottleCost = Number(bottleProduct?.average_cost || 900)
+      await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0])
+
+      setSuccess({ type: 'bottle_return', name: returnCustomer.full_name, qty: returnQty, newCount, customerMobile: returnCustomer.mobile || '' })
+      setReturnCustomer(null); setReturnSearch(''); setReturnQty(0)
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+    setReturnSaving(false)
+  }
+
+  async function searchReturnCustomer(val) {
+    setReturnSearch(val)
+    if (val.length < 2) { setReturnSearchResults([]); return }
+    const { data } = await supabase.from('customer_balances')
+      .select('id, full_name, mobile, customer_code, our_bottles_placed')
+      .eq('tenant_id', tenantId).eq('is_active', true)
+      .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
+    setReturnSearchResults((data || []).filter(c => Number(c.our_bottles_placed || 0) > 0))
+  }
+
   const inp = { width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0', borderRadius: '8px', fontSize: '14px', outline: 'none', boxSizing: 'border-box', background: 'white', color: '#333', caretColor: '#0f4c81' }
   const card = { background: 'white', borderRadius: '12px', padding: '12px 14px', marginBottom: '10px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)', border: '1px solid #f0f0f0' }
 
@@ -311,11 +351,24 @@ export default function AdminQuickSale({ tenantId }) {
           <span>Receive Payment</span>
           <span style={{ fontSize: '11px', opacity: 0.8 }}>Collect outstanding balance</span>
         </button>
+        <button onClick={() => { setMode('return'); setSuccess(null); setReturnCustomer(null); setReturnSearch(''); setReturnQty(0) }}
+          style={{ flex: 1, padding: '12px', border: '2px solid', borderColor: mode === 'return' ? '#e65100' : '#eee', borderRadius: '10px', cursor: 'pointer', background: mode === 'return' ? '#e65100' : 'white', color: mode === 'return' ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+          <span style={{ fontSize: '20px' }}>🫙</span>
+          <span>Return Bottles</span>
+          <span style={{ fontSize: '11px', opacity: 0.8 }}>Customer returning bottles</span>
+        </button>
       </div>
 
       {success && (
         <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '12px', padding: '14px 16px', marginBottom: '14px' }}>
-          {success.type === 'payment' ? (
+          {success.type === 'bottle_return' ? (
+            <>
+              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Bottles Returned!</p>
+              <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.name}</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>🫙 {success.qty} bottle{success.qty > 1 ? 's' : ''} returned</p>
+              <p style={{ fontSize: '12px', color: '#555', margin: 0 }}>Remaining with customer: <strong>{success.newCount}</strong></p>
+            </>
+          ) : success.type === 'payment' ? (
             <>
               <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ Payment Received!</p>
               <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {success.name}</p>
@@ -333,7 +386,7 @@ export default function AdminQuickSale({ tenantId }) {
           )}
           <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
             <button onClick={() => setSuccess(null)} style={{ padding: '5px 14px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
-              {mode === 'sale' ? '+ New Sale' : '+ New Payment'}
+              {mode === 'sale' ? '+ New Sale' : mode === 'return' ? '+ New Return' : '+ New Payment'}
             </button>
             {success?.deliveryId && (
               <button onClick={() => setShowInvoice(true)} style={{ padding: '5px 14px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}>
@@ -501,6 +554,7 @@ export default function AdminQuickSale({ tenantId }) {
                   <div>
                     <p style={{ fontWeight: '700', fontSize: '14px', margin: '0 0 2px', color: '#0f4c81' }}>{selectedCustomer.full_name}</p>
                     <p style={{ fontSize: '11px', color: '#555', margin: 0 }}>{selectedCustomer.mobile} · Balance: <strong style={{ color: Number(selectedCustomer.balance) > 0 ? '#f44336' : '#1a7a4a' }}>Rs. {Math.abs(Number(selectedCustomer.balance || 0)).toLocaleString()}</strong></p>
+                  {Number(selectedCustomer.our_bottles_placed || 0) > 0 && <p style={{ fontSize: '11px', color: '#e65100', margin: '2px 0 0', fontWeight: '600' }}>🫙 {selectedCustomer.our_bottles_placed} bottles currently with customer</p>}
                   </div>
                   <button onClick={() => { setSelectedCustomer(null); setCustomerSearch('') }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: '18px', marginLeft: '8px' }}>✕</button>
                 </div>
@@ -518,7 +572,9 @@ export default function AdminQuickSale({ tenantId }) {
                           </div>
                           <div style={{ textAlign: 'right' }}>
                             <p style={{ fontSize: '12px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: '0 0 2px' }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
-                            <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>Rate: Rs.{c.rate_19l}</p>
+                            <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>Rate: Rs.{c.rate_19l} · {c.customer_code}</p>
+                            {c.address && <p style={{ fontSize: '10px', color: '#888', margin: '2px 0 0' }}>📍 {c.address}</p>}
+                            {Number(c.our_bottles_placed || 0) > 0 && <p style={{ fontSize: '10px', color: '#e65100', margin: '2px 0 0', fontWeight: '600' }}>🫙 {c.our_bottles_placed} bottles</p>}
                           </div>
                         </div>
                       ))}
@@ -670,6 +726,81 @@ export default function AdminQuickSale({ tenantId }) {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {mode === 'return' && (
+        <div>
+          <div style={{ background: '#fff3e0', border: '1px solid #ffcc80', borderRadius: '10px', padding: '12px 16px', marginBottom: '16px' }}>
+            <p style={{ fontSize: '13px', color: '#e65100', fontWeight: '700', margin: '0 0 4px' }}>🫙 Bottle Return</p>
+            <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Only customers with bottles placed will appear in search. Journal entry posts automatically.</p>
+          </div>
+
+          <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>Select Customer *</p>
+            {returnCustomer ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fff3e0', borderRadius: '8px', border: '1px solid #ffcc80' }}>
+                <div>
+                  <p style={{ fontWeight: '700', fontSize: '14px', margin: '0 0 2px', color: '#e65100' }}>{returnCustomer.full_name}</p>
+                  <p style={{ fontSize: '12px', color: '#555', margin: 0 }}>{returnCustomer.mobile} · {returnCustomer.customer_code}</p>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: '4px 0 0' }}>🫙 {returnCustomer.our_bottles_placed} bottle{Number(returnCustomer.our_bottles_placed) > 1 ? 's' : ''} currently with customer</p>
+                </div>
+                <button onClick={() => { setReturnCustomer(null); setReturnSearch(''); setReturnQty(0) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: '20px' }}>✕</button>
+              </div>
+            ) : (
+              <div>
+                <input value={returnSearch} onChange={e => searchReturnCustomer(e.target.value)} placeholder="Search customer with bottles..." style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+                {returnSearchResults.length > 0 && (
+                  <div style={{ border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden', marginTop: '4px' }}>
+                    {returnSearchResults.map(c => (
+                      <div key={c.id} onClick={() => { setReturnCustomer(c); setReturnSearchResults([]); setReturnSearch(''); setReturnQty(Number(c.our_bottles_placed || 0)) }}
+                        style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white' }}>
+                        <div>
+                          <p style={{ fontWeight: '600', fontSize: '13px', margin: '0 0 1px' }}>{c.full_name}</p>
+                          <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', background: '#fff3e0', padding: '3px 10px', borderRadius: '20px' }}>🫙 {c.our_bottles_placed}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {returnSearch.length >= 2 && returnSearchResults.length === 0 && (
+                  <p style={{ fontSize: '12px', color: '#888', margin: '8px 0 0', textAlign: 'center' }}>No customers with bottles found</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {returnCustomer && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>Bottles to Return</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', padding: '16px 0' }}>
+                <button onClick={() => setReturnQty(Math.max(0, returnQty - 1))}
+                  style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1.5px solid #ddd', background: '#f5f5f5', fontSize: '20px', cursor: 'pointer', fontWeight: '700' }}>−</button>
+                <span style={{ fontSize: '40px', fontWeight: '800', color: returnQty > 0 ? '#e65100' : '#ccc', minWidth: '60px', textAlign: 'center' }}>{returnQty}</span>
+                <button onClick={() => setReturnQty(Math.min(Number(returnCustomer.our_bottles_placed || 0), returnQty + 1))}
+                  style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1.5px solid #e65100', background: '#e65100', color: 'white', fontSize: '20px', cursor: 'pointer', fontWeight: '700' }}>+</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ textAlign: 'center', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>Currently With Customer</p>
+                  <p style={{ fontSize: '18px', fontWeight: '800', color: '#e65100', margin: 0 }}>{returnCustomer.our_bottles_placed}</p>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px', background: returnQty > 0 ? '#e8f5e9' : '#f5f5f5', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 4px', textTransform: 'uppercase' }}>After Return</p>
+                  <p style={{ fontSize: '18px', fontWeight: '800', color: returnQty > 0 ? '#1a7a4a' : '#ccc', margin: 0 }}>{Math.max(0, Number(returnCustomer.our_bottles_placed || 0) - returnQty)}</p>
+                </div>
+              </div>
+              <button onClick={() => setReturnQty(Number(returnCustomer.our_bottles_placed || 0))}
+                style={{ width: '100%', padding: '8px', background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600', marginBottom: '12px' }}>
+                Return All {returnCustomer.our_bottles_placed} Bottles
+              </button>
+              <button onClick={processBottleReturn} disabled={returnSaving || returnQty <= 0}
+                style={{ width: '100%', padding: '14px', background: returnQty <= 0 || returnSaving ? '#e0e0e0' : '#e65100', color: returnQty <= 0 || returnSaving ? '#aaa' : 'white', border: 'none', borderRadius: '10px', cursor: returnQty <= 0 || returnSaving ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700' }}>
+                {returnSaving ? '⏳ Processing...' : `✓ Confirm Return — ${returnQty} Bottle${returnQty > 1 ? 's' : ''}`}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

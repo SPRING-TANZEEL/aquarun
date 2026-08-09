@@ -38,9 +38,44 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [payMethod, setPayMethod]   = useState('cash')
   const [payNotes, setPayNotes]     = useState('')
   const [paySuccess, setPaySuccess] = useState(null)
+  const [returnCustomer, setReturnCustomer] = useState(null)
+  const [returnSearch, setReturnSearch] = useState('')
+  const [returnSearchResults, setReturnSearchResults] = useState([])
+  const [returnQty, setReturnQty] = useState(0)
+  const [returnSaving, setReturnSaving] = useState(false)
+  const [returnSuccess, setReturnSuccess] = useState(null)
   const [paySaving, setPaySaving]   = useState(false)
 
   function t(en, ur) { return lang === 'ur' ? ur : en }
+
+  async function processBottleReturn() {
+    if (!returnCustomer) return alert('Please select a customer')
+    if (returnQty <= 0) return alert('Please enter bottles to return')
+    if (returnQty > Number(returnCustomer.our_bottles_placed || 0)) return alert('Cannot return more bottles than customer has')
+    setReturnSaving(true)
+    try {
+      const newCount = Number(returnCustomer.our_bottles_placed || 0) - returnQty
+      await supabase.from('customers').update({ our_bottles_placed: Math.max(0, newCount) })
+        .eq('id', returnCustomer.id).eq('tenant_id', tenantId)
+      const { data: bottleProduct } = await supabase.from('products')
+        .select('average_cost').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
+      const bottleCost = Number(bottleProduct?.average_cost || 900)
+      await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0])
+      setReturnSuccess({ name: returnCustomer.full_name, qty: returnQty, newCount })
+      setReturnCustomer(null); setReturnSearch(''); setReturnQty(0)
+    } catch (err) { alert('Error: ' + err.message) }
+    setReturnSaving(false)
+  }
+
+  async function searchReturnCustomer(val) {
+    setReturnSearch(val)
+    if (val.length < 2) { setReturnSearchResults([]); return }
+    const { data } = await supabase.from('customer_balances')
+      .select('id, full_name, mobile, customer_code, our_bottles_placed')
+      .eq('tenant_id', tenantId).eq('is_active', true)
+      .or(`full_name.ilike.%${val}%,mobile.ilike.%${val}%,customer_code.ilike.%${val}%`).limit(5)
+    setReturnSearchResults((data || []).filter(c => Number(c.our_bottles_placed || 0) > 0))
+  }
 
   useEffect(() => {
     if (!tenantId) return
@@ -525,6 +560,12 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           <span>{t('Receive', 'وصول')}</span>
           <span>{t('Payment', 'ادائیگی')}</span>
         </button>
+        <button onClick={() => { setSubTab('return'); setReturnSuccess(null); setReturnCustomer(null); setReturnSearch(''); setReturnQty(0) }}
+          style={{ flex: 1, padding: '10px 6px', border: '2px solid', borderColor: subTab === 'return' ? '#e65100' : '#eee', borderRadius: '10px', cursor: 'pointer', background: subTab === 'return' ? '#e65100' : 'white', color: subTab === 'return' ? 'white' : '#555', fontWeight: '700', fontSize: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+          <span style={{ fontSize: '20px' }}>🫙</span>
+          <span>{t('Return', 'واپسی')}</span>
+          <span>{t('Bottles', 'بوتلیں')}</span>
+        </button>
       </div>
 
       {/* ── QUICK SALE TAB ── */}
@@ -612,6 +653,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', background: 'white' }}>
                     <p style={{ fontWeight: '700', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
                     <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · Balance: Rs. {Number(c.balance || 0).toLocaleString()}</p>
+                    {Number(c.our_bottles_placed || 0) > 0 && <p style={{ fontSize: '11px', color: '#e65100', margin: '2px 0 0', fontWeight: '600' }}>🫙 {c.our_bottles_placed} {t('bottles with customer', 'بوتلیں گاہک کے پاس')}</p>}
                     {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                   </div>
                 ))}
@@ -993,6 +1035,83 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           )}
         </div>
       )}
+      {/* ── RETURN BOTTLES TAB ── */}
+      {subTab === 'return' && (
+        <div>
+          {returnSuccess && (
+            <div style={{ background: '#e8f5e9', border: '2px solid #4caf50', borderRadius: '10px', padding: '14px', marginBottom: '14px' }}>
+              <p style={{ fontWeight: '700', color: '#1b5e20', margin: '0 0 4px' }}>✅ {t('Bottles Returned!', 'بوتلیں واپس!')}</p>
+              <p style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 2px' }}>👤 {returnSuccess.name}</p>
+              <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 2px' }}>🫙 {returnSuccess.qty} {t('bottles returned', 'بوتلیں واپس')}</p>
+              <p style={{ fontSize: '12px', color: '#555', margin: '0 0 8px' }}>{t('Remaining with customer', 'گاہک کے پاس باقی')}: <strong>{returnSuccess.newCount}</strong></p>
+              <button onClick={() => setReturnSuccess(null)} style={{ padding: '5px 14px', background: 'none', border: '1px solid #4caf50', borderRadius: '6px', color: '#1a7a4a', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}>
+                + {t('New Return', 'نئی واپسی')}
+              </button>
+            </div>
+          )}
+
+          <div style={{ background: 'white', borderRadius: '12px', padding: '14px', marginBottom: '10px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
+            <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>{t('Select Customer', 'گاہک منتخب کریں')} *</p>
+            {returnCustomer ? (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#fff3e0', borderRadius: '8px', border: '1px solid #ffcc80' }}>
+                <div>
+                  <p style={{ fontWeight: '700', fontSize: '14px', margin: '0 0 2px', color: '#e65100' }}>{returnCustomer.full_name}</p>
+                  <p style={{ fontSize: '11px', color: '#555', margin: '0 0 4px' }}>{returnCustomer.mobile}</p>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>🫙 {returnCustomer.our_bottles_placed} {t('bottles with customer', 'بوتلیں گاہک کے پاس')}</p>
+                </div>
+                <button onClick={() => { setReturnCustomer(null); setReturnSearch(''); setReturnQty(0) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: '20px' }}>✕</button>
+              </div>
+            ) : (
+              <div>
+                <input value={returnSearch} onChange={e => searchReturnCustomer(e.target.value)} placeholder={t('Search customer with bottles...', 'گاہک تلاش کریں...')}
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e0e0e0', borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }} />
+                {returnSearchResults.map(c => (
+                  <div key={c.id} onClick={() => { setReturnCustomer(c); setReturnSearchResults([]); setReturnSearch(''); setReturnQty(Number(c.our_bottles_placed || 0)) }}
+                    style={{ padding: '10px 12px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'white', marginTop: '4px', borderRadius: '8px', border: '1px solid #eee' }}>
+                    <div>
+                      <p style={{ fontWeight: '600', fontSize: '13px', margin: '0 0 1px' }}>{c.full_name}</p>
+                      <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile}</p>
+                    </div>
+                    <span style={{ fontSize: '13px', fontWeight: '700', color: '#e65100', background: '#fff3e0', padding: '3px 10px', borderRadius: '20px' }}>🫙 {c.our_bottles_placed}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {returnCustomer && (
+            <div style={{ background: 'white', borderRadius: '12px', padding: '14px', boxShadow: '0 1px 6px rgba(0,0,0,0.07)' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '8px', textTransform: 'uppercase' }}>{t('Bottles to Return', 'واپس کرنے والی بوتلیں')}</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '20px', padding: '12px 0' }}>
+                <button onClick={() => setReturnQty(Math.max(0, returnQty - 1))}
+                  style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1.5px solid #ddd', background: '#f5f5f5', fontSize: '20px', cursor: 'pointer', fontWeight: '700' }}>−</button>
+                <span style={{ fontSize: '40px', fontWeight: '800', color: returnQty > 0 ? '#e65100' : '#ccc', minWidth: '60px', textAlign: 'center' }}>{returnQty}</span>
+                <button onClick={() => setReturnQty(Math.min(Number(returnCustomer.our_bottles_placed || 0), returnQty + 1))}
+                  style={{ width: '44px', height: '44px', borderRadius: '50%', border: '1.5px solid #e65100', background: '#e65100', color: 'white', fontSize: '20px', cursor: 'pointer', fontWeight: '700' }}>+</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                <div style={{ textAlign: 'center', padding: '8px', background: '#fff3e0', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px' }}>{t('With Customer', 'گاہک کے پاس')}</p>
+                  <p style={{ fontSize: '18px', fontWeight: '800', color: '#e65100', margin: 0 }}>{returnCustomer.our_bottles_placed}</p>
+                </div>
+                <div style={{ textAlign: 'center', padding: '8px', background: returnQty > 0 ? '#e8f5e9' : '#f5f5f5', borderRadius: '8px' }}>
+                  <p style={{ fontSize: '10px', color: '#888', margin: '0 0 2px' }}>{t('After Return', 'واپسی کے بعد')}</p>
+                  <p style={{ fontSize: '18px', fontWeight: '800', color: returnQty > 0 ? '#1a7a4a' : '#ccc', margin: 0 }}>{Math.max(0, Number(returnCustomer.our_bottles_placed || 0) - returnQty)}</p>
+                </div>
+              </div>
+              <button onClick={() => setReturnQty(Number(returnCustomer.our_bottles_placed || 0))}
+                style={{ width: '100%', padding: '8px', background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600', marginBottom: '10px' }}>
+                {t('Return All', 'سب واپس')} {returnCustomer.our_bottles_placed} {t('Bottles', 'بوتلیں')}
+              </button>
+              <button onClick={processBottleReturn} disabled={returnSaving || returnQty <= 0}
+                style={{ width: '100%', padding: '14px', background: returnQty <= 0 || returnSaving ? '#e0e0e0' : '#e65100', color: returnQty <= 0 || returnSaving ? '#aaa' : 'white', border: 'none', borderRadius: '10px', cursor: returnQty <= 0 || returnSaving ? 'not-allowed' : 'pointer', fontSize: '14px', fontWeight: '700' }}>
+                {returnSaving ? `⏳ ${t('Processing...', 'محفوظ ہو رہا ہے...')}` : `✓ ${t('Confirm Return', 'واپسی کی تصدیق')} — ${returnQty} ${t('Bottle', 'بوتل')}${returnQty > 1 ? 's' : ''}`}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
     </div>
   )
 }
