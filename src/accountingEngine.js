@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ CORE JOURNAL POSTING FUNCTION ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - CORE JOURNAL POSTING FUNCTION -
 async function postJournalEntry({ date, referenceType, referenceId, narration, lines, tenantId }) {
   const totalAmount = lines.reduce((s, l) => s + (l.debit || 0), 0)
 
@@ -37,9 +37,9 @@ async function postJournalEntry({ date, referenceType, referenceId, narration, l
   return entry.id
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ HELPER: GET CASH ACCOUNT BY PAYMENT METHOD ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - HELPER: GET CASH ACCOUNT BY PAYMENT METHOD -
 // For CEO/admin direct accounts
-// Actual accounts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use for expenses, purchases, salaries (money leaves immediately)
+// Actual accounts - use for expenses, purchases, salaries (money leaves immediately)
 function getCashAccount(paymentMethod) {
   switch (paymentMethod) {
     case 'jazzcash':   return { code: '1002', name: 'JazzCash Account' }
@@ -49,7 +49,7 @@ function getCashAccount(paymentMethod) {
   }
 }
 
-// Clearing accounts ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â use for sales/payments pending confirmation
+// Clearing accounts - use for sales/payments pending confirmation
 function getClearingAccount(paymentMethod) {
   switch (paymentMethod) {
     case 'jazzcash':   return { code: '1102', name: 'JazzCash Clearing - Pending' }
@@ -59,7 +59,7 @@ function getClearingAccount(paymentMethod) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ HELPER: GET SALES ACCOUNT BY BOTTLE TYPE ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - HELPER: GET SALES ACCOUNT BY BOTTLE TYPE -
 function getSalesBreakdown(delivery) {
   const lines = []
   const qty19l = Number(delivery.qty_19l || 0)
@@ -74,14 +74,14 @@ function getSalesBreakdown(delivery) {
   } else if (qty15l > 0 && qty19l === 0 && qtyHalf === 0) {
     lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L', credit: totalAmount })
   } else {
-    // Mixed ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â split proportionally or post to 4001
+// Mixed - split proportionally or post to 4001
     lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: totalAmount })
   }
 
   return lines
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ HELPER: GET EXPENSE ACCOUNT BY CATEGORY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - HELPER: GET EXPENSE ACCOUNT BY CATEGORY -
 function getExpenseAccount(category, isRider = false) {
   // Rider-specific mapping
   const riderMap = {
@@ -114,8 +114,8 @@ function getExpenseAccount(category, isRider = false) {
   return map[category] || { code: '6009', name: 'Other Expenses' }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 1. POST DELIVERY JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// Compound entry ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â debit side uses full amount including tax
+// - 1. POST DELIVERY JOURNAL ENTRY -
+// Compound entry - debit side uses full amount including tax
 // Credit side splits: pre-tax amount to sales accounts + tax to 2300 Tax Payable
 // isRiderEntry = true when rider logs delivery (rider_id is NOT NULL)
 // isRiderEntry = false when admin logs via Quick Sale (rider_id IS NULL)
@@ -130,7 +130,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     const paymentMethod = delivery.payment_method
     const lines = []
 
-    // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ DEBIT SIDE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â full amount including tax ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - DEBIT SIDE - full amount including tax -
     if (paymentMethod === 'cash') {
       if (cashReceived > 0) {
         if (isRiderEntry) {
@@ -158,7 +158,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
 
-    // ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ CREDIT SIDE ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â split sales by each income stream ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - CREDIT SIDE - split sales by each income stream -
     const qty19l  = Number(delivery.qty_19l          || 0)
     const qtyHalf = Number(delivery.qty_half_litre   || 0)
     const qty15l  = Number(delivery.qty_1_5l         || 0)
@@ -176,12 +176,12 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     const productItems = delivery.product_items || []
     const productTotal = productItems.reduce((s, p) => s + ((p.qty || 0) * (p.price || 0)), 0)
 
-    // Water sales lines ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â only post if amount > 0
+// Water sales lines - only post if amount > 0
     if (amt19l  > 0) lines.push({ account_code: '4001', account_name: 'Water Sales - 19L',         credit: amt19l  })
     if (amtHalf > 0) lines.push({ account_code: '4002', account_name: 'Water Sales - Half Litre',   credit: amtHalf })
     if (amt15l  > 0) lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L',         credit: amt15l  })
 
-    // Extra products ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â each gets its own line under Product Sales 4004
+// Extra products - each gets its own line under Product Sales 4004
     if (productTotal > 0) {
       // If multiple products group by product name for clarity
       const productGroups = {}
@@ -195,13 +195,13 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       })
     }
 
-    // If nothing posted yet (e.g. all rates are 0) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â fallback to subTotal on 4001
+// If nothing posted yet (e.g. all rates are 0) - fallback to subTotal on 4001
     const totalCredited = amt19l + amtHalf + amt15l + productTotal
     if (totalCredited === 0 && subTotal > 0) {
       lines.push({ account_code: '4001', account_name: 'Water Sales - 19L', credit: subTotal })
     }
 
-    // Rounding correction ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â if credited amounts don't add up to subTotal due to rate differences
+// Rounding correction - if credited amounts don't add up to subTotal due to rate differences
     const creditDiff = subTotal - totalCredited
     if (Math.abs(creditDiff) > 0 && Math.abs(creditDiff) < 2 && totalCredited > 0) {
       // Add small rounding difference to the largest sales line
@@ -209,7 +209,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       if (lastWaterLine) lastWaterLine.credit = +(lastWaterLine.credit + creditDiff).toFixed(2)
     }
 
-    // Tax portion ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ Tax Payable (only if tax > 0)
+// Tax portion - Tax Payable (only if tax > 0)
     if (taxAmount > 0) {
       lines.push({ account_code: '2300', account_name: 'Tax Payable', credit: taxAmount })
     }
@@ -243,6 +243,20 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       await postCommissionAccrualJournal(delivery, tenantId)
     }
 
+    // Post bottle movement journal if net change
+    try {
+      const qty19l = Number(delivery.qty_19l || 0)
+      const bottlesReturned = Number(delivery.bottles_returned || 0)
+      const netBottleChange = qty19l - bottlesReturned
+      if (netBottleChange !== 0) {
+        const { data: bottleProduct } = await supabase.from("products")
+          .select("average_cost").eq("tenant_id", tenantId).eq("bottle_type", "19l").eq("product_type", "trading").maybeSingle()
+        const bottleCost = Number(bottleProduct?.average_cost || 900)
+        await postBottleMovementJournal(netBottleChange, bottleCost, tenantId, delivery.id, delivery.delivered_at?.split("T")[0])
+      }
+    } catch (err) {
+      console.error("Bottle movement journal error:", err)
+    }
     return entryId
   } catch (err) {
     console.error('postDeliveryJournal error:', err)
@@ -250,7 +264,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 2. POST PAYMENT JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 2. POST PAYMENT JOURNAL ENTRY -
 // isRiderEntry = true when rider collects payment (rider_id NOT NULL)
 // isRiderEntry = false when admin records payment directly
 export async function postPaymentJournal(payment, tenantId, isRiderEntry = true) {
@@ -261,7 +275,7 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
     const lines = []
 
     if (paymentMethod === 'cash') {
-      // Cash collection ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rider holding or direct to CEO
+// Cash collection - rider holding or direct to CEO
       if (isRiderEntry) {
         lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: amount })
       } else {
@@ -270,12 +284,12 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: amount })
 
     } else if (paymentMethod === 'jazzcash') {
-      // Jazz payment ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â unconfirmed goes to clearing
+// Jazz payment - unconfirmed goes to clearing
       lines.push({ account_code: '1102', account_name: 'JazzCash Clearing - Pending', debit: amount })
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: amount })
 
     } else if (paymentMethod === 'easypaisa') {
-      // EasyPaisa ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â goes to its clearing
+// EasyPaisa - goes to its clearing
       lines.push({ account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', debit: amount })
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: amount })
     }
@@ -305,8 +319,8 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 3. POST JAZZCASH/EASYPAISA CONFIRMATION JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// When admin confirms jazz/easypaisa ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â moves from clearing to actual account
+// - 3. POST JAZZCASH/EASYPAISA CONFIRMATION JOURNAL ENTRY -
+// When admin confirms jazz/easypaisa - moves from clearing to actual account
 export async function postJazzCashConfirmationJournal(record, recordType, tenantId) {
   try {
     const amount = Number(record.total_with_tax || record.total_amount || record.amount || 0)
@@ -358,8 +372,8 @@ export async function postJazzCashConfirmationJournal(record, recordType, tenant
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 4. POST RIDER EXPENSE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// Rider spends from his holding cash ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â reduces what he owes to office
+// - 4. POST RIDER EXPENSE JOURNAL ENTRY -
+// Rider spends from his holding cash - reduces what he owes to office
 export async function postRiderExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
@@ -369,7 +383,7 @@ export async function postRiderExpenseJournal(expense, tenantId) {
     const lines = [
       // Debit the correct expense account
       { account_code: expenseAcc.code, account_name: expenseAcc.name, debit: amount },
-      // Credit rider holding ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â rider spent from his cash, reduces what he owes
+// Credit rider holding - rider spent from his cash, reduces what he owes
       { account_code: '1101', account_name: 'Receivable from Riders', credit: amount }
     ]
 
@@ -396,14 +410,14 @@ export async function postRiderExpenseJournal(expense, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 5. POST OFFICE EXPENSE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// Admin pays expense directly from cash/jazz/bank ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â no change needed
+// - 5. POST OFFICE EXPENSE JOURNAL ENTRY -
+// Admin pays expense directly from cash/jazz/bank - no change needed
 export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
     const amount = Number(expense.amount || 0)
     if (amount <= 0) { console.log('postOfficeExpenseJournal skipped - amount is 0'); return null }
     // Use custom COA account if provided, otherwise use category mapping
-    // Salary payments settle the payable ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DR 2100, not expense account
+// Salary payments settle the payable - DR 2100, not expense account
     const expenseAcc = expense.category === 'salary'
       ? { code: '2100', name: 'Salary Payable' }
       : expense._customAccount
@@ -441,13 +455,13 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 6. POST SALARY PAYMENT JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 6. POST SALARY PAYMENT JOURNAL ENTRY -
 // Two compound entries:
-// Entry 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Salary accrual:
-//   DR 6001 Rider Salaries (full salary ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â hits P&L)
+// Entry 1 - Salary accrual:
+// DR 6001 Rider Salaries (full salary - hits P&L)
 //     CR 1104 Salary Advances to Riders (recover advances from asset)
 //     CR 2100 Salary Payable (remaining balance payable)
-// Entry 2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Cash payment:
+// Entry 2 - Cash payment:
 //   DR 2100 Salary Payable
 //     CR cash account
 export async function postSalaryPaymentJournal(payment, tenantId) {
@@ -459,7 +473,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
     const cashAcc = getCashAccount(payment.payment_method || 'cash')
     const date = payment.payment_date || new Date().toISOString().split('T')[0]
 
-    // Entry 1 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Salary accrual (only if full salary is known)
+// Entry 1 - Salary accrual (only if full salary is known)
     if (monthlySalary > 0) {
       const accrualLines = [
         // Full salary expense hits P&L
@@ -485,7 +499,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
       })
     }
 
-    // Entry 2 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Cash payment settles salary payable
+// Entry 2 - Cash payment settles salary payable
     const paymentLines = [
       { account_code: '2100', account_name: 'Salary Payable', debit: amountPaid },
       { account_code: cashAcc.code, account_name: cashAcc.name, credit: amountPaid }
@@ -514,9 +528,9 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 7. POST SALARY ADVANCE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// Advance paid from cash ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DR 1104 Salary Advances to Riders (Asset)  CR cash account
-// Does NOT hit P&L ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â sits as asset until recovered at salary payment time
+// - 7. POST SALARY ADVANCE JOURNAL ENTRY -
+// Advance paid from cash - DR 1104 Salary Advances to Riders (Asset)  CR cash account
+// Does NOT hit P&L - sits as asset until recovered at salary payment time
 export async function postSalaryAdvanceJournal(advance, tenantId) {
   try {
     const amount = Number(advance.amount || 0)
@@ -551,7 +565,7 @@ export async function postSalaryAdvanceJournal(advance, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 8. POST COMMISSION ACCRUAL JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 8. POST COMMISSION ACCRUAL JOURNAL ENTRY -
 // Auto-accrues commission earned per delivery for commission-based riders
 // DR 6001 Rider Salaries  CR 2100 Salary Payable
 export async function postCommissionAccrualJournal(delivery, tenantId) {
@@ -602,7 +616,7 @@ export async function postCommissionAccrualJournal(delivery, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 9. POST CASH TRANSFER FROM RIDER JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 9. POST CASH TRANSFER FROM RIDER JOURNAL ENTRY -
 // Rider transfers holding cash/jazz to CEO office
 // DR cash/jazz/easypaisa account  CR 1101 Receivable from Riders
 export async function postCashTransferJournal(transfer, tenantId) {
@@ -642,7 +656,7 @@ export async function postCashTransferJournal(transfer, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 10. POST STOCK PURCHASE JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 10. POST STOCK PURCHASE JOURNAL ENTRY -
 export async function postStockPurchaseJournal(purchase, tenantId) {
   try {
     const amount = Number(purchase.total_cost || 0)
@@ -650,16 +664,16 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
     const cashAcc = getCashAccount(purchase.payment_method || 'cash')
 
     // Determine inventory account based on product type
-    // Raw material ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 1200, Trading ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 1202, Finished Good ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ 1201
+// Raw material - 1200, Trading - 1202, Finished Good - 1201
     const productType = purchase.product_type || 'raw_material'
     let inventoryAcc = { code: '1200', name: 'Inventory - Raw Materials' }
     if (productType === 'trading') inventoryAcc = { code: '1202', name: 'Inventory - Trading Items' }
     if (productType === 'finished_good') inventoryAcc = { code: '1201', name: 'Inventory - Finished Goods' }
 
     const lines = [
-      // DR Inventory (Balance Sheet) ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â cost sits here until sold
+// DR Inventory (Balance Sheet) - cost sits here until sold
       { account_code: inventoryAcc.code, account_name: inventoryAcc.name, debit: amount },
-      // CR Cash/Bank/JazzCash ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â money goes out
+// CR Cash/Bank/JazzCash - money goes out
       { account_code: cashAcc.code, account_name: cashAcc.name, credit: amount }
     ]
 
@@ -686,7 +700,7 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 11. POST OWNER TRANSACTION JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 11. POST OWNER TRANSACTION JOURNAL ENTRY -
 export async function postOwnerTransactionJournal(transaction, tenantId) {
   try {
     const amount = Number(transaction.amount || 0)
@@ -726,7 +740,7 @@ export async function postOwnerTransactionJournal(transaction, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 12. POST ACCOUNT TRANSFER JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 12. POST ACCOUNT TRANSFER JOURNAL ENTRY -
 export async function postAccountTransferJournal(transfer, tenantId) {
   try {
     const amount = Number(transfer.amount || 0)
@@ -762,7 +776,7 @@ export async function postAccountTransferJournal(transfer, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 13. REVERSE JOURNAL ENTRY (for void) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 13. REVERSE JOURNAL ENTRY (for void) -
 export async function reverseJournalEntry(originalEntryId, referenceId, referenceType, tenantId) {
   try {
     const { data: originalLines } = await supabase
@@ -796,8 +810,39 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 14. POST CUSTOMER OPENING BALANCE JOURNAL ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+// - 14. POST CUSTOMER OPENING BALANCE JOURNAL -
 // Called when new customer is saved with opening_balance > 0
+
+// --- BOTTLE MOVEMENT JOURNAL ---
+export async function postBottleMovementJournal(netChange, bottleCost, tenantId, referenceId, date) {
+  try {
+    if (netChange === 0) return null
+    const cost = Math.abs(netChange) * Number(bottleCost || 900)
+    if (cost <= 0) return null
+    const isOut = netChange > 0 // more bottles going to customer
+    const lines = isOut
+      ? [
+          { account_code: '1106', account_name: 'Bottles with Customers', debit: cost, credit: 0 },
+          { account_code: '1201', account_name: 'Inventory - Finished Goods', debit: 0, credit: cost },
+        ]
+      : [
+          { account_code: '1201', account_name: 'Inventory - Finished Goods', debit: cost, credit: 0 },
+          { account_code: '1106', account_name: 'Bottles with Customers', debit: 0, credit: cost },
+        ]
+    return await postJournalEntry({
+      tenantId, date: date || new Date().toISOString().split("T")[0],
+      referenceType: "bottle_movement", referenceId,
+      narration: isOut
+        ? "Bottles placed with customer - " + Math.abs(netChange) + " x Rs." + bottleCost
+        : "Bottles returned from customer - " + Math.abs(netChange) + " x Rs." + bottleCost,
+      lines
+    })
+  } catch (err) {
+    console.error("postBottleMovementJournal error:", err)
+    return null
+  }
+}
+
 export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
   try {
     const amount = Number(customer.opening_balance || 0)
@@ -805,12 +850,12 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
 
     const lines = amount > 0
       ? [
-          // Customer owes us ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â debit AR
+// Customer owes us - debit AR
           { account_code: '1100', account_name: 'Accounts Receivable', debit: Math.abs(amount), credit: 0 },
           { account_code: '3001', account_name: 'Owner Capital', debit: 0, credit: Math.abs(amount) }
         ]
       : [
-          // Customer has advance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â debit Owner Capital
+// Customer has advance - debit Owner Capital
           { account_code: '3001', account_name: 'Owner Capital', debit: Math.abs(amount), credit: 0 },
           { account_code: '2200', account_name: 'Advance from Customers', debit: 0, credit: Math.abs(amount) }
         ]
@@ -824,6 +869,20 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
       lines
     })
 
+    // Post bottle opening balance if customer has bottles placed
+    const bottlesPlaced = Number(customer.our_bottles_placed || 0)
+    if (bottlesPlaced > 0) {
+      const bottleValue = bottlesPlaced * 900
+      await postJournalEntry({
+        tenantId, date: new Date().toISOString().split("T")[0],
+        referenceType: "opening_bottles", referenceId: customer.id,
+        narration: "Opening bottles with customer - " + bottlesPlaced + " bottles",
+        lines: [
+          { account_code: "1106", account_name: "Bottles with Customers", debit: bottleValue, credit: 0 },
+          { account_code: "3001", account_name: "Owner Capital", debit: 0, credit: bottleValue },
+        ]
+      })
+    }
     return entryId
   } catch (err) {
     console.error('postCustomerOpeningBalanceJournal error:', err)
@@ -831,8 +890,8 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
   }
 }
 
-// ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ 15. POST SALES TAX JOURNAL ENTRY ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
-// Called when delivery has tax ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DR AR (tax portion)  CR 2300 Tax Payable
+// - 15. POST SALES TAX JOURNAL ENTRY -
+// Called when delivery has tax - DR AR (tax portion)  CR 2300 Tax Payable
 export async function postSalesTaxJournal(delivery, taxAmount, tenantId) {
   try {
     if (!taxAmount || taxAmount <= 0) return null
