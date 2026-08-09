@@ -624,7 +624,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   </div>
 </body></html>`)
                 win.document.close()
-                win.onload = () => { win.focus(); win.print(); win.onafterprint = () => win.close() }
+                    setTimeout(() => { win.focus(); win.print(); win.onafterprint = () => win.close() }, 800)
               }}
                 style={{ padding: '4px 12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
               🧾 Print Receipt
