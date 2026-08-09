@@ -558,12 +558,7 @@ export default function AdminQuickSale({ tenantId }) {
               {rate19l && qty19l > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700', margin: '6px 0 0', textAlign: 'center', background: '#e3f0ff', padding: '6px', borderRadius: '7px' }}>{qty19l} × Rs.{rate19l} = <strong>Rs. {(qty19l * rate19l).toLocaleString()}</strong></p>}
             </div>
 
-            {/* Notes */}
-            <div style={{ ...card, padding: '8px 12px', marginBottom: '8px' }}>
-              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
-              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
-            </div>
-
+            
             {/* Total & Submit */}
             <div style={{ ...card, border: '2px solid #e3f0ff' }}>
               {[
@@ -596,6 +591,35 @@ export default function AdminQuickSale({ tenantId }) {
 
           {/* RIGHT COLUMN — Other Products */}
           <div>
+            {/* 19L Bottle */}
+            <div style={{ ...card, border: '2px solid #c8d8ff' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <div>
+                  <p style={{ fontSize: '15px', fontWeight: '700', color: '#0f4c81', margin: '0 0 1px' }}>🍶 19 Litre Bottle</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>Main product · select quantity and rate</p>
+                </div>
+                <SmallNumBtn val={qty19l} onDec={() => setQty19l(Math.max(0, qty19l - 1))} onInc={() => setQty19l(qty19l + 1)} />
+              </div>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>Rate per bottle (Rs.)</p>
+              <div style={{ display: isMobile ? 'grid' : 'flex', gridTemplateColumns: isMobile ? 'repeat(4, 1fr)' : undefined, flexWrap: 'nowrap', gap: '5px', marginBottom: '8px' }}>
+                {RATES_19L.map(r => (
+                  <button key={r} onClick={() => setRate19l(r)}
+                    style={{ flex: isMobile ? undefined : 1, padding: '7px 4px', border: '2px solid', borderColor: rate19l === r ? '#0f4c81' : '#eee', borderRadius: '7px', cursor: 'pointer', background: rate19l === r ? '#0f4c81' : '#f8f9fa', color: rate19l === r ? 'white' : '#333', fontWeight: '700', fontSize: '12px', textAlign: 'center' }}>
+                    Rs.{r}
+                  </button>
+                ))}
+              </div>
+              <input type="number" value={rate19l || ''} onChange={e => setRate19l(e.target.value === '' ? null : Number(e.target.value))} placeholder="Or type custom rate..."
+                style={{ ...inp, fontSize: '14px', fontWeight: '700', textAlign: 'center', borderColor: rate19l ? '#0f4c81' : '#ddd' }} />
+              {rate19l && qty19l > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700', margin: '6px 0 0', textAlign: 'center', background: '#e3f0ff', padding: '6px', borderRadius: '7px' }}>{qty19l} × Rs.{rate19l} = <strong>Rs. {(qty19l * rate19l).toLocaleString()}</strong></p>}
+            </div>
+
+            {/* Notes */}
+            <div style={{ ...card, padding: '8px 12px', marginBottom: '8px' }}>
+              <p style={{ fontSize: '11px', fontWeight: '700', color: '#999', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Notes (optional)</p>
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any note..." style={inp} />
+            </div>
+
             {/* Empty Bottles Returned */}
             <div style={{ ...card, border: '1px solid #fff3e0', padding: isMobile ? '10px 14px' : '8px 14px', marginBottom: '8px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
