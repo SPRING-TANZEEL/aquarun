@@ -846,7 +846,8 @@ export async function postBottleMovementJournal(netChange, bottleCost, tenantId,
 export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
   try {
     const amount = Number(customer.opening_balance || 0)
-    if (amount === 0) return null
+    const bottlesPlaced = Number(customer.our_bottles_placed || 0)
+    if (amount === 0 && bottlesPlaced === 0) return null
 
     const lines = amount > 0
       ? [
