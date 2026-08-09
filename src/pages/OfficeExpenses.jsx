@@ -12,9 +12,10 @@ const CATEGORIES = [
 ]
 
 const PAYMENT_METHODS = [
-  { key: 'cash',     label: 'Cash',     icon: '💵' },
-  { key: 'jazzcash', label: 'JazzCash', icon: '📱' },
-  { key: 'bank',     label: 'Bank',     icon: '🏦' },
+  { key: 'cash',      label: 'Cash',      icon: '💵' },
+  { key: 'jazzcash',  label: 'JazzCash',  icon: '📱' },
+  { key: 'easypaisa', label: 'EasyPaisa', icon: '💚' },
+  { key: 'bank',      label: 'Bank',      icon: '🏦' },
 ]
 
 export default function OfficeExpenses({ rider, isCEO, tenantId }) {
@@ -128,9 +129,10 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   }
 
   const totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0)
-  const cashTotal = expenses.filter(e => (e.payment_method || 'cash') === 'cash').reduce((s, e) => s + Number(e.amount), 0)
-  const jazzTotal = expenses.filter(e => e.payment_method === 'jazzcash').reduce((s, e) => s + Number(e.amount), 0)
-  const bankTotal = expenses.filter(e => e.payment_method === 'bank').reduce((s, e) => s + Number(e.amount), 0)
+  const cashTotal      = expenses.filter(e => (e.payment_method || 'cash') === 'cash').reduce((s, e) => s + Number(e.amount), 0)
+  const jazzTotal      = expenses.filter(e => e.payment_method === 'jazzcash').reduce((s, e) => s + Number(e.amount), 0)
+  const easypaisaTotal = expenses.filter(e => e.payment_method === 'easypaisa').reduce((s, e) => s + Number(e.amount), 0)
+  const bankTotal      = expenses.filter(e => e.payment_method === 'bank').reduce((s, e) => s + Number(e.amount), 0)
 
   return (
     <div>
@@ -269,9 +271,10 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
         {/* Info */}
         <div style={{ background: '#f0f7ff', border: '1px solid #c8d8ff', borderRadius: '8px', padding: '8px 12px', marginBottom: '14px' }}>
           <p style={{ fontSize: '11px', color: '#0f4c81', margin: 0 }}>
-            {paymentMethod === 'cash' && '💵 Deducted from CEO Cash in Hand'}
-            {paymentMethod === 'jazzcash' && '📱 Deducted from CEO JazzCash balance'}
-            {paymentMethod === 'bank' && '🏦 Deducted from CEO Bank balance'}
+            {paymentMethod === 'cash'      && '💵 Deducted from CEO Cash in Hand'}
+            {paymentMethod === 'jazzcash'  && '📱 Deducted from CEO JazzCash balance'}
+            {paymentMethod === 'easypaisa' && '💚 Deducted from CEO EasyPaisa balance'}
+            {paymentMethod === 'bank'      && '🏦 Deducted from CEO Bank balance'}
             {selectedCoa && ` → Posted to ${selectedCoa.account_code} ${selectedCoa.account_name}`}
           </p>
         </div>
