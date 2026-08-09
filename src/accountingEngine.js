@@ -871,7 +871,7 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
     })
 
     // Post bottle opening balance if customer has bottles placed
-    const bottlesPlaced = Number(customer.our_bottles_placed || 0)
+    
     if (bottlesPlaced > 0) {
       const bottleValue = bottlesPlaced * 900
       await postJournalEntry({
