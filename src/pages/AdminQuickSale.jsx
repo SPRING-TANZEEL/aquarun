@@ -299,6 +299,8 @@ export default function AdminQuickSale({ tenantId }) {
         .select('average_cost').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
       const bottleCost = Number(bottleProduct?.average_cost || 900)
       await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0], 'Admin')
+      const { data: bp1 } = await supabase.from('products').select('id, current_stock').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
+      if (bp1) await supabase.from('products').update({ current_stock: Number(bp1.current_stock || 0) + returnQty }).eq('id', bp1.id)
 
       setSuccess({ type: 'bottle_return', name: returnCustomer.full_name, qty: returnQty, newCount, customerMobile: returnCustomer.mobile || '' })
       setReturnCustomer(null); setReturnSearch(''); setReturnQty(0)

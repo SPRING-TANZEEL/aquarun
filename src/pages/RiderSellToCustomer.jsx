@@ -61,6 +61,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         .select('average_cost').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
       const bottleCost = Number(bottleProduct?.average_cost || 900)
       await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0], rider?.full_name || 'Rider')
+      const { data: bp2 } = await supabase.from('products').select('id, current_stock').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
+      if (bp2) await supabase.from('products').update({ current_stock: Number(bp2.current_stock || 0) + returnQty }).eq('id', bp2.id)
       setReturnSuccess({ name: returnCustomer.full_name, qty: returnQty, newCount })
       setReturnCustomer(null); setReturnSearch(''); setReturnQty(0)
     } catch (err) { alert('Error: ' + err.message) }

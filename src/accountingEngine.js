@@ -227,7 +227,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
-      narration: `Delivery ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${narrationParts} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${paymentMethod} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â tax Rs.${taxAmount}` : ''}`,
+      narration: `Delivery - ${narrationParts} - ${paymentMethod} - ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` - tax Rs.${taxAmount}` : ''}`,
       lines
     })
 
@@ -253,6 +253,8 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
           .select("average_cost").eq("tenant_id", tenantId).eq("bottle_type", "19l").eq("product_type", "trading").maybeSingle()
         const bottleCost = Number(bottleProduct?.average_cost || 900)
         await postBottleMovementJournal(netBottleChange, bottleCost, tenantId, delivery.id, delivery.delivered_at?.split("T")[0])
+        const { data: bp3 } = await supabase.from('products').select('id, current_stock').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
+        if (bp3) await supabase.from('products').update({ current_stock: Math.max(0, Number(bp3.current_stock || 0) - netBottleChange) }).eq('id', bp3.id)
       }
     } catch (err) {
       console.error("Bottle movement journal error:", err)
@@ -301,7 +303,7 @@ export async function postPaymentJournal(payment, tenantId, isRiderEntry = true)
       date: payment.payment_date || new Date().toISOString().split('T')[0],
       referenceType: 'payment',
       referenceId: payment.id,
-      narration: `Customer payment ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${paymentMethod} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${isRiderEntry ? 'collected by rider' : 'recorded by admin'}`,
+      narration: `Customer payment - ${paymentMethod} - ${isRiderEntry ? 'collected by rider' : 'recorded by admin'}`,
       lines
     })
 
@@ -392,7 +394,7 @@ export async function postRiderExpenseJournal(expense, tenantId) {
       date: expense.expense_date || new Date().toISOString().split('T')[0],
       referenceType: 'rider_expense',
       referenceId: expense.id,
-      narration: `Rider expense ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${expense.expense_type || expense.category || 'general'} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${expense.description || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â deducted from rider holding`,
+      narration: `Rider expense - ${expense.expense_type || expense.category || 'general'} - ${expense.description || ''} - deducted from rider holding`,
       lines
     })
 
@@ -494,7 +496,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
         date,
         referenceType: 'salary_accrual',
         referenceId: payment.id,
-        narration: `Salary accrual ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${payment.month_year || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â total Rs. ${monthlySalary} less advances Rs. ${totalAdvances}`,
+        narration: `Salary accrual - ${payment.month_year || ''} - total Rs. ${monthlySalary} less advances Rs. ${totalAdvances}`,
         lines: accrualLines
       })
     }
@@ -510,7 +512,7 @@ export async function postSalaryPaymentJournal(payment, tenantId) {
       date,
       referenceType: 'salary_payment',
       referenceId: payment.id,
-      narration: `Salary paid ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${payment.month_year || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rs. ${amountPaid} via ${payment.payment_method || 'cash'}`,
+      narration: `Salary paid - ${payment.month_year || ''} - Rs. ${amountPaid} via ${payment.payment_method || 'cash'}`,
       lines: paymentLines
     })
 
@@ -547,7 +549,7 @@ export async function postSalaryAdvanceJournal(advance, tenantId) {
       date: new Date().toISOString().split('T')[0],
       referenceType: 'salary_advance',
       referenceId: advance.id,
-      narration: `Salary advance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${advance.notes || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â paid from ${advance.payment_method || 'cash'}`,
+      narration: `Salary advance - ${advance.notes || ''} - paid from ${advance.payment_method || 'cash'}`,
       lines
     })
 
@@ -605,7 +607,7 @@ export async function postCommissionAccrualJournal(delivery, tenantId) {
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'commission_accrual',
       referenceId: delivery.id,
-      narration: `Commission accrual ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${rider.full_name} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${qty19l}ÃƒÆ’Ã¢â‚¬â€19L + ${qtyHalf}ÃƒÆ’Ã¢â‚¬â€Half + ${qty15l}ÃƒÆ’Ã¢â‚¬â€1.5L = Rs. ${commission}`,
+      narration: `Commission accrual - ${rider.full_name} - ${qty19l}x19L + ${qtyHalf}xHalf + ${qty15l}x1.5L = Rs. ${commission}`,
       lines
     })
 
@@ -638,7 +640,7 @@ export async function postCashTransferJournal(transfer, tenantId) {
       date: transfer.transfer_date || new Date().toISOString().split('T')[0],
       referenceType: 'cash_transfer',
       referenceId: transfer.id,
-      narration: `Rider cash transfer to office ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${transferType} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â clears rider holding`,
+      narration: `Rider cash transfer to office - ${transferType} - clears rider holding`,
       lines
     })
 
@@ -682,7 +684,7 @@ export async function postStockPurchaseJournal(purchase, tenantId) {
       date: purchase.purchase_date || new Date().toISOString().split('T')[0],
       referenceType: 'stock_purchase',
       referenceId: purchase.id,
-      narration: `Stock purchase ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${purchase.supplier || 'supplier'} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â paid from ${purchase.payment_method || 'cash'}`,
+      narration: `Stock purchase - ${purchase.supplier || 'supplier'} - paid from ${purchase.payment_method || 'cash'}`,
       lines
     })
 
@@ -722,7 +724,7 @@ export async function postOwnerTransactionJournal(transaction, tenantId) {
       date: transaction.transaction_date || new Date().toISOString().split('T')[0],
       referenceType: 'owner_transaction',
       referenceId: transaction.id,
-      narration: `Owner ${isInjection ? 'capital injection' : 'drawing'} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${cashAcc.name}`,
+      narration: `Owner ${isInjection ? 'capital injection' : 'drawing'} - ${cashAcc.name}`,
       lines
     })
 
@@ -758,7 +760,7 @@ export async function postAccountTransferJournal(transfer, tenantId) {
       date: transfer.transfer_date || new Date().toISOString().split('T')[0],
       referenceType: 'account_transfer',
       referenceId: transfer.id,
-      narration: `Internal transfer ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${fromAcc.name} to ${toAcc.name}`,
+      narration: `Internal transfer - ${fromAcc.name} to ${toAcc.name}`,
       lines
     })
 
@@ -799,7 +801,7 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
       date: new Date().toISOString().split('T')[0],
       referenceType: referenceType + '_reversal',
       referenceId: referenceId,
-      narration: `Reversal ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${referenceType} voided`,
+      narration: `Reversal - ${referenceType} voided`,
       lines: reversalLines
     })
 
@@ -907,7 +909,7 @@ export async function postSalesTaxJournal(delivery, taxAmount, tenantId) {
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'sales_tax',
       referenceId: delivery.id,
-      narration: `Sales tax ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${delivery.invoice_number || ''} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Rs. ${taxAmount} @ ${delivery.tax_rate || 0}%`,
+      narration: `Sales tax - ${delivery.invoice_number || ''} - Rs. ${taxAmount} @ ${delivery.tax_rate || 0}%`,
       lines
     })
 
