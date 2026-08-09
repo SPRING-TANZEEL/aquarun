@@ -744,7 +744,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   </div>
 </body></html>`)
                     win.document.close()
-                    setTimeout(() => { win.focus(); win.print(); win.onafterprint = () => win.close() }, 800)
+                    setTimeout(() => { win.focus(); win.print(); win.onafterprint = () => win.close() }, 2000)
                   }}
                     style={{ padding: '4px 12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
                     🧾 Print Receipt
