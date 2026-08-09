@@ -48,6 +48,8 @@ export default function SalaryManagement({ adminUser, tenantId }) {
   const [payMethod,   setPayMethod]   = useState('cash')
   const [payDate,     setPayDate]     = useState(new Date().toISOString().split('T')[0])
   const [saving,      setSaving]      = useState(false)
+  const [approvingRequest, setApprovingRequest] = useState(null)
+  const [approveMethod,    setApproveMethod]    = useState('cash')
 
   useEffect(() => { if (tenantId) fetchData() }, [selectedMonth, tenantId])
 
@@ -156,13 +158,20 @@ export default function SalaryManagement({ adminUser, tenantId }) {
     setPayMethod('cash'); setPayDate(new Date().toISOString().split('T')[0])
   }
 
-  async function approveRequest(request) {
+  function approveRequest(request) {
+    setApprovingRequest(request)
+    setApproveMethod('cash')
+  }
+
+  async function confirmApprove() {
+    const request = approvingRequest
     setProcessing(request.id)
+    setApprovingRequest(null)
     const { data: approved, error } = await supabase.from('salary_advances')
-      .update({ status: 'approved', approved_by: 'Admin/CEO', approved_at: new Date().toISOString() })
+      .update({ status: 'approved', approved_by: 'Admin/CEO', approved_at: new Date().toISOString(), payment_method: approveMethod })
       .eq('id', request.id).eq('tenant_id', tenantId).select().single()
     if (error) { alert('Error: ' + error.message); setProcessing(null); return }
-    try { await AccountingEngine.postSalaryAdvanceJournal(approved, tenantId) } catch (err) { console.error(err) }
+    try { await AccountingEngine.postSalaryAdvanceJournal({ ...approved, payment_method: approveMethod }, tenantId) } catch (err) { console.error(err) }
     fetchData(); setProcessing(null)
   }
 
@@ -447,6 +456,25 @@ export default function SalaryManagement({ adminUser, tenantId }) {
       {activeTab === 'pending' && (
         <div>
           <p style={{ fontSize: 13, color: '#888', marginBottom: 16 }}>Advance requests sent directly to CEO/Admin for approval.</p>
+          {approvingRequest && (
+            <div style={{ background: 'white', borderRadius: 12, padding: 20, marginBottom: 16, border: '2px solid #0f4c81', boxShadow: '0 2px 12px rgba(0,0,0,0.1)' }}>
+              <p style={{ fontSize: 15, fontWeight: 800, color: '#0f4c81', margin: '0 0 4px' }}>✓ Approve Advance — {approvingRequest.rider?.full_name}</p>
+              <p style={{ fontSize: 13, color: '#888', margin: '0 0 14px' }}>Amount: Rs. {Number(approvingRequest.amount).toLocaleString()} — Select payment source:</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+                {PAYMENT_METHODS.map(m => (
+                  <button key={m.key} onClick={() => setApproveMethod(m.key)}
+                    style={{ flex: 1, padding: '10px 6px', border: '2px solid', borderColor: approveMethod === m.key ? '#0f4c81' : '#eee', borderRadius: 8, cursor: 'pointer', background: approveMethod === m.key ? '#e3f0ff' : 'white', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+                    <span style={{ fontSize: 18 }}>{m.icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: approveMethod === m.key ? '#0f4c81' : '#555' }}>{m.label}</span>
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setApprovingRequest(null)} style={{ flex: 1, padding: 12, background: '#f5f5f5', color: '#555', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Cancel</button>
+                <button onClick={confirmApprove} style={{ flex: 2, padding: 12, background: '#1a7a4a', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>✓ Confirm Approve — {approveMethod}</button>
+              </div>
+            </div>
+          )}
           {pendingRequests.length === 0 ? (
             <div style={{ background: 'white', borderRadius: 12, padding: 50, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
               <p style={{ fontSize: 40, margin: '0 0 12px' }}>✅</p>
