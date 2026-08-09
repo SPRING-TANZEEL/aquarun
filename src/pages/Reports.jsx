@@ -1986,6 +1986,8 @@ function BottleBalance({ tenantId }) {
     setSelectedCustomer(customer)
     setActiveView('history')
     setLoadingHistory(true)
+
+    // Fetch deliveries
     const { data: deliveries } = await supabase.from('deliveries')
       .select('id, delivered_at, qty_19l, bottles_returned, payment_method, total_with_tax, total_amount, is_voided')
       .eq('tenant_id', tenantId)
@@ -1993,22 +1995,52 @@ function BottleBalance({ tenantId }) {
       .eq('is_voided', false)
       .order('delivered_at', { ascending: true })
 
-    let runningBalance = 0
-    const rows = (deliveries || []).map(d => {
-      const delivered = Number(d.qty_19l || 0)
-      const returned  = Number(d.bottles_returned || 0)
-      const netChange = delivered - returned
-      runningBalance += netChange
+    // Fetch bottle return journal entries (from Return Bottles tab)
+    const { data: bottleJournals } = await supabase.from('journal_entries')
+      .select('id, entry_date, narration, total_amount')
+      .eq('tenant_id', tenantId)
+      .eq('reference_id', customer.id)
+      .eq('reference_type', 'bottle_movement')
+      .order('entry_date', { ascending: true })
+
+    // Build delivery rows
+    const deliveryRows = (deliveries || []).map(d => ({
+      date: d.delivered_at,
+      delivered: Number(d.qty_19l || 0),
+      returned: Number(d.bottles_returned || 0),
+      netChange: Number(d.qty_19l || 0) - Number(d.bottles_returned || 0),
+      amount: Number(d.total_with_tax || d.total_amount || 0),
+      payment_method: d.payment_method,
+      rowType: 'delivery',
+    }))
+
+    // Build bottle return rows from journal entries
+    const bottleCostPerUnit = bottleCost || 900
+    const returnRows = (bottleJournals || []).map(j => {
+      const qty = Math.round(Number(j.total_amount || 0) / bottleCostPerUnit)
+      const isReturn = j.narration?.includes('returned')
       return {
-        date: d.delivered_at,
-        delivered,
-        returned,
-        netChange,
-        balance: runningBalance,
-        amount: Number(d.total_with_tax || d.total_amount || 0),
-        payment_method: d.payment_method,
+        date: j.entry_date,
+        delivered: isReturn ? 0 : qty,
+        returned: isReturn ? qty : 0,
+        netChange: isReturn ? -qty : qty,
+        amount: 0,
+        payment_method: null,
+        rowType: isReturn ? 'bottle_return' : 'bottle_placement',
+        narration: j.narration,
       }
     })
+
+    // Merge and sort by date
+    const allRows = [...deliveryRows, ...returnRows].sort((a, b) => new Date(a.date) - new Date(b.date))
+
+    // Calculate running balance
+    let runningBalance = 0
+    const rows = allRows.map(r => {
+      runningBalance += r.netChange
+      return { ...r, balance: runningBalance }
+    })
+
     setHistory(rows)
     setLoadingHistory(false)
   }
@@ -2182,14 +2214,21 @@ function BottleBalance({ tenantId }) {
                     <td style={{ padding: '10px 12px', fontSize: 11, color: '#aaa' }}>{idx + 1}</td>
                     <td style={{ padding: '10px 12px', fontSize: 12, color: '#555', whiteSpace: 'nowrap' }}>
                       {new Date(r.date).toLocaleDateString('en-PK', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      {(r.rowType === 'bottle_return' || r.rowType === 'bottle_placement') && (
+                        <span style={{ display: 'block', fontSize: 10, color: r.rowType === 'bottle_return' ? '#1a7a4a' : '#0f4c81', fontWeight: 600, marginTop: 2 }}>
+                          {r.rowType === 'bottle_return' ? '🫙 Direct Return' : '🫙 Direct Placement'}
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#0f4c81' }}>{r.delivered}</span>
-                      <span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>out</span>
+                      {r.rowType === 'bottle_return' || r.rowType === 'bottle_placement'
+                        ? <span style={{ fontSize: 11, color: '#aaa' }}>—</span>
+                        : <><span style={{ fontSize: 14, fontWeight: 800, color: '#0f4c81' }}>{r.delivered}</span><span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>out</span></>}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: '#1a7a4a' }}>{r.returned}</span>
-                      <span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>back</span>
+                      {r.rowType === 'bottle_return' || r.rowType === 'bottle_placement'
+                        ? <span style={{ fontSize: 11, color: '#aaa' }}>—</span>
+                        : <><span style={{ fontSize: 14, fontWeight: 800, color: '#1a7a4a' }}>{r.returned}</span><span style={{ fontSize: 10, color: '#888', marginLeft: 3 }}>back</span></>}
                     </td>
                     <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                       <span style={{ fontSize: 13, fontWeight: 700, color: r.netChange > 0 ? '#f44336' : r.netChange < 0 ? '#1a7a4a' : '#888' }}>
