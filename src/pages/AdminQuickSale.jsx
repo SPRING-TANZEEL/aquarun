@@ -298,7 +298,7 @@ export default function AdminQuickSale({ tenantId }) {
       const { data: bottleProduct } = await supabase.from('products')
         .select('average_cost').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
       const bottleCost = Number(bottleProduct?.average_cost || 900)
-      await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0])
+      await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0], 'Admin')
 
       setSuccess({ type: 'bottle_return', name: returnCustomer.full_name, qty: returnQty, newCount, customerMobile: returnCustomer.mobile || '' })
       setReturnCustomer(null); setReturnSearch(''); setReturnQty(0)

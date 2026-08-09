@@ -814,7 +814,7 @@ export async function reverseJournalEntry(originalEntryId, referenceId, referenc
 // Called when new customer is saved with opening_balance > 0
 
 // --- BOTTLE MOVEMENT JOURNAL ---
-export async function postBottleMovementJournal(netChange, bottleCost, tenantId, referenceId, date) {
+export async function postBottleMovementJournal(netChange, bottleCost, tenantId, referenceId, date, source) {
   try {
     if (netChange === 0) return null
     const cost = Math.abs(netChange) * Number(bottleCost || 900)
@@ -833,8 +833,8 @@ export async function postBottleMovementJournal(netChange, bottleCost, tenantId,
       tenantId, date: date || new Date().toISOString().split("T")[0],
       referenceType: "bottle_movement", referenceId,
       narration: isOut
-        ? "Bottles placed with customer - " + Math.abs(netChange) + " x Rs." + bottleCost
-        : "Bottles returned from customer - " + Math.abs(netChange) + " x Rs." + bottleCost,
+        ? "Bottles placed with customer - " + Math.abs(netChange) + " x Rs." + bottleCost + (source ? " - by " + source : "")
+        : "Bottles returned from customer - " + Math.abs(netChange) + " x Rs." + bottleCost + (source ? " - by " + source : ""),
       lines
     })
   } catch (err) {

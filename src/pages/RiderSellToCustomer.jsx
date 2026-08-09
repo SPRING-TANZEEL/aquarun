@@ -60,7 +60,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       const { data: bottleProduct } = await supabase.from('products')
         .select('average_cost').eq('tenant_id', tenantId).eq('bottle_type', '19l').eq('product_type', 'trading').maybeSingle()
       const bottleCost = Number(bottleProduct?.average_cost || 900)
-      await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0])
+      await AccountingEngine.postBottleMovementJournal(-returnQty, bottleCost, tenantId, returnCustomer.id, new Date().toISOString().split('T')[0], rider?.full_name || 'Rider')
       setReturnSuccess({ name: returnCustomer.full_name, qty: returnQty, newCount })
       setReturnCustomer(null); setReturnSearch(''); setReturnQty(0)
     } catch (err) { alert('Error: ' + err.message) }
