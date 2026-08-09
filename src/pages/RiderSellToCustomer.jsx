@@ -688,8 +688,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                 </button>
                 {success?.deliveryRaw && (
                   <button onClick={() => {
-                    const win = window.open('', '_blank')
-                    const d = success.deliveryRaw
+                    const win = window.open('about:blank', '_blank')
+                const d = success.deliveryRaw
                     const c = success.customerRaw
                     const qty19l = Number(d.qty_19l || 0)
                     const qtyHalf = Number(d.qty_half_litre || 0)
@@ -744,7 +744,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   </div>
 </body></html>`)
                     win.document.close()
-                    setTimeout(() => { win.focus(); win.print(); win.onafterprint = () => win.close() }, 2000)
+                    setTimeout(() => { try { win.focus(); win.print(); } catch(e) {} }, 2500)
                   }}
                     style={{ padding: '4px 12px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>
                     🧾 Print Receipt
