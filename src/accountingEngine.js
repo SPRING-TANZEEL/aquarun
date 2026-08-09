@@ -866,7 +866,7 @@ export async function postCustomerOpeningBalanceJournal(customer, tenantId) {
       date: new Date().toISOString().split('T')[0],
       referenceType: 'opening_balance',
       referenceId: customer.id,
-      narration: `Opening balance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${customer.full_name} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${amount > 0 ? 'receivable' : 'advance'}`,
+      narration: `Opening balance - ${customer.full_name} - ${amount > 0 ? 'receivable' : 'advance'}`,
       lines
     })
 
