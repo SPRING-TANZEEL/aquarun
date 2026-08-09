@@ -202,7 +202,7 @@ export default function CustomerManagement({ tenantId }) {
 
       if (error) { alert('Error: ' + error.message); setSaving(false); return }
 
-      if (Number(form.opening_balance) !== 0) {
+      if (Number(form.opening_balance) !== 0 || Number(form.our_bottles_placed) > 0) {
         try {
           const { postCustomerOpeningBalanceJournal } = AccountingEngine
           await postCustomerOpeningBalanceJournal(savedCustomer, tenantId)
