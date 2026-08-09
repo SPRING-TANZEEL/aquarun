@@ -23,6 +23,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [saving, setSaving] = useState(false)
   const [success, setSuccess] = useState(null)
   const [step, setStep] = useState(1)
+  const [showPayInfo, setShowPayInfo] = useState(false)
 
   // Products from DB
   const [bottleProducts, setBottleProducts] = useState([])
@@ -460,6 +461,49 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   return (
     <div>
       <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#333', marginBottom: '12px' }}>🏪 {t('Sell & Receive', 'فروخت اور وصولی')}</h2>
+
+      {/* Payment Info Card */}
+      {(bizSettings.jazzcash_number_1 || bizSettings.jazzcash_number_2 || bizSettings.bank_account_number) && (
+        <div style={{ marginBottom: '12px', border: '1px solid #e0e8ff', borderRadius: '10px', overflow: 'hidden' }}>
+          <button onClick={() => setShowPaymentInfo && setShowPaymentInfo(p => !p)}
+            style={{ width: '100%', padding: '10px 14px', background: '#f0f4ff', border: 'none', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+            onClick={() => setShowPayInfo(p => !p)}>
+            <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81' }}>💳 Payment Account Details</span>
+            <span style={{ fontSize: '16px', color: '#0f4c81' }}>{showPayInfo ? '▲' : '▼'}</span>
+          </button>
+          {showPayInfo && (
+            <div style={{ padding: '10px 14px', background: 'white' }}>
+              {bizSettings.jazzcash_number_1 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <span style={{ fontSize: '12px', color: '#9c27b0', fontWeight: '600' }}>📱 JazzCash</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontSize: '13px', fontWeight: '700', color: '#333', margin: 0 }}>{bizSettings.jazzcash_number_1}</p>
+                    {bizSettings.jazzcash_name_1 && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{bizSettings.jazzcash_name_1}</p>}
+                  </div>
+                </div>
+              )}
+              {bizSettings.jazzcash_number_2 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #f0f0f0' }}>
+                  <span style={{ fontSize: '12px', color: '#4caf50', fontWeight: '600' }}>💚 EasyPaisa</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontSize: '13px', fontWeight: '700', color: '#333', margin: 0 }}>{bizSettings.jazzcash_number_2}</p>
+                    {bizSettings.jazzcash_name_2 && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{bizSettings.jazzcash_name_2}</p>}
+                  </div>
+                </div>
+              )}
+              {bizSettings.bank_account_number && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}>
+                  <span style={{ fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>🏦 {bizSettings.bank_name || 'Bank'}</span>
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ fontSize: '13px', fontWeight: '700', color: '#333', margin: 0 }}>{bizSettings.bank_account_number}</p>
+                    {bizSettings.bank_account_title && <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{bizSettings.bank_account_title}</p>}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── 3 SUB TABS ── */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>

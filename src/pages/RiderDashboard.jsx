@@ -28,6 +28,8 @@ export default function RiderDashboard({ user, onLogout }) {
   const [showSyncBar, setShowSyncBar] = useState(true)
   const [locationStatus, setLocationStatus] = useState('unknown') // 'granted' | 'denied' | 'unknown'
   const [lang, setLang] = useState(() => localStorage.getItem('aquarun_lang') || 'en')
+  const [paymentSettings, setPaymentSettings] = useState({})
+  const [showPaymentInfo, setShowPaymentInfo] = useState(false)
 
   function t(en, ur) { return lang === 'ur' ? ur : en }
 
@@ -163,6 +165,14 @@ export default function RiderDashboard({ user, onLogout }) {
       .eq('tenant_id', user.tenant_id).eq('setting_key', 'sales_tax_rate')
       .maybeSingle()
       .then(({ data }) => { if (data) setSalesTaxRate(Number(data.setting_value || 16)) })
+    supabase.from('business_settings').select('setting_key, setting_value')
+      .eq('tenant_id', user.tenant_id)
+      .in('setting_key', ['jazzcash_number_1', 'jazzcash_name_1', 'jazzcash_number_2', 'jazzcash_name_2', 'bank_name', 'bank_account_number', 'bank_account_title'])
+      .then(({ data }) => {
+        const map = {}
+        data?.forEach(s => { map[s.setting_key] = s.setting_value })
+        setPaymentSettings(map)
+      })
     } catch (err) {
       console.error('Offline setup error:', err)
       setDbReady(true)
