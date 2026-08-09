@@ -163,6 +163,7 @@ export default function CustomerManagement({ tenantId }) {
       default_qty_half: Number(form.default_qty_half) || 0,
       default_qty_1_5l: Number(form.default_qty_1_5l) || 0,
       is_tax_applicable: form.is_tax_applicable || false,
+      notes: String(form.notes || '').trim(),
     }
 
     if (editCustomer) {
