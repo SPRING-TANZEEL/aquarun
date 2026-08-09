@@ -597,7 +597,6 @@ export default function AdminQuickSale({ tenantId }) {
               {rate19l && qty19l > 0 && <p style={{ fontSize: '13px', color: '#0f4c81', fontWeight: '700', margin: '6px 0 0', textAlign: 'center', background: '#e3f0ff', padding: '6px', borderRadius: '7px' }}>{qty19l} × Rs.{rate19l} = <strong>Rs. {(qty19l * rate19l).toLocaleString()}</strong></p>}
             </div>
 
-
             {/* Empty Bottles Returned */}
             <div style={{ ...card, border: '1px solid #fff3e0', padding: '10px 14px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
