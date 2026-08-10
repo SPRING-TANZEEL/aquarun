@@ -416,7 +416,7 @@ export default function App() {
           <button onClick={() => setSubscriptionWarning(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px', marginLeft: '12px' }}>✕</button>
         </div>
       )}
-      <AdminDashboard tenantId={currentTenant.id} hasMapFeature={currentTenant.has_map_feature || false} hasTrackingFeature={currentTenant.has_tracking_feature || false} user={{ full_name: currentTenant.business_name, role: 'admin' }} onLogout={handleLogout} />
+      <AdminDashboard tenantId={currentTenant.id} hasMapFeature={currentTenant.has_map_feature || false} hasTrackingFeature={currentTenant.has_tracking_feature || false} isReadOnly={currentTenant.isReadOnly || false} user={{ full_name: currentTenant.business_name, role: 'admin' }} onLogout={handleLogout} />
     </>
   )
   if (userRole === 'rider' && currentRider) return <RiderDashboard user={{ ...currentRider, tenant_id: currentTenant?.id }} onLogout={handleLogout} />
