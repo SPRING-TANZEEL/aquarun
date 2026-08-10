@@ -137,7 +137,9 @@ export default function App() {
         if (session) {
           const { data: tenant } = await supabase.from('tenants').select('*').eq('auth_user_id', session.user.id).single()
           if (tenant && tenant.is_active) {
-            setCurrentTenant(tenant)
+            const subCheck = checkSubscription(tenant)
+            if (subCheck.warning) setSubscriptionWarning(subCheck.warning)
+            setCurrentTenant({ ...tenant, isReadOnly: subCheck.isReadOnly || false })
             setUserRole('admin')
             setCheckingSession(false)
             return
@@ -146,7 +148,9 @@ export default function App() {
         // Fallback — old session
         const { data: tenant } = await supabase.from('tenants').select('*').eq('id', tenantId).single()
         if (tenant && tenant.is_active) {
-          setCurrentTenant(tenant)
+          const subCheck = checkSubscription(tenant)
+          if (subCheck.warning) setSubscriptionWarning(subCheck.warning)
+          setCurrentTenant({ ...tenant, isReadOnly: subCheck.isReadOnly || false })
           setUserRole('admin')
           setCheckingSession(false)
           return
