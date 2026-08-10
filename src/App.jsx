@@ -19,6 +19,7 @@ export default function App() {
   const [currentCustomer, setCurrentCustomer] = useState(null)
   const [loginMode, setLoginMode] = useState('admin')
   const [loading, setLoading] = useState(false)
+  const [subscriptionWarning, setSubscriptionWarning] = useState(null)
   const [error, setError] = useState('')
   const [checkingSession, setCheckingSession] = useState(true)
   const [installPrompt, setInstallPrompt] = useState(null)
@@ -160,6 +161,40 @@ export default function App() {
     setCheckingSession(false)
   }
 
+  function checkSubscription(tenant) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const status = tenant.subscription_status || 'trial'
+
+    if (status === 'trial') {
+      const trialEnd = tenant.trial_ends_at ? new Date(tenant.trial_ends_at) : null
+      if (!trialEnd) return { blocked: false, warning: null }
+      const daysLeft = Math.ceil((trialEnd - today) / (1000 * 60 * 60 * 24))
+      if (daysLeft <= 0) return { blocked: true, message: '⏰ Your free trial has ended. Please contact us to activate your subscription.', type: 'expired' }
+      if (daysLeft <= 5) return { blocked: false, warning: `⏰ Your free trial will end in ${daysLeft} day${daysLeft > 1 ? 's' : ''}. Please subscribe to continue.` }
+      return { blocked: false, warning: null }
+    }
+
+    if (status === 'active') {
+      const expiry = tenant.subscription_expiry ? new Date(tenant.subscription_expiry) : null
+      if (!expiry) return { blocked: false, warning: null }
+      const daysLeft = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24))
+      if (daysLeft <= 0) {
+        // Check grace period (4 days)
+        const graceDays = Math.ceil((today - expiry) / (1000 * 60 * 60 * 24))
+        if (graceDays > 4) return { blocked: true, message: '❌ Your subscription has expired. Please renew to continue.', type: 'expired' }
+        const graceLeft = 4 - graceDays + 1
+        return { blocked: false, isReadOnly: true, warning: `⚠️ Your subscription has expired. You have ${graceLeft} day${graceLeft > 1 ? 's' : ''} grace period remaining. Please renew immediately. Contact: +92 323 7919338` }
+      }
+      if (daysLeft <= 5) return { blocked: false, warning: `⏰ Your subscription will end in ${daysLeft} day${daysLeft > 1 ? 's' : ''}. Please renew to avoid interruption.` }
+      return { blocked: false, warning: null }
+    }
+
+    if (status === 'expired') return { blocked: true, message: '❌ Your subscription has expired. Please contact us to renew.', type: 'expired' }
+    if (status === 'paused') return { blocked: true, message: '⏸️ Your account has been paused. Please contact support.', type: 'paused' }
+    return { blocked: false, warning: null }
+  }
+
   async function handleLogin(e) {
     e.preventDefault()
     setLoading(true)
@@ -279,8 +314,11 @@ export default function App() {
           return
         }
 
+        const subCheck1 = checkSubscription(tenant)
+        if (subCheck1.blocked) { setError(subCheck1.message); await supabase.auth.signOut(); setLoading(false); return }
+        if (subCheck1.warning) setSubscriptionWarning(subCheck1.warning)
         setTenantSession(tenant.id, tenant.business_name, 'admin', null, tenant.id)
-        setCurrentTenant(tenant)
+        setCurrentTenant({ ...tenant, isReadOnly: subCheck1.isReadOnly || false })
         setUserRole('admin')
         setLoading(false)
         return
@@ -303,8 +341,11 @@ export default function App() {
       })
       if (!pwMatch) { setError('❌ Incorrect password'); setLoading(false); return }
 
+      const subCheck2 = checkSubscription(tenant)
+      if (subCheck2.blocked) { setError(subCheck2.message); setLoading(false); return }
+      if (subCheck2.warning) setSubscriptionWarning(subCheck2.warning)
       setTenantSession(tenant.id, tenant.business_name, 'admin', null, tenant.id)
-      setCurrentTenant(tenant)
+      setCurrentTenant({ ...tenant, isReadOnly: subCheck2.isReadOnly || false })
       setUserRole('admin')
     } catch (err) {
       setError('Login failed. Please try again.')
@@ -367,7 +408,17 @@ export default function App() {
   }
 
   if (userRole === 'superadmin') return <SuperAdminDashboard onLogout={handleLogout} />
-  if (userRole === 'admin' && currentTenant) return <AdminDashboard tenantId={currentTenant.id} hasMapFeature={currentTenant.has_map_feature || false} hasTrackingFeature={currentTenant.has_tracking_feature || false} user={{ full_name: currentTenant.business_name, role: 'admin' }} onLogout={handleLogout} />
+  if (userRole === 'admin' && currentTenant) return (
+    <>
+      {subscriptionWarning && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#ff6f00', color: 'white', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>⚠️ {subscriptionWarning} — Contact: +92 323 7919338</p>
+          <button onClick={() => setSubscriptionWarning(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px', marginLeft: '12px' }}>✕</button>
+        </div>
+      )}
+      <AdminDashboard tenantId={currentTenant.id} hasMapFeature={currentTenant.has_map_feature || false} hasTrackingFeature={currentTenant.has_tracking_feature || false} user={{ full_name: currentTenant.business_name, role: 'admin' }} onLogout={handleLogout} />
+    </>
+  )
   if (userRole === 'rider' && currentRider) return <RiderDashboard user={{ ...currentRider, tenant_id: currentTenant?.id }} onLogout={handleLogout} />
   if (userRole === 'customer' && currentCustomer) return <CustomerDashboard customer={currentCustomer} tenantId={currentTenant?.id} onLogout={handleLogout} />
 

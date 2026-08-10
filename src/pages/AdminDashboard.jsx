@@ -84,7 +84,7 @@ function getPeriodDates(period) {
   }
 }
 
-export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTrackingFeature = false, user, onLogout }) {
+export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTrackingFeature = false, isReadOnly = false, user, onLogout }) {
   const [activePage, setActivePage] = useState(() => {
     return localStorage.getItem('aquarun_active_page') || 'dashboard'
   })
@@ -776,16 +776,31 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
           )}
 
           {activePage === 'customers' && <CustomerManagement tenantId={tenantId} />}
-          {activePage === 'orders' && <Orders tenantId={tenantId} hasMapFeature={hasMapFeature} />}
+          {activePage === 'orders' && (isReadOnly
+            ? <ReadOnlyBlock />
+            : <Orders tenantId={tenantId} hasMapFeature={hasMapFeature} />
+          )}
           {activePage === 'tracking' && hasTrackingFeature && <RiderTrackingMap tenantId={tenantId} />} 
           {activePage === 'riders' && <RiderManagement tenantId={tenantId} />}
-          {activePage === 'cashtransfer' && <CashTransferManagement tenantId={tenantId} onUpdate={fetchDashboard} />}
-          {activePage === 'jazzcash' && <JazzCashReconciliation tenantId={tenantId} onUpdate={fetchDashboard} />}
-          {activePage === 'salary' && <SalaryManagement tenantId={tenantId} adminUser={adminUser} onUpdate={fetchDashboard} />}
+          {activePage === 'cashtransfer' && (isReadOnly
+            ? <ReadOnlyBlock />
+            : <CashTransferManagement tenantId={tenantId} onUpdate={fetchDashboard} />
+          )}
+          {activePage === 'jazzcash' && (isReadOnly
+            ? <ReadOnlyBlock />
+            : <JazzCashReconciliation tenantId={tenantId} onUpdate={fetchDashboard} />
+          )}
+          {activePage === 'salary' && (isReadOnly
+            ? <ReadOnlyBlock />
+            : <SalaryManagement tenantId={tenantId} adminUser={adminUser} onUpdate={fetchDashboard} />
+          )}
           {activePage === 'cashposition' && <CEOCashPosition tenantId={tenantId} />}
           {activePage === 'inventory' && <Inventory tenantId={tenantId} />}
           {activePage === 'reports' && <Reports tenantId={tenantId} />}
-          {activePage === 'quicksale' && <AdminQuickSale tenantId={tenantId} settings={businessSettings} />}
+          {activePage === 'quicksale' && (isReadOnly
+            ? <ReadOnlyBlock />
+            : <AdminQuickSale tenantId={tenantId} settings={businessSettings} />
+          )}
           {activePage === 'transactions' && <Transactions tenantId={tenantId} />}
           {activePage === 'accounts' && <Accounts tenantId={tenantId} />}
           {activePage === 'settings' && <BusinessSettings tenantId={tenantId} />}
@@ -794,6 +809,28 @@ export default function AdminDashboard({ tenantId, hasMapFeature = false, hasTra
     </div>
   )
   }
+
+// ─── READ ONLY BLOCK ────────────────────────────────────────────────
+function ReadOnlyBlock() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 20px', textAlign: 'center' }}>
+      <div style={{ fontSize: 64, marginBottom: 16 }}>🔒</div>
+      <h2 style={{ fontSize: 20, fontWeight: 800, color: '#c62828', margin: '0 0 8px' }}>Read-Only Mode</h2>
+      <p style={{ fontSize: 15, color: '#555', margin: '0 0 16px', maxWidth: 400 }}>
+        Your subscription grace period is active. You can view all reports and data but cannot add new transactions.
+      </p>
+      <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: 12, padding: '16px 24px', maxWidth: 380 }}>
+        <p style={{ fontSize: 14, fontWeight: 700, color: '#c62828', margin: '0 0 8px' }}>To restore full access:</p>
+        <p style={{ fontSize: 13, color: '#555', margin: '0 0 4px' }}>📱 JazzCash / EasyPaisa / Bank Transfer</p>
+        <p style={{ fontSize: 13, color: '#555', margin: '0 0 12px' }}>Monthly: <strong>Rs. 2,500</strong> · Yearly: <strong>Rs. 25,000</strong></p>
+        <a href="https://wa.me/923237919338?text=I want to renew my AquaRun subscription" target="_blank" rel="noreferrer"
+          style={{ display: 'inline-block', padding: '10px 20px', background: '#25d366', color: 'white', borderRadius: 8, textDecoration: 'none', fontWeight: 700, fontSize: 14 }}>
+          💬 Contact on WhatsApp
+        </a>
+      </div>
+    </div>
+  )
+}
 
 // ─── RECONCILIATION CARD ────────────────────────────────────────────
 function ReconciliationCard({ tenantId }) {
