@@ -181,17 +181,27 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     if (amtHalf > 0) lines.push({ account_code: '4002', account_name: 'Water Sales - Half Litre',   credit: amtHalf })
     if (amt15l  > 0) lines.push({ account_code: '4003', account_name: 'Water Sales - 1.5L',         credit: amt15l  })
 
-// Extra products - each gets its own line under Product Sales 4004
+// Extra products - use product's income_account_code if available, else 4004
     if (productTotal > 0) {
-      // If multiple products group by product name for clarity
-      const productGroups = {}
+      // Fetch income accounts for all product IDs in this delivery
+      const productIds = productItems.filter(p => p.product_id && (p.qty || 0) > 0).map(p => p.product_id)
+      let productAccountMap = {}
+      if (productIds.length > 0) {
+        const { data: productData } = await supabase.from('products')
+          .select('id, income_account_code, income_account_name, cogs_account_code, cogs_account_name, average_cost')
+          .in('id', productIds)
+        if (productData) {
+          productData.forEach(p => { productAccountMap[p.id] = p })
+        }
+      }
       productItems.forEach(p => {
         if ((p.qty || 0) <= 0) return
-        const key = p.name || 'Product'
-        productGroups[key] = (productGroups[key] || 0) + ((p.qty || 0) * (p.price || 0))
-      })
-      Object.entries(productGroups).forEach(([name, amt]) => {
-        if (amt > 0) lines.push({ account_code: '4004', account_name: `Product Sales - ${name}`, credit: amt })
+        const amt = (p.qty || 0) * (p.price || 0)
+        if (amt <= 0) return
+        const productInfo = productAccountMap[p.product_id] || {}
+        const incomeCode = productInfo.income_account_code || '4004'
+        const incomeName = productInfo.income_account_name || 'Other Sales'
+        lines.push({ account_code: incomeCode, account_name: `${incomeName} - ${p.name || 'Product'}`, credit: amt })
       })
     }
 
@@ -216,10 +226,10 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
 
     // Build narration with all products
     const narrationParts = [
-      qty19l  > 0 ? `${qty19l}ÃƒÆ’Ã¢â‚¬â€19L`       : '',
-      qtyHalf > 0 ? `${qtyHalf}ÃƒÆ’Ã¢â‚¬â€Half`     : '',
-      qty15l  > 0 ? `${qty15l}ÃƒÆ’Ã¢â‚¬â€1.5L`      : '',
-      ...productItems.filter(p => p.qty > 0).map(p => `${p.qty}ÃƒÆ’Ã¢â‚¬â€${p.name}`),
+      qty19l  > 0 ? `${qty19l}x19L`       : '',
+      qtyHalf > 0 ? `${qtyHalf}xHalf`     : '',
+      qty15l  > 0 ? `${qty15l}x1.5L`      : '',
+      ...productItems.filter(p => p.qty > 0).map(p => `${p.qty}x${p.name}`),
     ].filter(Boolean).join(' + ')
 
     const entryId = await postJournalEntry({
@@ -236,6 +246,46 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
         .update({ journal_entry_id: entryId })
         .eq('id', delivery.id)
         .eq('tenant_id', tenantId)
+    }
+
+    // Post COGS for extra products (trading/finished goods)
+    try {
+      if (productItems.length > 0) {
+        const productIds2 = productItems.filter(p => p.product_id && (p.qty || 0) > 0).map(p => p.product_id)
+        if (productIds2.length > 0) {
+          const { data: prodData } = await supabase.from('products')
+            .select('id, average_cost, cogs_account_code, cogs_account_name, product_type, current_stock')
+            .in('id', productIds2)
+          if (prodData) {
+            for (const prod of prodData) {
+              const pItem = productItems.find(p => p.product_id === prod.id)
+              if (!pItem) continue
+              const qty = Number(pItem.qty || 0)
+              const cost = Number(prod.average_cost || 0)
+              const cogsCost = qty * cost
+              if (cogsCost > 0) {
+                const cogsCode = prod.cogs_account_code || '5003'
+                const cogsName = prod.cogs_account_name || 'Cost of Goods Sold'
+                const invCode = prod.product_type === 'trading' ? '1202' : '1201'
+                const invName = prod.product_type === 'trading' ? 'Inventory - Trading Items' : 'Inventory - Finished Goods'
+                await postJournalEntry({
+                  tenantId, date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
+                  referenceType: 'cogs', referenceId: delivery.id,
+                  narration: `COGS - ${pItem.name || 'Product'} x ${qty}`,
+                  lines: [
+                    { account_code: cogsCode, account_name: cogsName, debit: cogsCost, credit: 0 },
+                    { account_code: invCode, account_name: invName, debit: 0, credit: cogsCost },
+                  ]
+                })
+                // Update stock
+                await supabase.from('products').update({ current_stock: Math.max(0, Number(prod.current_stock || 0) - qty) }).eq('id', prod.id)
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Extra product COGS error:', err)
     }
 
     // Post commission accrual for commission-based riders
