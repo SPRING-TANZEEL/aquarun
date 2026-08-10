@@ -857,13 +857,15 @@ function ProductManagement({ products, onRefresh, tenantId }) {
   const [manageBom, setManageBom] = useState(null)
   const [form, setForm] = useState({
     name: '', product_type: 'trading', unit: 'pcs',
-    sale_price: 0, purchase_price: 0, is_saleable: true, notes: ''
+    sale_price: 0, purchase_price: 0, is_saleable: true, notes: '',
+    income_account_code: '4004', income_account_name: 'Other Sales',
+    cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold'
   })
   const [saving, setSaving] = useState(false)
 
   function openAddForm() {
     setEditProduct(null)
-    setForm({ name: '', product_type: 'trading', unit: 'pcs', sale_price: 0, purchase_price: 0, is_saleable: true, notes: '' })
+    setForm({ name: '', product_type: 'trading', unit: 'pcs', sale_price: 0, purchase_price: 0, is_saleable: true, notes: '', income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' })
     setShowForm(true)
   }
 
@@ -872,7 +874,11 @@ function ProductManagement({ products, onRefresh, tenantId }) {
     setForm({
       name: p.name, product_type: p.product_type, unit: p.unit,
       sale_price: p.sale_price || 0, purchase_price: p.purchase_price || 0,
-      is_saleable: p.is_saleable, notes: p.notes || ''
+      is_saleable: p.is_saleable, notes: p.notes || '',
+      income_account_code: p.income_account_code || '4004',
+      income_account_name: p.income_account_name || 'Other Sales',
+      cogs_account_code: p.cogs_account_code || '5003',
+      cogs_account_name: p.cogs_account_name || 'Cost of Goods Sold'
     })
     setShowForm(true)
   }
@@ -960,6 +966,40 @@ function ProductManagement({ products, onRefresh, tenantId }) {
             <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Notes (optional)</label>
             <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Any notes..." style={inp} />
           </div>
+
+          {(form.product_type === 'trading' || form.product_type === 'finished_good') && (
+            <div style={{ background: '#f8f9fa', borderRadius: '10px', padding: '14px', marginBottom: '16px', border: '1px solid #eee' }}>
+              <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>📖 Accounting Accounts</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Income Account (Sales)</label>
+                  <select value={form.income_account_code} onChange={e => {
+                    const opts = { '4001': 'Water Sales - 19L', '4002': 'Water Sales - Half Litre', '4003': 'Water Sales - 1.5L', '4004': 'Other Sales', '4100': 'Delivery Charges', '4200': 'Other Income' }
+                    setForm({ ...form, income_account_code: e.target.value, income_account_name: opts[e.target.value] || 'Other Sales' })
+                  }} style={inp}>
+                    <option value="4001">4001 - Water Sales - 19L</option>
+                    <option value="4002">4002 - Water Sales - Half Litre</option>
+                    <option value="4003">4003 - Water Sales - 1.5L</option>
+                    <option value="4004">4004 - Other Sales</option>
+                    <option value="4100">4100 - Delivery Charges</option>
+                    <option value="4200">4200 - Other Income</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>COGS Account (Cost)</label>
+                  <select value={form.cogs_account_code} onChange={e => {
+                    const opts = { '5001': 'Cost of Water Production', '5002': 'Raw Material Cost', '5003': 'Cost of Goods Sold', '6010': 'Miscellaneous Expense' }
+                    setForm({ ...form, cogs_account_code: e.target.value, cogs_account_name: opts[e.target.value] || 'Cost of Goods Sold' })
+                  }} style={inp}>
+                    <option value="5003">5003 - Cost of Goods Sold</option>
+                    <option value="5001">5001 - Cost of Water Production</option>
+                    <option value="5002">5002 - Raw Material Cost</option>
+                    <option value="6010">6010 - Miscellaneous Expense</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
