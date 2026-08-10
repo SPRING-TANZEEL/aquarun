@@ -412,7 +412,7 @@ export default function App() {
     <>
       {subscriptionWarning && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#ff6f00', color: 'white', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-          <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>⚠️ {subscriptionWarning}</p>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>⚠️ {subscriptionWarning} — Contact: +92 323 7919338</p>
           <button onClick={() => setSubscriptionWarning(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px', marginLeft: '12px' }}>✕</button>
         </div>
       )}
