@@ -957,8 +957,11 @@ function ProductManagement({ products, onRefresh, tenantId }) {
               <input type="number" value={form.sale_price} onChange={e => setForm({ ...form, sale_price: Number(e.target.value) })} placeholder="0" style={inp} />
             </div>
             <div>
-              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Purchase Price (Rs.)</label>
-              <input type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: Number(e.target.value) })} placeholder="0" style={inp} />
+              <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Cost Price (Rs.) <span style={{ color: '#e65100', fontSize: '11px', fontWeight: '400' }}>★ Used for COGS calculation</span></label>
+              <input type="number" value={form.purchase_price} onChange={e => setForm({ ...form, purchase_price: Number(e.target.value) })} placeholder="Enter cost price..." style={{ ...inp, borderColor: form.purchase_price > 0 ? '#1a7a4a' : '#ddd' }} />
+              {form.purchase_price === 0 && (form.product_type === 'trading' || form.product_type === 'finished_good') && (
+                <p style={{ fontSize: '11px', color: '#e65100', margin: '4px 0 0' }}>⚠️ Cost price is 0 — COGS will not be posted when this product is sold</p>
+              )}
             </div>
           </div>
 
