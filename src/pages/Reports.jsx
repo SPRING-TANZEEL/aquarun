@@ -606,12 +606,10 @@ function CustomerLedger({ tenantId }) {
         debit: Number(d.total_with_tax || d.total_amount),
         credit: d.payment_method === 'cash'
           ? (Number(d.credit_amount || 0) < 0
-              ? Number(d.amount_received || 0) + Math.abs(Number(d.credit_amount || 0))  // overpayment
+              ? Number(d.amount_received || 0) + Math.abs(Number(d.credit_amount || 0))  // overpayment: show full received
               : Number(d.amount_received || 0) > 0
-                ? Number(d.amount_received || 0)  // exact or shortfall
-                : Number(d.credit_amount || 0) > 0 && Number(d.amount_received || 0) === 0
-                  ? Number(d.total_with_tax || d.total_amount || 0)  // advance adjustment — show as credit
-                  : 0)
+                ? Number(d.amount_received || 0)  // exact or shortfall: show received
+                : 0)  // advance adjustment: credit=0, balance reduces by debit amount
           : (isConfirmedDigital ? Number(d.total_with_tax || d.total_amount) : 0),
         payment_method: d.payment_method,
         credit_amount: Number(d.credit_amount || 0),
