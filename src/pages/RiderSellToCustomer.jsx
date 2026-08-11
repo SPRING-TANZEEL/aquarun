@@ -35,6 +35,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
   const [payResults, setPayResults] = useState([])
   const [payCustomer, setPayCustomer] = useState(null)
   const [payAmount, setPayAmount]   = useState('')
+  const [payAmountReceived, setPayAmountReceived] = useState('')
   const [payMethod, setPayMethod]   = useState('cash')
   const [payNotes, setPayNotes]     = useState('')
   const [paySuccess, setPaySuccess] = useState(null)
@@ -237,7 +238,12 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     if (!payAmount || Number(payAmount) <= 0) return alert('Please enter payment amount')
     setPaySaving(true)
 
-    const amount  = Number(payAmount)
+    const amount = Number(payAmount)
+    const actualReceived = payAmountReceived !== '' ? Number(payAmountReceived) : amount
+    const customerOutstanding = Math.max(0, Number(payCustomer.balance || 0))
+    const customerAdvance = Math.max(0, -(Number(payCustomer.balance || 0)))
+    const totalDue = amount + customerOutstanding
+    const change = actualReceived - totalDue
     const isJazz  = payMethod === 'jazzcash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(payMethod)
 
@@ -255,7 +261,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       localStorage.setItem('offline_payments_' + tenantId, JSON.stringify(offlinePayments))
       if (!isPending) {
         const cached = JSON.parse(localStorage.getItem('cached_customers_' + tenantId) || '[]')
-        const updated = cached.map(c => c.id === payCustomer.id ? { ...c, balance: Number(c.balance || 0) - amount } : c)
+        const updated = cached.map(c => c.id === payCustomer.id ? { ...c, balance: Number(c.balance || 0) + amount - actualReceived } : c)
         localStorage.setItem('cached_customers_' + tenantId, JSON.stringify(updated))
         setCustomers(updated)
       }
@@ -277,7 +283,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     if (error) { alert('Error: ' + error.message); setPaySaving(false); return }
 
     if (!isPending) {
-      const newBalance = Number(payCustomer.balance || 0) - amount
+      const newBalance = Number(payCustomer.balance || 0) + amount - actualReceived
       await supabase.from('customers').update({ balance: newBalance }).eq('id', payCustomer.id).eq('tenant_id', tenantId)
     }
 
@@ -291,7 +297,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       newBalance: !isPending ? Number(payCustomer.balance || 0) - amount : payCustomer.balance,
       jazzPending: isPending
     })
-    setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes('')
+    setPayCustomer(null); setPaySearch(''); setPayAmount(''); setPayNotes(''); setPayAmountReceived('')
     setPaySaving(false)
   }
 
@@ -678,6 +684,24 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     style={{ marginTop: '8px', padding: '6px 14px', background: '#e3f0ff', border: '1px solid #c8d8ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
                     {t('Full Balance', 'پوری رقم')}: Rs. {Number(payCustomer.balance).toLocaleString()}
                   </button>
+                )}
+              </div>
+
+              {/* Amount Received */}
+              <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '6px' }}>{t('Amount Received (if different)', 'موصول رقم (اگر مختلف ہو)')}</p>
+                <input type="number" value={payAmountReceived} onChange={e => setPayAmountReceived(e.target.value)}
+                  placeholder={t('Leave empty if same as above', 'اوپر والی رقم جیسی ہو تو خالی چھوڑیں')}
+                  style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '16px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333' }} />
+                {payAmountReceived !== '' && Number(payAmountReceived) > Number(payAmount) + Math.max(0, Number(payCustomer.balance || 0)) && (
+                  <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '5px 0 0', fontWeight: '600', background: '#e8f5e9', padding: '5px 8px', borderRadius: '6px' }}>
+                    ✅ {t('Advance', 'ایڈوانس')}: Rs. {(Number(payAmountReceived) - Number(payAmount) - Math.max(0, Number(payCustomer.balance || 0))).toLocaleString()}
+                  </p>
+                )}
+                {payAmountReceived !== '' && Number(payAmountReceived) < Number(payAmount) && (
+                  <p style={{ fontSize: '11px', color: '#f44336', margin: '5px 0 0', fontWeight: '600', background: '#ffebee', padding: '5px 8px', borderRadius: '6px' }}>
+                    ⚠️ {t('Short', 'کم')}: Rs. {(Number(payAmount) - Number(payAmountReceived)).toLocaleString()}
+                  </p>
                 )}
               </div>
 
