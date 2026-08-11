@@ -119,7 +119,7 @@ function getExpenseAccount(category, isRider = false) {
 // Credit side splits: pre-tax amount to sales accounts + tax to 2300 Tax Payable
 // isRiderEntry = true when rider logs delivery (rider_id is NOT NULL)
 // isRiderEntry = false when admin logs via Quick Sale (rider_id IS NULL)
-export async function postDeliveryJournal(delivery, customerId, tenantId, isRiderEntry = true) {
+export async function postDeliveryJournal(delivery, customerId, tenantId, isRiderEntry = true, amountReceived = null, customerBalance = 0) {
   try {
     const subTotal = Number(delivery.total_amount || 0)         // pre-tax
     const taxAmount = Math.round(Number(delivery.tax_amount || 0))
@@ -132,16 +132,21 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
 
 // - DEBIT SIDE - full amount including tax -
     if (paymentMethod === 'cash') {
-      const cashSaleAmount = grandTotal - creditPortion
-      if (cashSaleAmount > 0) {
-        if (isRiderEntry) {
-          lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashSaleAmount })
-        } else {
-          lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashSaleAmount })
+      if (amountReceived !== null && !isRiderEntry) {
+        // Compound entry: DR Cash(full received) handles sale + outstanding clearing + advance
+        lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: amountReceived })
+      } else {
+        const cashSaleAmount = grandTotal - creditPortion
+        if (cashSaleAmount > 0) {
+          if (isRiderEntry) {
+            lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashSaleAmount })
+          } else {
+            lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashSaleAmount })
+          }
         }
-      }
-      if (creditPortion > 0) {
-        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
+        if (creditPortion > 0) {
+          lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
+        }
       }
     } else if (paymentMethod === 'jazzcash') {
       const jazzAmount = grandTotal - creditPortion
@@ -157,6 +162,25 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       if (creditPortion > 0) lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
     } else if (paymentMethod === 'credit') {
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
+    }
+
+// - CREDIT SIDE - split sales by each income stream + AR adjustments for compound entry -
+    // Compound entry: clear outstanding + post advance if any
+    if (paymentMethod === 'cash' && amountReceived !== null && !isRiderEntry) {
+      const outstanding = Math.max(0, Number(customerBalance || 0))
+      const totalDue = grandTotal + outstanding
+      const diff = amountReceived - totalDue
+      if (outstanding > 0) {
+        // Clear old outstanding balance
+        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: outstanding })
+      }
+      if (diff > 0) {
+        // Overpayment — goes to advance (credit AR reduces balance further)
+        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: diff })
+      } else if (diff < 0) {
+        // Underpayment — still owes (debit AR)
+        lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: Math.abs(diff) })
+      }
     }
 
 // - CREDIT SIDE - split sales by each income stream -

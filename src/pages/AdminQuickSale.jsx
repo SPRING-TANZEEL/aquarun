@@ -205,8 +205,8 @@ export default function AdminQuickSale({ tenantId }) {
       qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
       rate_applied: rate19l || 0, total_amount: subTotal,
       payment_method: paymentMethod,
-      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : received,
-      credit_amount: paymentMethod === 'credit' ? total : 0,
+      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : (isAdvanceAdjustment ? 0 : received),
+      credit_amount: paymentMethod === 'credit' ? total : (isAdvanceAdjustment ? total : 0),
       jazzcash_confirmed: false,
       delivered_at: new Date(saleDate).toISOString(), is_voided: false,
       bottles_returned: bottlesReturned,
@@ -259,10 +259,16 @@ export default function AdminQuickSale({ tenantId }) {
 
     if (paymentMethod === 'credit' && selectedCustomer) {
       await supabase.from('customers').update({ balance: Number(selectedCustomer.balance || 0) + total }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
-    } else if (paymentMethod === 'cash' && selectedCustomer && amountReceived !== '') {
-      // Settle outstanding balance + current sale
-      const newBalance = Number(selectedCustomer.balance || 0) - change
-      await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+    } else if (paymentMethod === 'cash' && selectedCustomer) {
+      if (isAdvanceAdjustment) {
+        // Advance covers sale — reduce advance by sale amount
+        const newBalance = Number(selectedCustomer.balance || 0) + total
+        await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+      } else if (amountReceived !== '') {
+        // Custom amount received — newBalance = old balance + sale - received
+        const newBalance = Number(selectedCustomer.balance || 0) + total - Number(amountReceived)
+        await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+      }
     }
 
     if (selectedCustomer && (qty19l > 0 || bottlesReturned > 0)) {
@@ -271,19 +277,9 @@ export default function AdminQuickSale({ tenantId }) {
     }
 
     try {
-      await AccountingEngine.postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
-      // Post excess payment as separate payment journal
-      if (paymentMethod === 'cash' && selectedCustomer && amountReceived !== '' && change !== 0) {
-        const excessAmount = Math.abs(change)
-        const { data: extraPayment } = await supabase.from('payments').insert([{
-          tenant_id: tenantId, customer_id: selectedCustomer.id,
-          amount: excessAmount, payment_method: 'cash',
-          payment_date: saleDate, jazzcash_confirmed: true,
-          notes: change > 0 ? `Advance payment — excess from sale` : `Partial payment shortfall`,
-          is_voided: false, rider_id: null
-        }]).select().single()
-        if (extraPayment) await AccountingEngine.postPaymentJournal(extraPayment, tenantId, false)
-      }
+      const journalAmountReceived = (paymentMethod === 'cash' && !isAdvanceAdjustment && amountReceived !== '') ? Number(amountReceived) : null
+      const journalCustomerBalance = selectedCustomer ? Number(selectedCustomer.balance || 0) : 0
+      await AccountingEngine.postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false, journalAmountReceived, journalCustomerBalance)
     } catch (err) { console.error('Journal post error:', err) }
 
     try {
