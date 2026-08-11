@@ -450,12 +450,12 @@ export default function App() {
             {[
               { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Muhammad' },
             ].map(pm => (
-              <div key={pm.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div key={pm.label} style={{ padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
                   <p style={{ fontSize: '13px', fontWeight: '700', margin: 0 }}>{pm.icon} {pm.label}</p>
-                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{pm.value}</p>
+                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0, letterSpacing: '0.5px' }}>{pm.value}</p>
                 </div>
-                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>A/C Title: {pm.name}</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0, textAlign: 'right' }}>A/C Title: {pm.name}</p>
               </div>
             ))}
             <div style={{ marginTop: '16px', padding: '12px', background: '#fff8e1', borderRadius: '8px', border: '1px solid #ffe082' }}>
