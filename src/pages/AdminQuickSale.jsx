@@ -37,6 +37,7 @@ export default function AdminQuickSale({ tenantId }) {
   const [returnSearchResults, setReturnSearchResults] = useState([])
   const [returnQty, setReturnQty] = useState(0)
   const [returnSaving, setReturnSaving] = useState(false)
+  const [amountReceived, setAmountReceived] = useState('')
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768)
@@ -106,6 +107,8 @@ export default function AdminQuickSale({ tenantId }) {
   const taxRate = selectedCustomer?.is_tax_applicable ? Number(settings.sales_tax_rate || 0) : 0
   const taxAmount = Math.round(subTotal * taxRate / 100)
   const total = subTotal + taxAmount
+  const received = paymentMethod === 'cash' ? (amountReceived !== '' ? Number(amountReceived) : total) : total
+  const change = received - total
 
   function getBottleQtys() {
     let qtyHalf = 0, qty15l = 0
@@ -197,7 +200,7 @@ export default function AdminQuickSale({ tenantId }) {
       qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
       rate_applied: rate19l || 0, total_amount: subTotal,
       payment_method: paymentMethod,
-      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : total,
+      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : received,
       credit_amount: paymentMethod === 'credit' ? total : 0,
       jazzcash_confirmed: false,
       delivered_at: new Date(saleDate).toISOString(), is_voided: false,
@@ -251,6 +254,9 @@ export default function AdminQuickSale({ tenantId }) {
 
     if (paymentMethod === 'credit' && selectedCustomer) {
       await supabase.from('customers').update({ balance: Number(selectedCustomer.balance || 0) + total }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+    } else if (paymentMethod === 'cash' && selectedCustomer && change !== 0) {
+      // Overpayment → reduce balance (advance), Underpayment → increase balance (credit)
+      await supabase.from('customers').update({ balance: Number(selectedCustomer.balance || 0) - change }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
     }
 
     if (selectedCustomer && (qty19l > 0 || bottlesReturned > 0)) {
@@ -276,7 +282,7 @@ export default function AdminQuickSale({ tenantId }) {
     } catch (err) { console.error('Invoice number error:', err) }
 
     setSuccess({ type: 'sale', total, paymentMethod, name: walkinName, desc: descParts.join(', '), deliveryId: savedDelivery.id, customerMobile: selectedCustomer?.mobile || '', newBalance: selectedCustomer ? (paymentMethod === 'credit' ? Number(selectedCustomer.balance || 0) + total : Number(selectedCustomer.balance || 0)) : 0 })
-    setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0)
+    setQty19l(1); setRate19l(null); setPaymentMethod('cash'); setNotes(''); setCustomerName(''); setBottlesReturned(0); setAmountReceived('')
     setSaleDate(new Date().toISOString().split('T')[0])
     setSelectedCustomer(null); setCustomerSearch('')
     await fetchProducts()
@@ -621,6 +627,17 @@ export default function AdminQuickSale({ tenantId }) {
                 <span style={{ fontSize: '16px', fontWeight: '700', color: '#333' }}>Total Amount</span>
                 <span style={{ fontSize: '30px', fontWeight: '800', color: '#0f4c81', letterSpacing: '-1px' }}>Rs. {total.toLocaleString()}</span>
               </div>
+              {paymentMethod === 'cash' && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '700' }}>💵 Amount Received (Rs.)</label>
+                  <input type="number" value={amountReceived} onChange={e => setAmountReceived(e.target.value)}
+                    placeholder={`Default: Rs. ${total.toLocaleString()}`}
+                    style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '16px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center' }} />
+                  {amountReceived !== '' && change > 0 && <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '5px 0 0', fontWeight: '600', background: '#e8f5e9', padding: '6px 10px', borderRadius: '6px' }}>✅ Change: Rs. {change.toLocaleString()} → goes to customer advance</p>}
+                  {amountReceived !== '' && change < 0 && <p style={{ fontSize: '12px', color: '#f44336', margin: '5px 0 0', fontWeight: '600', background: '#ffebee', padding: '6px 10px', borderRadius: '6px' }}>⚠️ Short: Rs. {Math.abs(change).toLocaleString()} → goes to outstanding balance</p>}
+                  {amountReceived !== '' && change === 0 && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '5px 0 0', fontWeight: '600', background: '#e3f0ff', padding: '6px 10px', borderRadius: '6px' }}>✅ Exact payment</p>}
+                </div>
+              )}
               {paymentMethod === 'credit' && selectedCustomer && <p style={{ fontSize: '12px', color: '#f44336', background: '#ffebee', padding: '7px 10px', borderRadius: '6px', marginBottom: '10px', fontWeight: '600' }}>📋 Rs. {total.toLocaleString()} will be added to {selectedCustomer.full_name}'s balance</p>}
               <button onClick={postSale} disabled={saving}
                 style={{ width: '100%', padding: '14px', background: getSaleBg(), color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
