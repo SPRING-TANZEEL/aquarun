@@ -107,8 +107,10 @@ export default function AdminQuickSale({ tenantId }) {
   const taxRate = selectedCustomer?.is_tax_applicable ? Number(settings.sales_tax_rate || 0) : 0
   const taxAmount = Math.round(subTotal * taxRate / 100)
   const total = subTotal + taxAmount
+  const customerOutstanding = selectedCustomer ? Math.max(0, Number(selectedCustomer.balance || 0)) : 0
+  const totalDue = paymentMethod === 'cash' ? total + customerOutstanding : total
   const received = paymentMethod === 'cash' ? (amountReceived !== '' ? Number(amountReceived) : total) : total
-  const change = received - total
+  const change = received - totalDue
 
   function getBottleQtys() {
     let qtyHalf = 0, qty15l = 0
@@ -254,9 +256,10 @@ export default function AdminQuickSale({ tenantId }) {
 
     if (paymentMethod === 'credit' && selectedCustomer) {
       await supabase.from('customers').update({ balance: Number(selectedCustomer.balance || 0) + total }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
-    } else if (paymentMethod === 'cash' && selectedCustomer && change !== 0) {
-      // Overpayment → reduce balance (advance), Underpayment → increase balance (credit)
-      await supabase.from('customers').update({ balance: Number(selectedCustomer.balance || 0) - change }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
+    } else if (paymentMethod === 'cash' && selectedCustomer && amountReceived !== '') {
+      // Settle outstanding balance + current sale
+      const newBalance = Number(selectedCustomer.balance || 0) - change
+      await supabase.from('customers').update({ balance: newBalance }).eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
     }
 
     if (selectedCustomer && (qty19l > 0 || bottlesReturned > 0)) {
@@ -633,9 +636,10 @@ export default function AdminQuickSale({ tenantId }) {
                   <input type="number" value={amountReceived} onChange={e => setAmountReceived(e.target.value)}
                     placeholder={`Default: Rs. ${total.toLocaleString()}`}
                     style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '16px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center' }} />
+                  {selectedCustomer && customerOutstanding > 0 && <p style={{ fontSize: '11px', color: '#e65100', margin: '0 0 5px', fontWeight: '600' }}>📋 Includes outstanding balance: Rs. {customerOutstanding.toLocaleString()} · Total due: Rs. {totalDue.toLocaleString()}</p>}
                   {amountReceived !== '' && change > 0 && <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '5px 0 0', fontWeight: '600', background: '#e8f5e9', padding: '6px 10px', borderRadius: '6px' }}>✅ Change: Rs. {change.toLocaleString()} → goes to customer advance</p>}
                   {amountReceived !== '' && change < 0 && <p style={{ fontSize: '12px', color: '#f44336', margin: '5px 0 0', fontWeight: '600', background: '#ffebee', padding: '6px 10px', borderRadius: '6px' }}>⚠️ Short: Rs. {Math.abs(change).toLocaleString()} → goes to outstanding balance</p>}
-                  {amountReceived !== '' && change === 0 && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '5px 0 0', fontWeight: '600', background: '#e3f0ff', padding: '6px 10px', borderRadius: '6px' }}>✅ Exact payment</p>}
+                  {amountReceived !== '' && change === 0 && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '5px 0 0', fontWeight: '600', background: '#e3f0ff', padding: '6px 10px', borderRadius: '6px' }}>✅ Full payment — account cleared</p>}
                 </div>
               )}
               {paymentMethod === 'credit' && selectedCustomer && <p style={{ fontSize: '12px', color: '#f44336', background: '#ffebee', padding: '7px 10px', borderRadius: '6px', marginBottom: '10px', fontWeight: '600' }}>📋 Rs. {total.toLocaleString()} will be added to {selectedCustomer.full_name}'s balance</p>}
