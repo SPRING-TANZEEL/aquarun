@@ -604,7 +604,11 @@ function CustomerLedger({ tenantId }) {
         date: d.delivered_at, type: 'delivery',
         description: 'Delivery — 19L×' + (d.qty_19l || 0) + ' Half×' + (d.qty_half_litre || 0) + ' 1.5L×' + (d.qty_1_5l || 0),
         debit: Number(d.total_with_tax || d.total_amount),
-        credit: d.payment_method === 'cash' ? Number(d.amount_received || 0) : (isConfirmedDigital ? Number(d.total_with_tax || d.total_amount) : 0),
+        credit: d.payment_method === 'cash'
+          ? (Number(d.credit_amount || 0) < 0
+              ? Number(d.amount_received || 0) + Math.abs(Number(d.credit_amount || 0))  // overpayment: show full amount received
+              : Number(d.amount_received || 0))  // exact or shortfall: show amount received
+          : (isConfirmedDigital ? Number(d.total_with_tax || d.total_amount) : 0),
         payment_method: d.payment_method,
         credit_amount: Number(d.credit_amount || 0),
         jazzcash_confirmed: d.jazzcash_confirmed
