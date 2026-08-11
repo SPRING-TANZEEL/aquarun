@@ -654,7 +654,9 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                   <div key={c.id} onClick={() => { setPayCustomer(c); setPaySearch(''); setPayResults([]) }}
                     style={{ padding: '12px 14px', borderBottom: '1px solid #f0f0f0', cursor: 'pointer', background: 'white' }}>
                     <p style={{ fontWeight: '700', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
-                    <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · Balance: Rs. {Number(c.balance || 0).toLocaleString()}</p>
+                    <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile}</p>
+                    {Number(c.balance || 0) > 0 && <p style={{ fontSize: '11px', color: '#f44336', margin: '2px 0 0', fontWeight: '600' }}>⚠️ {t('Outstanding', 'باقی')}: Rs. {Number(c.balance).toLocaleString()}</p>}
+                    {Number(c.balance || 0) < 0 && <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '2px 0 0', fontWeight: '600' }}>✅ {t('Advance', 'ایڈوانس')}: Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>}
                     {Number(c.our_bottles_placed || 0) > 0 && <p style={{ fontSize: '11px', color: '#e65100', margin: '2px 0 0', fontWeight: '600' }}>🫙 {c.our_bottles_placed} {t('bottles with customer', 'بوتلیں گاہک کے پاس')}</p>}
                     {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                   </div>
