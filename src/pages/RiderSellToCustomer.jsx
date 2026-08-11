@@ -833,7 +833,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     <p style={{ fontWeight: '700', margin: '0 0 2px', color: '#333' }}>{c.full_name}</p>
                     <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>
                       {c.mobile} · Rs. {Number(c.rate_19l || 0)}/bottle
-                      {Number(c.balance) > 0 && ` · Balance: Rs. ${Number(c.balance).toLocaleString()}`}
+                      {Number(c.balance) > 0 && <span style={{ color: '#f44336', fontWeight: '600' }}> · ⚠️ {t('Outstanding', 'باقی')}: Rs. {Number(c.balance).toLocaleString()}</span>}
+                      {Number(c.balance) < 0 && <span style={{ color: '#1a7a4a', fontWeight: '600' }}> · ✅ {t('Advance', 'ایڈوانس')}: Rs. {Math.abs(Number(c.balance)).toLocaleString()}</span>}
                     </p>
                     {c.address && <p style={{ fontSize: '11px', color: '#aaa', margin: '2px 0 0' }}>📍 {c.address}</p>}
                     {Number(c.our_bottles_placed) > 0 && (
