@@ -448,7 +448,7 @@ export default function App() {
             </div>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Methods</p>
             {[
-              { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Muhammad' },
+              { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Account Title: Muhammad' },
             ].map(pm => (
               <div key={pm.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px' }}>
                 <div>
