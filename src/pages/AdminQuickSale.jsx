@@ -269,6 +269,18 @@ export default function AdminQuickSale({ tenantId }) {
 
     try {
       await AccountingEngine.postDeliveryJournal(savedDelivery, selectedCustomer?.id || null, tenantId, false)
+      // Post excess payment as separate payment journal
+      if (paymentMethod === 'cash' && selectedCustomer && amountReceived !== '' && change !== 0) {
+        const excessAmount = Math.abs(change)
+        const { data: extraPayment } = await supabase.from('payments').insert([{
+          tenant_id: tenantId, customer_id: selectedCustomer.id,
+          amount: excessAmount, payment_method: 'cash',
+          payment_date: saleDate, jazzcash_confirmed: true,
+          notes: change > 0 ? `Advance payment — excess from sale` : `Partial payment shortfall`,
+          is_voided: false, rider_id: null
+        }]).select().single()
+        if (extraPayment) await AccountingEngine.postPaymentJournal(extraPayment, tenantId, false)
+      }
     } catch (err) { console.error('Journal post error:', err) }
 
     try {
