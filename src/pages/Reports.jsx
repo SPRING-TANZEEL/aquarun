@@ -809,7 +809,7 @@ function CustomerLedger({ tenantId }) {
                 <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
               </div>
               <p style={{ fontSize: '13px', color: Number(c.balance) > 0 ? '#f44336' : '#4caf50', fontWeight: '700', margin: 0 }}>
-                Rs. {Math.abs(Number(c.balance)).toLocaleString()}
+                {Number(c.balance) > 0 ? '⚠️ Outstanding: ' : Number(c.balance) < 0 ? '✅ Advance: ' : ''}Rs. {Math.abs(Number(c.balance)).toLocaleString()}
               </p>
             </div>
           ))}
