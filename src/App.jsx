@@ -20,6 +20,7 @@ export default function App() {
   const [loginMode, setLoginMode] = useState('admin')
   const [loading, setLoading] = useState(false)
   const [subscriptionWarning, setSubscriptionWarning] = useState(null)
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [error, setError] = useState('')
   const [checkingSession, setCheckingSession] = useState(true)
   const [installPrompt, setInstallPrompt] = useState(null)
@@ -415,12 +416,60 @@ export default function App() {
   if (userRole === 'admin' && currentTenant) return (
     <>
       {subscriptionWarning && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#ff6f00', color: 'white', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-          <p style={{ margin: 0, fontSize: '13px', fontWeight: '600' }}>⚠️ {subscriptionWarning}</p>
-          <button onClick={() => setSubscriptionWarning(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px', marginLeft: '12px' }}>✕</button>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 99999, background: '#ff6f00', color: 'white', padding: '10px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.2)', flexWrap: 'wrap', gap: '8px' }}>
+          <p style={{ margin: 0, fontSize: '13px', fontWeight: '600', flex: 1 }}>⚠️ {subscriptionWarning}</p>
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <button onClick={() => setShowPaymentModal(true)} style={{ padding: '6px 14px', background: 'white', color: '#ff6f00', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', fontWeight: '700' }}>💳 Pay Now</button>
+            <button onClick={() => setSubscriptionWarning(null)} style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+          </div>
         </div>
       )}
       <AdminDashboard tenantId={currentTenant.id} hasMapFeature={currentTenant.has_map_feature || false} hasTrackingFeature={currentTenant.has_tracking_feature || false} isReadOnly={currentTenant.isReadOnly || false} user={{ full_name: currentTenant.business_name, role: 'admin' }} onLogout={handleLogout} />
+    {showPaymentModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '28px 24px', maxWidth: '380px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1a1a2e' }}>💳 Subscribe to AquaRun</h2>
+              <button onClick={() => setShowPaymentModal(false)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
+            </div>
+            <div style={{ background: '#f8f9fa', borderRadius: '10px', padding: '16px', marginBottom: '16px' }}>
+              <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subscription Plans</p>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ background: 'white', borderRadius: '8px', padding: '12px', border: '2px solid #0f4c81', textAlign: 'center' }}>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>Monthly</p>
+                  <p style={{ fontSize: '20px', fontWeight: '800', color: '#0f4c81', margin: 0 }}>Rs. 2,500</p>
+                </div>
+                <div style={{ background: 'white', borderRadius: '8px', padding: '12px', border: '2px solid #1a7a4a', textAlign: 'center' }}>
+                  <p style={{ fontSize: '12px', color: '#888', margin: '0 0 4px' }}>Yearly</p>
+                  <p style={{ fontSize: '20px', fontWeight: '800', color: '#1a7a4a', margin: 0 }}>Rs. 25,000</p>
+                  <p style={{ fontSize: '10px', color: '#1a7a4a', margin: '2px 0 0', fontWeight: '600' }}>Save Rs. 5,000</p>
+                </div>
+              </div>
+            </div>
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Methods</p>
+            {[
+              { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Muhammad' },
+            ].map(pm => (
+              <div key={pm.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px' }}>
+                <div>
+                  <p style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 2px' }}>{pm.icon} {pm.label}</p>
+                  <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{pm.name}</p>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{pm.value}</p>
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop: '16px', padding: '12px', background: '#fff8e1', borderRadius: '8px', border: '1px solid #ffe082' }}>
+              <p style={{ fontSize: '12px', color: '#b45309', margin: 0, fontWeight: '600' }}>⚠️ After payment, send screenshot to WhatsApp for quick activation</p>
+            </div>
+            <a href="https://wa.me/923237919338?text=I have paid for AquaRun subscription. Please activate my account." target="_blank" rel="noreferrer"
+              style={{ display: 'block', textAlign: 'center', marginTop: '14px', padding: '12px', background: '#25d366', color: 'white', borderRadius: '10px', textDecoration: 'none', fontWeight: '700', fontSize: '14px' }}>
+              💬 Send Payment Screenshot on WhatsApp
+            </a>
+          </div>
+        </div>
+      )}
     </>
   )
   if (userRole === 'rider' && currentRider) return <RiderDashboard user={{ ...currentRider, tenant_id: currentTenant?.id }} onLogout={handleLogout} />
