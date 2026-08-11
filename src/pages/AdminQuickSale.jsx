@@ -205,7 +205,7 @@ export default function AdminQuickSale({ tenantId }) {
       qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
       rate_applied: rate19l || 0, total_amount: subTotal,
       payment_method: paymentMethod,
-      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : Math.min(received, total),
+      amount_received: ['credit', 'jazzcash', 'easypaisa', 'bank'].includes(paymentMethod) ? 0 : (isAdvanceAdjustment ? 0 : Math.min(received, total)),
       credit_amount: paymentMethod === 'credit' ? total : (isAdvanceAdjustment ? total : (received < total ? total - received : received > total ? -(received - total) : 0)),
       jazzcash_confirmed: false,
       delivered_at: new Date(saleDate).toISOString(), is_voided: false,
