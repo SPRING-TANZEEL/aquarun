@@ -645,7 +645,7 @@ export default function AdminQuickSale({ tenantId }) {
               {paymentMethod === 'credit' && selectedCustomer && <p style={{ fontSize: '12px', color: '#f44336', background: '#ffebee', padding: '7px 10px', borderRadius: '6px', marginBottom: '10px', fontWeight: '600' }}>📋 Rs. {total.toLocaleString()} will be added to {selectedCustomer.full_name}'s balance</p>}
               <button onClick={postSale} disabled={saving}
                 style={{ width: '100%', padding: '14px', background: getSaleBg(), color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                {saving ? '⏳ Saving...' : `✓ ${getSaleLabel()} — Rs. ${total.toLocaleString()}`}
+                {saving ? '⏳ Saving...' : `✓ ${getSaleLabel()} — Rs. ${(paymentMethod === 'cash' && amountReceived !== '' ? Number(amountReceived) : total).toLocaleString()}`}
               </button>
             </div>
           </div>
