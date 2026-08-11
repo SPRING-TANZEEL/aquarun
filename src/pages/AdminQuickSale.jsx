@@ -593,7 +593,9 @@ export default function AdminQuickSale({ tenantId }) {
                             <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>{c.mobile} · {c.customer_code}</p>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <p style={{ fontSize: '12px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: '0 0 2px' }}>Rs. {Math.abs(Number(c.balance)).toLocaleString()}</p>
+                            <p style={{ fontSize: '12px', fontWeight: '700', color: Number(c.balance) > 0 ? '#f44336' : '#1a7a4a', margin: '0 0 2px' }}>
+                              {Number(c.balance) > 0 ? '⚠️ Outstanding: ' : Number(c.balance) < 0 ? '✅ Advance: ' : ''}Rs. {Math.abs(Number(c.balance)).toLocaleString()}
+                            </p>
                             <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>Rate: Rs.{c.rate_19l} · {c.customer_code}</p>
                             {c.address && <p style={{ fontSize: '10px', color: '#888', margin: '2px 0 0' }}>📍 {c.address}</p>}
                             {Number(c.our_bottles_placed || 0) > 0 && <p style={{ fontSize: '10px', color: '#e65100', margin: '2px 0 0', fontWeight: '600' }}>🫙 {c.our_bottles_placed} bottles</p>}
