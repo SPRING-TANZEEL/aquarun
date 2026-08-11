@@ -428,7 +428,7 @@ export default function App() {
     {showPaymentModal && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ background: 'white', borderRadius: '16px', padding: '28px 24px', maxWidth: '380px', width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px', gap: '4px' }}>
               <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '800', color: '#1a1a2e' }}>💳 Subscribe to AquaRun</h2>
               <button onClick={() => setShowPaymentModal(false)} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer', color: '#888' }}>✕</button>
             </div>
@@ -451,13 +451,11 @@ export default function App() {
               { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Muhammad' },
             ].map(pm => (
               <div key={pm.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px' }}>
-                <div>
-                  <p style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 2px' }}>{pm.icon} {pm.label}</p>
-                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>A/C: {pm.name}</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <p style={{ fontSize: '13px', fontWeight: '700', margin: 0 }}>{pm.icon} {pm.label}</p>
+                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{pm.value}</p>
                 </div>
-                <div style={{ textAlign: 'right', minWidth: 0 }}>
-                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0, wordBreak: 'break-all' }}>{pm.value}</p>
-                </div>
+                <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>A/C Title: {pm.name}</p>
               </div>
             ))}
             <div style={{ marginTop: '16px', padding: '12px', background: '#fff8e1', borderRadius: '8px', border: '1px solid #ffe082' }}>
