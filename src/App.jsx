@@ -448,15 +448,15 @@ export default function App() {
             </div>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Payment Methods</p>
             {[
-              { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Account Title: Muhammad' },
+              { icon: '🏦', label: 'Bank Transfer (HBL)', value: 'PK87HABB0004117901217499', name: 'Muhammad' },
             ].map(pm => (
               <div key={pm.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 14px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '8px' }}>
                 <div>
                   <p style={{ fontSize: '13px', fontWeight: '700', margin: '0 0 2px' }}>{pm.icon} {pm.label}</p>
-                  <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>{pm.name}</p>
+                  <p style={{ fontSize: '11px', color: '#888', margin: 0 }}>A/C: {pm.name}</p>
                 </div>
-                <div style={{ textAlign: 'right' }}>
-                  <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>{pm.value}</p>
+                <div style={{ textAlign: 'right', minWidth: 0 }}>
+                  <p style={{ fontSize: '12px', fontWeight: '700', color: '#0f4c81', margin: 0, wordBreak: 'break-all' }}>{pm.value}</p>
                 </div>
               </div>
             ))}
