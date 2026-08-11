@@ -108,9 +108,12 @@ export default function AdminQuickSale({ tenantId }) {
   const taxAmount = Math.round(subTotal * taxRate / 100)
   const total = subTotal + taxAmount
   const customerOutstanding = selectedCustomer ? Math.max(0, Number(selectedCustomer.balance || 0)) : 0
+  const customerAdvance = selectedCustomer ? Math.max(0, -(Number(selectedCustomer.balance || 0))) : 0
   const totalDue = paymentMethod === 'cash' ? total + customerOutstanding : total
   const received = paymentMethod === 'cash' ? (amountReceived !== '' ? Number(amountReceived) : total) : total
   const change = received - totalDue
+  const isAdvanceAdjustment = paymentMethod === 'cash' && customerAdvance > 0 && amountReceived === ''
+  const advanceAfterSale = customerAdvance - total
 
   function getBottleQtys() {
     let qtyHalf = 0, qty15l = 0
@@ -649,6 +652,12 @@ export default function AdminQuickSale({ tenantId }) {
                     placeholder={`Default: Rs. ${total.toLocaleString()}`}
                     style={{ width: '100%', padding: '10px', border: '1.5px solid #ddd', borderRadius: '8px', fontSize: '16px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center' }} />
                   {selectedCustomer && customerOutstanding > 0 && <p style={{ fontSize: '11px', color: '#e65100', margin: '0 0 5px', fontWeight: '600' }}>📋 Includes outstanding balance: Rs. {customerOutstanding.toLocaleString()} · Total due: Rs. {totalDue.toLocaleString()}</p>}
+                  {selectedCustomer && customerAdvance > 0 && amountReceived === '' && (
+                    <div style={{ background: '#e8f5e9', padding: '8px 10px', borderRadius: '6px', marginBottom: '6px' }}>
+                      <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '0 0 2px', fontWeight: '700' }}>✅ Customer has Rs. {customerAdvance.toLocaleString()} advance</p>
+                      <p style={{ fontSize: '11px', color: '#1a7a4a', margin: 0 }}>{advanceAfterSale >= 0 ? `Sale will be adjusted — Rs. ${advanceAfterSale.toLocaleString()} advance remaining` : `Advance covers Rs. ${customerAdvance.toLocaleString()} — Rs. ${Math.abs(advanceAfterSale).toLocaleString()} still due`}</p>
+                    </div>
+                  )}
                   {amountReceived !== '' && change > 0 && <p style={{ fontSize: '12px', color: '#1a7a4a', margin: '5px 0 0', fontWeight: '600', background: '#e8f5e9', padding: '6px 10px', borderRadius: '6px' }}>✅ Change: Rs. {change.toLocaleString()} → goes to customer advance</p>}
                   {amountReceived !== '' && change < 0 && <p style={{ fontSize: '12px', color: '#f44336', margin: '5px 0 0', fontWeight: '600', background: '#ffebee', padding: '6px 10px', borderRadius: '6px' }}>⚠️ Short: Rs. {Math.abs(change).toLocaleString()} → goes to outstanding balance</p>}
                   {amountReceived !== '' && change === 0 && <p style={{ fontSize: '12px', color: '#0f4c81', margin: '5px 0 0', fontWeight: '600', background: '#e3f0ff', padding: '6px 10px', borderRadius: '6px' }}>✅ Full payment — account cleared</p>}
@@ -657,7 +666,9 @@ export default function AdminQuickSale({ tenantId }) {
               {paymentMethod === 'credit' && selectedCustomer && <p style={{ fontSize: '12px', color: '#f44336', background: '#ffebee', padding: '7px 10px', borderRadius: '6px', marginBottom: '10px', fontWeight: '600' }}>📋 Rs. {total.toLocaleString()} will be added to {selectedCustomer.full_name}'s balance</p>}
               <button onClick={postSale} disabled={saving}
                 style={{ width: '100%', padding: '14px', background: getSaleBg(), color: 'white', border: 'none', borderRadius: '10px', cursor: saving ? 'not-allowed' : 'pointer', fontSize: '15px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0,0,0,0.15)' }}>
-                {saving ? '⏳ Saving...' : `✓ ${getSaleLabel()} — Rs. ${(paymentMethod === 'cash' && amountReceived !== '' ? Number(amountReceived) : total).toLocaleString()}`}
+                {saving ? '⏳ Saving...' : isAdvanceAdjustment
+                  ? `✓ Adjust from Advance — Rs. ${total.toLocaleString()}${advanceAfterSale >= 0 ? ` | Remaining Advance: Rs. ${advanceAfterSale.toLocaleString()}` : ` | Outstanding: Rs. ${Math.abs(advanceAfterSale).toLocaleString()}`}`
+                  : `✓ ${getSaleLabel()} — Rs. ${(paymentMethod === 'cash' && amountReceived !== '' ? Number(amountReceived) : total).toLocaleString()}`}
               </button>
             </div>
           </div>
