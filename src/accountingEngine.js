@@ -132,11 +132,12 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
 
 // - DEBIT SIDE - full amount including tax -
     if (paymentMethod === 'cash') {
-      if (cashReceived > 0) {
+      const cashSaleAmount = grandTotal - creditPortion
+      if (cashSaleAmount > 0) {
         if (isRiderEntry) {
-          lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashReceived })
+          lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashSaleAmount })
         } else {
-          lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashReceived })
+          lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashSaleAmount })
         }
       }
       if (creditPortion > 0) {
@@ -875,11 +876,11 @@ export async function postBottleMovementJournal(netChange, bottleCost, tenantId,
     const lines = isOut
       ? [
           { account_code: '1106', account_name: 'Bottles with Customers', debit: cost, credit: 0 },
-          { account_code: '1201', account_name: 'Inventory - Finished Goods', debit: 0, credit: cost },
+        { account_code: '1202', account_name: 'Inventory - Trading Items', debit: 0, credit: cost },
         ]
       : [
-          { account_code: '1201', account_name: 'Inventory - Finished Goods', debit: cost, credit: 0 },
-          { account_code: '1106', account_name: 'Bottles with Customers', debit: 0, credit: cost },
+          { account_code: '1202', account_name: 'Inventory - Trading Items', debit: cost, credit: 0 },
+        { account_code: '1106', account_name: 'Bottles with Customers', debit: 0, credit: cost },
         ]
     return await postJournalEntry({
       tenantId, date: date || new Date().toISOString().split("T")[0],
