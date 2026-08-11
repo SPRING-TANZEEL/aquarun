@@ -123,11 +123,12 @@ export default function SuperAdminDashboard({ onLogout }) {
 
   async function updateSubscription(t) {
     try {
-      await supabase.from('tenants').update({
-        subscription_status: subForm.status,
-        subscription_plan: subForm.plan,
-        subscription_expiry: subForm.expiry || null,
-      }).eq('id', t.id)
+      await supabase.rpc('update_tenant_subscription', {
+        p_tenant_id: t.id,
+        p_status: subForm.status,
+        p_plan: subForm.plan,
+        p_expiry: subForm.expiry || null,
+      })
       setSubEditId(null)
       fetchTenants()
       alert('✅ Subscription updated!')
@@ -137,14 +138,17 @@ export default function SuperAdminDashboard({ onLogout }) {
   async function activateSubscription(t, plan) {
     const days = plan === 'monthly' ? 30 : 365
     const expiry = new Date(Date.now() + days * 86400000).toISOString().split('T')[0]
-    await supabase.from('tenants').update({
-      subscription_status: 'active',
-      subscription_plan: plan,
-      subscription_expiry: expiry,
-      monthly_fee: plan === 'monthly' ? 2500 : 25000,
-    }).eq('id', t.id)
-    fetchTenants()
-    alert(`✅ ${plan === 'monthly' ? 'Monthly' : 'Yearly'} subscription activated!\nExpiry: ${expiry}`)
+    try {
+      await supabase.rpc('update_tenant_subscription', {
+        p_tenant_id: t.id,
+        p_status: 'active',
+        p_plan: plan,
+        p_expiry: expiry,
+        p_fee: plan === 'monthly' ? 2500 : 25000,
+      })
+      fetchTenants()
+      alert(`✅ ${plan === 'monthly' ? 'Monthly' : 'Yearly'} subscription activated!\nExpiry: ${expiry}`)
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
   async function toggleActive(t) {
