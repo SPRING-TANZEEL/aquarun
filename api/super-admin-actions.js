@@ -186,6 +186,28 @@ export default async function handler(req, res) {
       const { error: coaError } = await supabaseAdmin.from('chart_of_accounts').insert(accounts)
       if (coaError) console.error('COA seed error:', coaError.message)
 
+      // Create Supabase Auth user if email provided
+      if (tenantData.email) {
+        try {
+          const existingUsers = await supabaseAdmin.auth.admin.listUsers()
+          const existing = existingUsers?.data?.users?.find(u => u.email === tenantData.email)
+          let authUserId
+          if (existing) {
+            await supabaseAdmin.auth.admin.updateUserById(existing.id, { password: tenantData.admin_password, email_confirm: true })
+            authUserId = existing.id
+          } else {
+            const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+              email: tenantData.email, password: tenantData.admin_password, email_confirm: true
+            })
+            if (authError) console.error('Auth user error:', authError.message)
+            authUserId = authUser?.user?.id
+          }
+          if (authUserId) {
+            await supabaseAdmin.from('tenants').update({ auth_user_id: authUserId }).eq('id', tid)
+          }
+        } catch (err) { console.error('Auth creation error:', err.message) }
+      }
+
       // Seed default products
       const products = [
         // Tracking product (not saleable)
