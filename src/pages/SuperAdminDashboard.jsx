@@ -169,8 +169,10 @@ export default function SuperAdminDashboard({ onLogout }) {
     try {
       if (t.email) {
         const result = await superAdminAction({ action: 'createAuthUser', email: t.email, password: newPass.trim() })
+        alert('Auth result: ' + JSON.stringify(result))
         if (result.auth_user_id) {
-          await supabase.rpc('update_tenant_auth_user', { p_tenant_id: t.id, p_auth_user_id: result.auth_user_id })
+          const rpcResult = await supabase.rpc('update_tenant_auth_user', { p_tenant_id: t.id, p_auth_user_id: result.auth_user_id })
+          alert('RPC result: ' + JSON.stringify(rpcResult))
         }
       } else {
         await superAdminAction({ action: 'resetPassword', tenantId: t.id, newPassword: newPass.trim() })
