@@ -166,8 +166,18 @@ export default function SuperAdminDashboard({ onLogout }) {
   async function resetPassword(t) {
     const newPass = prompt(`Reset password for ${t.business_name}:`)
     if (!newPass?.trim()) return
-    await superAdminAction({ action: 'resetPassword', tenantId: t.id, newPassword: newPass.trim() })
-    alert(`✅ Password reset!\n\nBusiness ID: ${t.tenant_code}\nNew Password: ${newPass.trim()}`)
+    try {
+      if (t.email) {
+        const result = await superAdminAction({ action: 'createAuthUser', email: t.email, password: newPass.trim() })
+        if (result.auth_user_id) {
+          await supabase.rpc('update_tenant_auth_user', { p_tenant_id: t.id, p_auth_user_id: result.auth_user_id })
+        }
+      } else {
+        await superAdminAction({ action: 'resetPassword', tenantId: t.id, newPassword: newPass.trim() })
+      }
+      alert(`✅ Done!\n\nEmail: ${t.email || t.tenant_code}\nNew Password: ${newPass.trim()}`)
+      fetchTenants()
+    } catch (e) { alert('Error: ' + e.message) }
   }
 
   async function deleteTenant(t) {
