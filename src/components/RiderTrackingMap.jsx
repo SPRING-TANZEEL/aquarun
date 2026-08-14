@@ -421,7 +421,7 @@ export default function RiderTrackingMap({ tenantId }) {
   ).length
 
   // ── Render guard ──────────────────────────────────────────────────────────
-  if (loadError) {
+  if (loadError && !window.google) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui,sans-serif' }}>
         <p style={{ fontSize: 40, marginBottom: 8 }}>⚠️</p>
@@ -431,7 +431,7 @@ export default function RiderTrackingMap({ tenantId }) {
     )
   }
 
-  if (!isLoaded) {
+  if (!isLoaded && !window.google) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui,sans-serif' }}>
         <p style={{ fontSize: 40, marginBottom: 8 }}>🗺️</p>
