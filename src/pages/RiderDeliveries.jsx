@@ -375,10 +375,13 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       } catch (err) { console.error('Invoice number error:', err) }
 
       if (deliveryLat && deliveryLng && selectedOrder.customer_id) {
-        await supabase.from('customers').update({
-          latitude: String(deliveryLat),
-          longitude: String(deliveryLng)
-        }).eq('id', selectedOrder.customer_id).eq('tenant_id', tenantId)
+        const hasCoords = selectedOrder.customers?.latitude && selectedOrder.customers?.longitude
+        if (!hasCoords) {
+          await supabase.from('customers').update({
+            latitude: String(deliveryLat),
+            longitude: String(deliveryLng)
+          }).eq('id', selectedOrder.customer_id).eq('tenant_id', tenantId)
+        }
       }
 
     } else {

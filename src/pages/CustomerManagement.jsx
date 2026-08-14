@@ -747,8 +747,33 @@ export default function CustomerManagement({ tenantId }) {
                 <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Google Maps Link</label>
                 <input value={form.google_maps_link} onChange={e => handleMapsLink(e.target.value)}
                   placeholder="Paste Google Maps link..." style={inp} />
+                <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                  <button type="button" onClick={() => {
+                    if (!navigator.geolocation) return alert('GPS not available')
+                    navigator.geolocation.getCurrentPosition(
+                      pos => {
+                        setForm(f => ({
+                          ...f,
+                          latitude: String(pos.coords.latitude),
+                          longitude: String(pos.coords.longitude)
+                        }))
+                        alert('✅ Location captured! Save customer to apply.')
+                      },
+                      err => alert('❌ Could not get location: ' + err.message),
+                      { timeout: 10000, enableHighAccuracy: true }
+                    )
+                  }} style={{ padding: '8px 14px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                    📍 Use Current Location
+                  </button>
+                  {form.latitude && form.longitude && (
+                    <button type="button" onClick={() => setForm(f => ({ ...f, latitude: '', longitude: '' }))}
+                      style={{ padding: '8px 14px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                      🗑️ Clear Location
+                    </button>
+                  )}
+                </div>
                 {form.latitude && form.longitude && (
-                  <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '4px 0 0' }}>
+                  <p style={{ fontSize: '11px', color: '#1a7a4a', margin: '6px 0 0', fontWeight: 600 }}>
                     ✅ Coordinates: {form.latitude}, {form.longitude}
                   </p>
                 )}
