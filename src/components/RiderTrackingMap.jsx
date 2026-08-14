@@ -73,6 +73,7 @@ function decodeDirectionsPath(result) {
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function RiderTrackingMap({ tenantId }) {
   const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_KEY,
     libraries: LIBRARIES,
   })
