@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react'
+import { useJsApiLoader } from '@react-google-maps/api'
+
+const MAPS_LIBRARIES = ['geometry', 'directions']
 import { supabase, setTenantSession, clearTenantSession, isSuperAdmin, getTenantUUID } from './supabase'
 
 // Pages
@@ -27,6 +30,14 @@ export default function App() {
   const [showInstallBanner, setShowInstallBanner] = useState(false)
   const [showLanding, setShowLanding] = useState(() => {
     return sessionStorage.getItem('aquarun_show_login') !== 'true'
+  })
+
+  // Load Google Maps once at app level to prevent remount conflicts
+  useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
+    libraries: MAPS_LIBRARIES,
+    version: 'weekly',
   })
 
   useEffect(() => {

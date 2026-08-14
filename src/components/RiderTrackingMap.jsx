@@ -5,6 +5,7 @@ import { supabase } from '../supabase'
 // ── Constants ────────────────────────────────────────────────────────────────
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY
 const LIBRARIES = ['geometry', 'directions']
+const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
 
 const RIDER_COLORS = [
   '#0f4c81', '#1a7a4a', '#7c3aed', '#c62828', '#b45309',
@@ -76,6 +77,7 @@ export default function RiderTrackingMap({ tenantId }) {
     id: 'google-map-script',
     googleMapsApiKey: GOOGLE_MAPS_KEY,
     libraries: LIBRARIES,
+    version: 'weekly',
   })
 
   const [riders, setRiders]               = useState([])
