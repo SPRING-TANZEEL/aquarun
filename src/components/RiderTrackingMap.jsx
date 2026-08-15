@@ -1,15 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow, Polyline, OverlayView } from '@react-google-maps/api'
+import { GoogleMap, Marker, InfoWindow, Polyline, OverlayView } from '@react-google-maps/api'
 import { supabase } from '../supabase'
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY
-const LIBRARIES = ['geometry', 'directions']
-
-// Prevent Google Maps script from being removed on unmount
-if (typeof window !== 'undefined' && !window._googleMapsScriptProtected) {
-  window._googleMapsScriptProtected = true
-}
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
 
 const RIDER_COLORS = [
@@ -78,13 +72,20 @@ function decodeDirectionsPath(result) {
 
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function RiderTrackingMap({ tenantId }) {
-  const { isLoaded, loadError } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: GOOGLE_MAPS_KEY,
-    libraries: LIBRARIES,
-    version: 'weekly',
-    preventGoogleFontsLoading: true,
-  })
+  const [isLoaded, setIsLoaded] = useState(!!window.google?.maps)
+  const [loadError, setLoadError] = useState(null)
+
+  useEffect(() => {
+    if (window.google?.maps) { setIsLoaded(true); return }
+    const interval = setInterval(() => {
+      if (window.google?.maps) { setIsLoaded(true); clearInterval(interval) }
+    }, 100)
+    const timeout = setTimeout(() => {
+      clearInterval(interval)
+      if (!window.google?.maps) setLoadError(new Error('Google Maps failed to load'))
+    }, 10000)
+    return () => { clearInterval(interval); clearTimeout(timeout) }
+  }, [])
 
   const [riders, setRiders]               = useState([])
   const [orders, setOrders]               = useState([])
