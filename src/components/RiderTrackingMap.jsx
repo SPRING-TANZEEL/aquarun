@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../supabase'
 
-// ── Constants ────────────────────────────────────────────────────────────────
 const RIDER_COLORS = [
   '#0f4c81', '#1a7a4a', '#7c3aed', '#c62828', '#b45309',
   '#0891b2', '#be185d', '#047857', '#6d28d9', '#b91c1c'
@@ -12,7 +11,6 @@ const MAP_STYLES = [
   { featureType: 'transit', elementType: 'labels', stylers: [{ visibility: 'off' }] },
 ]
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
 function timeSince(dateStr) {
   if (!dateStr) return '—'
   const mins = Math.floor((Date.now() - new Date(dateStr)) / 60000)
@@ -28,12 +26,14 @@ function getRiderStatusColor(updatedAt) {
   return '#c62828'
 }
 
-// ── Main Component ───────────────────────────────────────────────────────────
 export default function RiderTrackingMap({ tenantId }) {
+  const [mapMode, setMapMode]             = useState('live') // 'live' | 'customers'
   const [riders, setRiders]               = useState([])
   const [orders, setOrders]               = useState([])
   const [deliveries, setDeliveries]       = useState([])
+  const [customers, setCustomers]         = useState([])
   const [loading, setLoading]             = useState(true)
+  const [customersLoading, setCustomersLoading] = useState(false)
   const [lastUpdate, setLastUpdate]       = useState(null)
   const [selectedRider, setSelectedRider] = useState(null)
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
@@ -42,28 +42,28 @@ export default function RiderTrackingMap({ tenantId }) {
   const [mapError, setMapError]           = useState(null)
   const [mapInitTries, setMapInitTries]   = useState(0)
 
-  const mapDivRef           = useRef(null)
-  const mapInstanceRef      = useRef(null)
-  const markersRef          = useRef({})
-  const stopMarkersRef      = useRef([])
-  const routeLinesRef       = useRef([])
-  const infoWindowRef       = useRef(null)
+  const mapDivRef            = useRef(null)
+  const mapInstanceRef       = useRef(null)
+  const markersRef           = useRef({})
+  const stopMarkersRef       = useRef([])
+  const routeLinesRef        = useRef([])
+  const customerMarkersRef   = useRef([])
+  const infoWindowRef        = useRef(null)
   const directionsServiceRef = useRef(null)
-  const realtimeChannelRef  = useRef(null)
-  const boundsSetRef        = useRef(false)
-  const selectedRiderRef    = useRef(null)
+  const realtimeChannelRef   = useRef(null)
+  const boundsSetRef         = useRef(false)
+  const selectedRiderRef     = useRef(null)
+  const mapModeRef           = useRef('live')
 
-  // Keep selectedRider ref in sync
   useEffect(() => { selectedRiderRef.current = selectedRider }, [selectedRider])
+  useEffect(() => { mapModeRef.current = mapMode }, [mapMode])
 
-  // Mobile resize
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // Wait for Google Maps if not ready yet
   useEffect(() => {
     if (window.google?.maps) { setMapsReady(true); return }
     const interval = setInterval(() => {
@@ -115,6 +115,22 @@ export default function RiderTrackingMap({ tenantId }) {
     }
   }, [tenantId])
 
+  const fetchCustomers = useCallback(async () => {
+    setCustomersLoading(true)
+    try {
+      const { data } = await supabase.from('customers')
+        .select('id, full_name, address, latitude, longitude, balance, mobile, our_bottles_placed, is_active')
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
+      setCustomers(data || [])
+    } catch (err) {
+      console.error('Customer fetch error:', err)
+    }
+    setCustomersLoading(false)
+  }, [tenantId])
+
   useEffect(() => {
     fetchAll()
     const interval = setInterval(fetchAll, 15000)
@@ -136,11 +152,10 @@ export default function RiderTrackingMap({ tenantId }) {
     return () => supabase.removeChannel(channel)
   }, [tenantId, fetchAll])
 
-  // ── Init map when div and maps both ready ─────────────────────────────────
+  // ── Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!mapsReady || mapInstanceRef.current) return
     if (!mapDivRef.current) return
-
     try {
       const map = new window.google.maps.Map(mapDivRef.current, {
         center: { lat: 31.5204, lng: 74.3587 },
@@ -157,33 +172,61 @@ export default function RiderTrackingMap({ tenantId }) {
       mapInstanceRef.current = map
       directionsServiceRef.current = new window.google.maps.DirectionsService()
       infoWindowRef.current = new window.google.maps.InfoWindow()
-    } catch(err) {
+    } catch (err) {
       setMapError(err.message)
     }
   }, [mapsReady, mapInitTries])
 
-  // ── Update map when data changes ──────────────────────────────────────────
+  // ── Update map when data/mode changes ────────────────────────────────────
   useEffect(() => {
     if (!mapInstanceRef.current || loading) return
-    updateMap()
-  }, [riders, orders, deliveries, selectedRider, loading])
+    if (mapMode === 'live') {
+      clearCustomerMarkers()
+      updateLiveMap()
+    } else {
+      clearLiveMarkers()
+      updateCustomerMap()
+    }
+  }, [riders, orders, deliveries, customers, selectedRider, loading, mapMode])
 
-  function updateMap() {
+  // Switch mode
+  function switchMode(mode) {
+    setMapMode(mode)
+    boundsSetRef.current = false
+    if (infoWindowRef.current) infoWindowRef.current.close()
+    if (mode === 'customers' && customers.length === 0) {
+      fetchCustomers()
+    }
+  }
+
+  function clearCustomerMarkers() {
+    customerMarkersRef.current.forEach(m => m.setMap(null))
+    customerMarkersRef.current = []
+  }
+
+  function clearLiveMarkers() {
+    stopMarkersRef.current.forEach(m => m.setMap(null))
+    stopMarkersRef.current = []
+    routeLinesRef.current.forEach(l => l.setMap(null))
+    routeLinesRef.current = []
+    Object.values(markersRef.current).forEach(m => m.setMap(null))
+    markersRef.current = {}
+  }
+
+  // ── Live tracking map update ──────────────────────────────────────────────
+  function updateLiveMap() {
     const map = mapInstanceRef.current
     if (!map) return
-
     const G = window.google.maps
     const visibleRiders = selectedRiderRef.current
       ? riders.filter(r => r.rider_id === selectedRiderRef.current)
       : riders
 
-    // Clear old stop markers and route lines
     stopMarkersRef.current.forEach(m => m.setMap(null))
     stopMarkersRef.current = []
     routeLinesRef.current.forEach(l => l.setMap(null))
     routeLinesRef.current = []
 
-    // ── Draw delivery stops ──
     visibleRiders.forEach(rider => {
       const color = rider.riderInfo?.color || '#0f4c81'
       const riderOrders = orders.filter(o => o.rider_id === rider.rider_id)
@@ -199,7 +242,6 @@ export default function RiderTrackingMap({ tenantId }) {
         const isDone = order.status === 'completed' || deliveredIds.has(order.customer_id)
         const name = order.customers?.full_name || 'Customer'
         const deliveryTime = riderDeliveries.find(d => d.customer_id === order.customer_id)?.delivered_at
-
         routePoints.push({ lat, lng })
 
         const stopIcon = {
@@ -214,15 +256,9 @@ export default function RiderTrackingMap({ tenantId }) {
           anchor: new G.Point(60, 36),
         }
 
-        const marker = new G.Marker({
-          position: { lat, lng },
-          map,
-          icon: stopIcon,
-          zIndex: 10,
-        })
-
+        const marker = new G.Marker({ position: { lat, lng }, map, icon: stopIcon, zIndex: 10 })
         marker.addListener('click', () => {
-          const content = `
+          infoWindowRef.current.setContent(`
             <div style="font-family:system-ui,sans-serif;min-width:180px;padding:4px">
               <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
                 <span style="font-size:18px">${isDone ? '✅' : '⏳'}</span>
@@ -230,20 +266,17 @@ export default function RiderTrackingMap({ tenantId }) {
               </div>
               ${order.customers?.address ? `<p style="font-size:11px;color:#888;margin:0 0 4px">📍 ${order.customers.address}</p>` : ''}
               <p style="font-size:11px;color:#555;margin:0 0 4px">🍶 ${[order.qty_19l > 0 && `19L×${order.qty_19l}`, order.qty_half_litre > 0 && `½L×${order.qty_half_litre}`].filter(Boolean).join(' · ')}</p>
-              <p style="font-size:11px;margin:0 0 6px;font-weight:700;color:${isDone ? '#1a7a4a' : color}">
+              <p style="font-size:11px;margin:0 0 4px;font-weight:700;color:${isDone ? '#1a7a4a' : color}">
                 ${isDone ? `✅ Delivered${deliveryTime ? ` at ${new Date(deliveryTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}` : ''}` : '⏳ Pending'}
               </p>
               <p style="font-size:10px;color:#aaa;margin:0">🚴 ${rider.riderInfo?.full_name}</p>
             </div>
-          `
-          infoWindowRef.current.setContent(content)
+          `)
           infoWindowRef.current.open(map, marker)
         })
-
         stopMarkersRef.current.push(marker)
       })
 
-      // Draw route lines
       if (routePoints.length > 1 && directionsServiceRef.current) {
         const waypts = routePoints.slice(1, -1).map(p => ({ location: p, stopover: false }))
         directionsServiceRef.current.route({
@@ -254,37 +287,16 @@ export default function RiderTrackingMap({ tenantId }) {
         }, (result, status) => {
           if (status === 'OK' && result.routes[0]) {
             const path = []
-            result.routes[0].legs.forEach(leg => {
-              leg.steps.forEach(step => {
-                step.path.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }))
-              })
-            })
-            const line = new G.Polyline({
-              path, map,
-              strokeColor: color,
-              strokeWeight: 4,
-              strokeOpacity: 0.7,
-              geodesic: true,
-            })
-            routeLinesRef.current.push(line)
+            result.routes[0].legs.forEach(leg => leg.steps.forEach(step => step.path.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }))))
+            routeLinesRef.current.push(new G.Polyline({ path, map, strokeColor: color, strokeWeight: 4, strokeOpacity: 0.7, geodesic: true }))
           } else {
-            // Fallback straight line
-            const line = new G.Polyline({
-              path: routePoints, map,
-              strokeColor: color,
-              strokeWeight: 3,
-              strokeOpacity: 0.5,
-              geodesic: true,
-              icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 }, offset: '0', repeat: '12px' }],
-            })
-            routeLinesRef.current.push(line)
+            routeLinesRef.current.push(new G.Polyline({ path: routePoints, map, strokeColor: color, strokeWeight: 3, strokeOpacity: 0.5, geodesic: true }))
           }
         })
       }
     })
 
-    // ── Draw rider pins ──
-    const G2 = window.google.maps
+    // Rider pins
     visibleRiders.forEach(rider => {
       const color = rider.riderInfo?.color || '#0f4c81'
       const statusColor = getRiderStatusColor(rider.updated_at)
@@ -297,21 +309,19 @@ export default function RiderTrackingMap({ tenantId }) {
       const total = riderOrders.length
       const progress = total > 0 ? Math.round(completed / total * 100) : 0
 
-      const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" width="80" height="68">
-          <circle cx="40" cy="24" r="22" fill="${color}" stroke="white" stroke-width="3"/>
-          <text x="40" y="30" font-family="system-ui,sans-serif" font-size="18" font-weight="900" fill="white" text-anchor="middle">${initial}</text>
-          <circle cx="56" cy="6" r="7" fill="${statusColor}" stroke="white" stroke-width="2"/>
-          <rect x="5" y="48" width="70" height="16" rx="4" fill="${color}"/>
-          <text x="40" y="59" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="middle">🚴 ${name.length > 10 ? name.slice(0, 10) + '…' : name}</text>
-          <polygon points="35,46 45,46 40,54" fill="${color}"/>
-        </svg>
-      `
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="80" height="68">
+        <circle cx="40" cy="24" r="22" fill="${color}" stroke="white" stroke-width="3"/>
+        <text x="40" y="30" font-family="system-ui,sans-serif" font-size="18" font-weight="900" fill="white" text-anchor="middle">${initial}</text>
+        <circle cx="56" cy="6" r="7" fill="${statusColor}" stroke="white" stroke-width="2"/>
+        <rect x="5" y="48" width="70" height="16" rx="4" fill="${color}"/>
+        <text x="40" y="59" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="middle">🚴 ${name.length > 9 ? name.slice(0,9)+'…' : name}</text>
+        <polygon points="35,46 45,46 40,54" fill="${color}"/>
+      </svg>`
 
       const icon = {
         url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
-        scaledSize: new G2.Size(80, 68),
-        anchor: new G2.Point(40, 68),
+        scaledSize: new window.google.maps.Size(80, 68),
+        anchor: new window.google.maps.Point(40, 68),
       }
 
       const popupContent = `
@@ -326,7 +336,7 @@ export default function RiderTrackingMap({ tenantId }) {
           <div style="background:#f0f9ff;border-radius:6px;padding:8px;margin-bottom:8px">
             <p style="font-size:11px;color:#0f4c81;font-weight:700;margin:0 0 4px">📊 ${completed}/${total} orders (${progress}%)</p>
             <div style="height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden">
-              <div style="height:100%;width:${progress}%;background:${progress === 100 ? '#1a7a4a' : '#0f4c81'};border-radius:3px"></div>
+              <div style="height:100%;width:${progress}%;background:${progress===100?'#1a7a4a':'#0f4c81'};border-radius:3px"></div>
             </div>
           </div>
           <a href="https://www.google.com/maps?q=${rider.latitude},${rider.longitude}" target="_blank"
@@ -339,16 +349,11 @@ export default function RiderTrackingMap({ tenantId }) {
       if (markersRef.current[rider.rider_id]) {
         markersRef.current[rider.rider_id].setPosition({ lat: rider.latitude, lng: rider.longitude })
         markersRef.current[rider.rider_id].setIcon(icon)
-        const iw = markersRef.current[rider.rider_id]._infoContent
-        if (iw !== popupContent) {
-          markersRef.current[rider.rider_id]._infoContent = popupContent
-        }
+        markersRef.current[rider.rider_id]._infoContent = popupContent
       } else {
-        const marker = new G2.Marker({
+        const marker = new window.google.maps.Marker({
           position: { lat: rider.latitude, lng: rider.longitude },
-          map,
-          icon,
-          zIndex: 1000,
+          map, icon, zIndex: 1000,
         })
         marker._infoContent = popupContent
         marker.addListener('click', () => {
@@ -359,7 +364,6 @@ export default function RiderTrackingMap({ tenantId }) {
       }
     })
 
-    // Remove markers for riders no longer visible
     Object.keys(markersRef.current).forEach(id => {
       if (!visibleRiders.find(r => r.rider_id === id)) {
         markersRef.current[id].setMap(null)
@@ -367,9 +371,8 @@ export default function RiderTrackingMap({ tenantId }) {
       }
     })
 
-    // Fit bounds on first load
     if (!boundsSetRef.current && visibleRiders.length > 0) {
-      const bounds = new G.LatLngBounds()
+      const bounds = new window.google.maps.LatLngBounds()
       visibleRiders.forEach(r => bounds.extend({ lat: r.latitude, lng: r.longitude }))
       orders.forEach(o => {
         if (o.customers?.latitude) bounds.extend({ lat: parseFloat(o.customers.latitude), lng: parseFloat(o.customers.longitude) })
@@ -384,22 +387,112 @@ export default function RiderTrackingMap({ tenantId }) {
     }
   }
 
-  // ── Select rider ──────────────────────────────────────────────────────────
+  // ── Customer map update ───────────────────────────────────────────────────
+  function updateCustomerMap() {
+    const map = mapInstanceRef.current
+    if (!map || customers.length === 0) return
+    const G = window.google.maps
+
+    customerMarkersRef.current.forEach(m => m.setMap(null))
+    customerMarkersRef.current = []
+
+    const today = new Date().toISOString().split('T')[0]
+    const deliveredCustomerIds = new Set(deliveries.map(d => d.customer_id))
+    const assignedOrders = orders.filter(o => o.delivery_date === today)
+    const assignedCustomerIds = new Set(assignedOrders.map(o => o.customer_id))
+
+    const bounds = new G.LatLngBounds()
+    let hasPoints = false
+
+    customers.forEach(customer => {
+      const lat = parseFloat(customer.latitude)
+      const lng = parseFloat(customer.longitude)
+      if (!lat || !lng) return
+
+      const isDelivered = deliveredCustomerIds.has(customer.id)
+      const isAssigned = assignedCustomerIds.has(customer.id)
+
+      // Color logic
+      let pinColor = '#0f4c81'   // default blue
+      let statusEmoji = '📍'
+      if (isDelivered) { pinColor = '#1a7a4a'; statusEmoji = '✅' }
+      else if (isAssigned) { pinColor = '#f59e0b'; statusEmoji = '⏳' }
+
+      const name = customer.full_name || 'Customer'
+      const balance = Number(customer.balance || 0)
+
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="110" height="38">
+        <rect x="0" y="0" width="110" height="28" rx="6" fill="${pinColor}" stroke="white" stroke-width="2"/>
+        <text x="55" y="18" font-family="system-ui,sans-serif" font-size="10" font-weight="700" fill="white" text-anchor="middle">${statusEmoji} ${name.length > 11 ? name.slice(0,11)+'…' : name}</text>
+        <polygon points="50,28 60,28 55,38" fill="${pinColor}"/>
+      </svg>`
+
+      const icon = {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new G.Size(110, 38),
+        anchor: new G.Point(55, 38),
+      }
+
+      const assignedOrder = assignedOrders.find(o => o.customer_id === customer.id)
+      const popupContent = `
+        <div style="font-family:system-ui,sans-serif;min-width:190px;padding:4px">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid #eee">
+            <span style="font-size:20px">${isDelivered ? '✅' : isAssigned ? '⏳' : '📍'}</span>
+            <div>
+              <p style="font-weight:700;font-size:14px;margin:0;color:#1a1a2e">${name}</p>
+              <p style="font-size:10px;color:#888;margin:0">${customer.mobile || ''}</p>
+            </div>
+          </div>
+          ${customer.address ? `<p style="font-size:11px;color:#888;margin:0 0 4px">📍 ${customer.address}</p>` : ''}
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <span style="font-size:11px;font-weight:700;color:${balance > 0 ? '#c62828' : balance < 0 ? '#1a7a4a' : '#888'}">
+              💰 ${balance > 0 ? `Rs.${balance.toLocaleString()} owed` : balance < 0 ? `Rs.${Math.abs(balance).toLocaleString()} advance` : 'Clear'}
+            </span>
+          </div>
+          ${customer.our_bottles_placed > 0 ? `<p style="font-size:11px;color:#e65100;margin:0 0 4px">🫙 ${customer.our_bottles_placed} our bottles</p>` : ''}
+          ${isDelivered ? `<p style="font-size:11px;color:#1a7a4a;font-weight:700;margin:0 0 4px">✅ Delivered today</p>` : ''}
+          ${isAssigned && !isDelivered ? `<p style="font-size:11px;color:#f59e0b;font-weight:700;margin:0 0 4px">⏳ Order assigned today — pending</p>` : ''}
+          ${assignedOrder ? `<p style="font-size:11px;color:#555;margin:0 0 4px">🍶 ${[assignedOrder.qty_19l > 0 && `19L×${assignedOrder.qty_19l}`, assignedOrder.qty_half_litre > 0 && `½L×${assignedOrder.qty_half_litre}`].filter(Boolean).join(' · ')}</p>` : ''}
+          <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank"
+            style="display:block;margin-top:6px;padding:5px;background:#0f4c81;color:white;border-radius:5px;text-align:center;font-size:11px;font-weight:700;text-decoration:none">
+            📍 Open in Google Maps
+          </a>
+        </div>
+      `
+
+      const marker = new G.Marker({ position: { lat, lng }, map, icon, zIndex: isDelivered ? 30 : isAssigned ? 20 : 10 })
+      marker.addListener('click', () => {
+        infoWindowRef.current.setContent(popupContent)
+        infoWindowRef.current.open(map, marker)
+      })
+      customerMarkersRef.current.push(marker)
+      bounds.extend({ lat, lng })
+      hasPoints = true
+    })
+
+    if (hasPoints && !boundsSetRef.current) {
+      map.fitBounds(bounds, { padding: 40 })
+      window.google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+        if (map.getZoom() > 14) map.setZoom(14)
+      })
+      boundsSetRef.current = true
+    }
+  }
+
   function selectRider(riderId) {
     setSelectedRider(riderId)
     boundsSetRef.current = false
-
+    if (infoWindowRef.current) infoWindowRef.current.close()
     if (riderId && mapInstanceRef.current) {
       const rider = riders.find(r => r.rider_id === riderId)
       if (rider) {
         mapInstanceRef.current.panTo({ lat: rider.latitude, lng: rider.longitude })
-        mapInstanceRef.current.setZoom(15)
+        mapInstanceRef.current.setZoom(14)
         boundsSetRef.current = true
       }
     }
   }
 
-  // ── Per-rider stats ───────────────────────────────────────────────────────
   function getRiderStats(riderId) {
     const riderOrders = orders.filter(o => o.rider_id === riderId)
     const riderDeliveries = deliveries.filter(d => d.rider_id === riderId)
@@ -410,14 +503,14 @@ export default function RiderTrackingMap({ tenantId }) {
     return { total: riderOrders.length, completed, pending, total19l, deliveredIds, riderDeliveries }
   }
 
-  // ── Computed ──────────────────────────────────────────────────────────────
   const visibleRiders = selectedRider ? riders.filter(r => r.rider_id === selectedRider) : riders
   const totalOrders = orders.length
   const totalCompleted = deliveries.filter((d, i, arr) =>
     arr.findIndex(x => x.customer_id === d.customer_id && x.rider_id === d.rider_id) === i
   ).length
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const showMap = !loading && (mapMode === 'live' ? riders.length > 0 : true)
+
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
@@ -454,35 +547,85 @@ export default function RiderTrackingMap({ tenantId }) {
         </div>
       </div>
 
-      {/* Rider filter tabs */}
-      <div style={{ background: '#1e3a5f', padding: '10px 16px', display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-        <button onClick={() => selectRider(null)} style={{
-          padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
-          fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-          background: !selectedRider ? '#0f4c81' : 'rgba(255,255,255,0.1)',
-          color: !selectedRider ? '#fff' : '#93c5fd',
-        }}>
-          🗺️ All Riders
-        </button>
-        {riders.map(r => {
-          const stats = getRiderStats(r.rider_id)
-          const color = r.riderInfo?.color || '#0f4c81'
-          return (
-            <button key={r.rider_id} onClick={() => selectRider(r.rider_id === selectedRider ? null : r.rider_id)} style={{
-              padding: '6px 14px', borderRadius: 20,
-              border: `2px solid ${selectedRider === r.rider_id ? color : 'transparent'}`,
-              cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
-              background: selectedRider === r.rider_id ? color : 'rgba(255,255,255,0.1)',
-              color: '#fff', display: 'flex', alignItems: 'center', gap: 6,
+      {/* Mode switcher + Rider tabs */}
+      <div style={{ background: '#1e3a5f', padding: '10px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+        {/* Mode toggle */}
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button onClick={() => switchMode('live')} style={{
+            padding: '7px 16px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+            background: mapMode === 'live' ? '#0f4c81' : 'rgba(255,255,255,0.1)',
+            color: '#fff',
+          }}>
+            🚴 Live Tracking
+          </button>
+          <button onClick={() => switchMode('customers')} style={{
+            padding: '7px 16px', borderRadius: 20, border: 'none', cursor: 'pointer',
+            fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+            background: mapMode === 'customers' ? '#1a7a4a' : 'rgba(255,255,255,0.1)',
+            color: '#fff',
+          }}>
+            👥 Customer Map {customers.length > 0 ? `(${customers.length})` : ''}
+          </button>
+          {mapMode === 'customers' && (
+            <button onClick={() => { boundsSetRef.current = false; fetchCustomers() }} style={{
+              padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+              background: 'rgba(255,255,255,0.1)', color: '#fff',
             }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: getRiderStatusColor(r.updated_at), display: 'inline-block', flexShrink: 0 }} />
-              🚴 {r.riderInfo?.full_name}
-              <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>
-                {stats.completed}/{stats.total}
-              </span>
+              🔄
             </button>
-          )
-        })}
+          )}
+        </div>
+
+        {/* Rider filter tabs — only in live mode */}
+        {mapMode === 'live' && (
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <button onClick={() => selectRider(null)} style={{
+              padding: '6px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+              background: !selectedRider ? '#0f4c81' : 'rgba(255,255,255,0.1)',
+              color: !selectedRider ? '#fff' : '#93c5fd',
+            }}>
+              🗺️ All Riders
+            </button>
+            {riders.map(r => {
+              const stats = getRiderStats(r.rider_id)
+              const color = r.riderInfo?.color || '#0f4c81'
+              return (
+                <button key={r.rider_id} onClick={() => selectRider(r.rider_id === selectedRider ? null : r.rider_id)} style={{
+                  padding: '6px 14px', borderRadius: 20,
+                  border: `2px solid ${selectedRider === r.rider_id ? color : 'transparent'}`,
+                  cursor: 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+                  background: selectedRider === r.rider_id ? color : 'rgba(255,255,255,0.1)',
+                  color: '#fff', display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: getRiderStatusColor(r.updated_at), display: 'inline-block', flexShrink: 0 }} />
+                  🚴 {r.riderInfo?.full_name}
+                  <span style={{ background: 'rgba(255,255,255,0.25)', borderRadius: 10, padding: '1px 6px', fontSize: 10 }}>
+                    {stats.completed}/{stats.total}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Customer map legend */}
+        {mapMode === 'customers' && (
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#0f4c81', display: 'inline-block' }} />Regular
+            </span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} />Assigned today
+            </span>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#1a7a4a', display: 'inline-block' }} />Delivered today
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main content */}
@@ -495,47 +638,32 @@ export default function RiderTrackingMap({ tenantId }) {
               <div style={{ fontSize: 40 }}>📡</div>
               <p style={{ color: '#888', fontSize: 14, fontWeight: 600 }}>Loading live tracking...</p>
             </div>
-          ) : riders.length === 0 ? (
+          ) : mapMode === 'live' && riders.length === 0 ? (
             <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
               <div style={{ fontSize: 56 }}>🚴</div>
               <p style={{ color: '#555', fontSize: 15, fontWeight: 700 }}>No active riders</p>
               <p style={{ color: '#888', fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Riders appear here when they open the delivery app and allow location</p>
             </div>
+          ) : mapMode === 'customers' && customersLoading ? (
+            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
+              <div style={{ fontSize: 40 }}>👥</div>
+              <p style={{ color: '#888', fontSize: 14, fontWeight: 600 }}>Loading customer locations...</p>
+            </div>
           ) : mapError ? (
             <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#fff5f5', padding: 20 }}>
               <p style={{ fontSize: 30 }}>⚠️</p>
               <p style={{ color: '#c62828', fontWeight: 700, fontSize: 14, textAlign: 'center' }}>Map Error: {mapError}</p>
-              <p style={{ color: '#888', fontSize: 12, textAlign: 'center' }}>mapsReady: {String(mapsReady)} · google: {String(!!window.google)} · maps: {String(!!window.google?.maps)}</p>
-              <button onClick={() => { setMapError(null); setMapInitTries(t => t+1) }}
+              <button onClick={() => { setMapError(null); setMapInitTries(t => t + 1) }}
                 style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
                 🔄 Retry
               </button>
             </div>
           ) : (
-            <div ref={el => {
-              mapDivRef.current = el
-              if (el && mapsReady && !mapInstanceRef.current) {
-                const map = new window.google.maps.Map(el, {
-                  center: { lat: 31.5204, lng: 74.3587 },
-                  zoom: 12,
-                  styles: MAP_STYLES,
-                  fullscreenControl: false,
-                  streetViewControl: false,
-                  mapTypeControl: false,
-                  clickableIcons: false,
-                })
-                map.addListener('click', () => {
-                  if (infoWindowRef.current) infoWindowRef.current.close()
-                })
-                mapInstanceRef.current = map
-                directionsServiceRef.current = new window.google.maps.DirectionsService()
-                infoWindowRef.current = new window.google.maps.InfoWindow()
-              }
-            }} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
+            <div ref={mapDivRef} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
           )}
 
-          {/* Map legend */}
-          {!loading && riders.length > 0 && (
+          {/* Live map legend */}
+          {!loading && mapMode === 'live' && riders.length > 0 && (
             <div style={{
               position: 'absolute', bottom: 10, left: 10,
               background: 'rgba(255,255,255,0.95)', borderRadius: 8,
@@ -543,24 +671,30 @@ export default function RiderTrackingMap({ tenantId }) {
               zIndex: 10, fontSize: 10,
             }}>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a7a4a', display: 'inline-block' }} />Active
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />Recent
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#c62828', display: 'inline-block' }} />Inactive
-                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#1a7a4a', display: 'inline-block' }} />Active</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />Recent</span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#c62828', display: 'inline-block' }} />Inactive</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>✅ Delivered</span>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>⏳ Pending</span>
               </div>
             </div>
           )}
+
+          {/* Customer map count */}
+          {!loading && mapMode === 'customers' && customers.length > 0 && (
+            <div style={{
+              position: 'absolute', bottom: 10, left: 10,
+              background: 'rgba(255,255,255,0.95)', borderRadius: 8,
+              padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              zIndex: 10, fontSize: 11, fontWeight: 700, color: '#0f4c81',
+            }}>
+              👥 {customers.length} customers on map
+            </div>
+          )}
         </div>
 
-        {/* Side Panel */}
-        {showPanel && (
+        {/* Side Panel — live mode only */}
+        {showPanel && mapMode === 'live' && (
           <div style={{
             width: isMobile ? '100%' : 300, borderLeft: '1px solid #e0e0e0',
             overflowY: 'auto', background: '#f8fafc',
@@ -574,7 +708,6 @@ export default function RiderTrackingMap({ tenantId }) {
 
               return (
                 <div key={rider.rider_id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-                  {/* Rider header */}
                   <div style={{ background: color, padding: '12px 14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -601,7 +734,6 @@ export default function RiderTrackingMap({ tenantId }) {
                     </div>
                   </div>
 
-                  {/* Next stops */}
                   {(() => {
                     const nextPending = riderOrders.filter(o => !stats.deliveredIds.has(o.customer_id) && o.status !== 'completed').slice(0, 4)
                     if (nextPending.length === 0) return null
@@ -620,7 +752,6 @@ export default function RiderTrackingMap({ tenantId }) {
                     )
                   })()}
 
-                  {/* Order list */}
                   <div>
                     {riderOrders.length === 0 ? (
                       <p style={{ padding: '12px 14px', fontSize: 12, color: '#aaa', textAlign: 'center', margin: 0 }}>No orders assigned today</p>
@@ -658,9 +789,7 @@ export default function RiderTrackingMap({ tenantId }) {
                                     ✅ {new Date(delivery.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}
                                   </span>
                                 )}
-                                {!isDone && (
-                                  <span style={{ fontSize: 10, color: '#e65100', fontWeight: 600 }}>⏳ Pending</span>
-                                )}
+                                {!isDone && <span style={{ fontSize: 10, color: '#e65100', fontWeight: 600 }}>⏳ Pending</span>}
                               </div>
                             </div>
                             {order.customers?.latitude && (
