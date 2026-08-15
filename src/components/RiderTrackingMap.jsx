@@ -633,24 +633,31 @@ export default function RiderTrackingMap({ tenantId }) {
 
         {/* Map */}
         <div style={{ flex: 1, position: 'relative', minHeight: isMobile ? 400 : 'auto' }}>
-          {loading ? (
-            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
+          {/* Map always rendered so it can initialize */}
+          <div ref={mapDivRef} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
+
+          {/* Overlays */}
+          {loading && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc', zIndex: 5 }}>
               <div style={{ fontSize: 40 }}>📡</div>
               <p style={{ color: '#888', fontSize: 14, fontWeight: 600 }}>Loading live tracking...</p>
             </div>
-          ) : mapMode === 'live' && riders.length === 0 ? (
-            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
+          )}
+          {!loading && mapMode === 'live' && riders.length === 0 && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc', zIndex: 5 }}>
               <div style={{ fontSize: 56 }}>🚴</div>
               <p style={{ color: '#555', fontSize: 15, fontWeight: 700 }}>No active riders</p>
               <p style={{ color: '#888', fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Riders appear here when they open the delivery app and allow location</p>
             </div>
-          ) : mapMode === 'customers' && customersLoading ? (
-            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
+          )}
+          {!loading && mapMode === 'customers' && customersLoading && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc', zIndex: 5 }}>
               <div style={{ fontSize: 40 }}>👥</div>
               <p style={{ color: '#888', fontSize: 14, fontWeight: 600 }}>Loading customer locations...</p>
             </div>
-          ) : mapError ? (
-            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#fff5f5', padding: 20 }}>
+          )}
+          {mapError && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#fff5f5', padding: 20, zIndex: 5 }}>
               <p style={{ fontSize: 30 }}>⚠️</p>
               <p style={{ color: '#c62828', fontWeight: 700, fontSize: 14, textAlign: 'center' }}>Map Error: {mapError}</p>
               <button onClick={() => { setMapError(null); setMapInitTries(t => t + 1) }}
@@ -658,8 +665,6 @@ export default function RiderTrackingMap({ tenantId }) {
                 🔄 Retry
               </button>
             </div>
-          ) : (
-            <div ref={mapDivRef} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
           )}
 
           {/* Live map legend */}
