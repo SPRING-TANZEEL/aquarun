@@ -1,11 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { GoogleMap, Marker, InfoWindow, Polyline, OverlayView } from '@react-google-maps/api'
 import { supabase } from '../supabase'
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY
-const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
-
 const RIDER_COLORS = [
   '#0f4c81', '#1a7a4a', '#7c3aed', '#c62828', '#b45309',
   '#0891b2', '#be185d', '#047857', '#6d28d9', '#b91c1c'
@@ -32,83 +28,46 @@ function getRiderStatusColor(updatedAt) {
   return '#c62828'
 }
 
-// Build road-following route using Google Directions API
-async function buildRoadRoute(origin, waypoints, directionsService) {
-  if (!directionsService || waypoints.length === 0) return null
-  try {
-    const wayptObjs = waypoints.slice(0, -1).map(p => ({
-      location: new window.google.maps.LatLng(p[0], p[1]),
-      stopover: false,
-    }))
-    const dest = waypoints[waypoints.length - 1]
-    return await new Promise((resolve) => {
-      directionsService.route({
-        origin: new window.google.maps.LatLng(origin[0], origin[1]),
-        destination: new window.google.maps.LatLng(dest[0], dest[1]),
-        waypoints: wayptObjs,
-        travelMode: window.google.maps.TravelMode.DRIVING,
-        optimizeWaypoints: false,
-      }, (result, status) => {
-        if (status === 'OK') resolve(result)
-        else resolve(null)
-      })
-    })
-  } catch {
-    return null
-  }
-}
-
-// Decode polyline path from Directions result into array of {lat,lng}
-function decodeDirectionsPath(result) {
-  if (!result?.routes?.[0]) return []
-  const path = []
-  result.routes[0].legs.forEach(leg => {
-    leg.steps.forEach(step => {
-      step.path.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }))
-    })
-  })
-  return path
-}
-
 // ── Main Component ───────────────────────────────────────────────────────────
 export default function RiderTrackingMap({ tenantId }) {
-  const [isLoaded, setIsLoaded] = useState(!!window.google?.maps)
-  const [loadError, setLoadError] = useState(null)
-
-  useEffect(() => {
-    if (window.google?.maps) { setIsLoaded(true); return }
-    const interval = setInterval(() => {
-      if (window.google?.maps) { setIsLoaded(true); clearInterval(interval) }
-    }, 100)
-    const timeout = setTimeout(() => {
-      clearInterval(interval)
-      if (!window.google?.maps) setLoadError(new Error('Google Maps failed to load'))
-    }, 10000)
-    return () => { clearInterval(interval); clearTimeout(timeout) }
-  }, [])
-
   const [riders, setRiders]               = useState([])
   const [orders, setOrders]               = useState([])
   const [deliveries, setDeliveries]       = useState([])
   const [loading, setLoading]             = useState(true)
   const [lastUpdate, setLastUpdate]       = useState(null)
   const [selectedRider, setSelectedRider] = useState(null)
-  const [activeInfoWindow, setActiveInfoWindow] = useState(null) // rider_id
-  const [routePaths, setRoutePaths]       = useState({}) // rider_id → [{lat,lng}]
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
   const [showPanel, setShowPanel]         = useState(true)
-  const [mapCenter, setMapCenter]         = useState({ lat: 31.5204, lng: 74.3587 }) // Lahore default
-  const [mapZoom, setMapZoom]             = useState(12)
-  const [boundsSet, setBoundsSet]         = useState(false)
+  const [mapsReady, setMapsReady]         = useState(!!window.google?.maps)
 
-  const mapRef              = useRef(null)
+  const mapDivRef           = useRef(null)
+  const mapInstanceRef      = useRef(null)
+  const markersRef          = useRef({})
+  const stopMarkersRef      = useRef([])
+  const routeLinesRef       = useRef([])
+  const infoWindowRef       = useRef(null)
   const directionsServiceRef = useRef(null)
   const realtimeChannelRef  = useRef(null)
+  const boundsSetRef        = useRef(false)
+  const selectedRiderRef    = useRef(null)
 
+  // Keep selectedRider ref in sync
+  useEffect(() => { selectedRiderRef.current = selectedRider }, [selectedRider])
+
+  // Mobile resize
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
+  }, [])
+
+  // Wait for Google Maps if not ready yet
+  useEffect(() => {
+    if (window.google?.maps) { setMapsReady(true); return }
+    const interval = setInterval(() => {
+      if (window.google?.maps) { setMapsReady(true); clearInterval(interval) }
+    }, 100)
+    return () => clearInterval(interval)
   }, [])
 
   // ── Data fetch ───────────────────────────────────────────────────────────
@@ -162,81 +121,276 @@ export default function RiderTrackingMap({ tenantId }) {
 
   // ── Supabase Realtime ─────────────────────────────────────────────────────
   useEffect(() => {
-    if (realtimeChannelRef.current) {
-      supabase.removeChannel(realtimeChannelRef.current)
-    }
+    if (realtimeChannelRef.current) supabase.removeChannel(realtimeChannelRef.current)
     const channel = supabase
       .channel(`rider_locations_${tenantId}`)
       .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
+        event: '*', schema: 'public',
         table: 'rider_locations',
         filter: `tenant_id=eq.${tenantId}`,
-      }, () => {
-        fetchAll()
-      })
+      }, () => fetchAll())
       .subscribe()
-
     realtimeChannelRef.current = channel
     return () => supabase.removeChannel(channel)
   }, [tenantId, fetchAll])
 
-  // ── Build road routes when riders/orders change ───────────────────────────
+  // ── Init map ──────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!isLoaded || !directionsServiceRef.current || riders.length === 0) return
+    if (!mapsReady || !mapDivRef.current || mapInstanceRef.current) return
 
-    const visibleRiders = selectedRider
-      ? riders.filter(r => r.rider_id === selectedRider)
+    const map = new window.google.maps.Map(mapDivRef.current, {
+      center: { lat: 31.5204, lng: 74.3587 },
+      zoom: 12,
+      styles: MAP_STYLES,
+      fullscreenControl: false,
+      streetViewControl: false,
+      mapTypeControl: false,
+      zoomControlOptions: { position: window.google.maps.ControlPosition.RIGHT_CENTER },
+      clickableIcons: false,
+    })
+
+    map.addListener('click', () => {
+      if (infoWindowRef.current) infoWindowRef.current.close()
+    })
+
+    mapInstanceRef.current = map
+    directionsServiceRef.current = new window.google.maps.DirectionsService()
+    infoWindowRef.current = new window.google.maps.InfoWindow()
+  }, [mapsReady])
+
+  // ── Update map when data changes ──────────────────────────────────────────
+  useEffect(() => {
+    if (!mapInstanceRef.current || loading) return
+    updateMap()
+  }, [riders, orders, deliveries, selectedRider, loading])
+
+  function updateMap() {
+    const map = mapInstanceRef.current
+    if (!map) return
+
+    const G = window.google.maps
+    const visibleRiders = selectedRiderRef.current
+      ? riders.filter(r => r.rider_id === selectedRiderRef.current)
       : riders
 
-    visibleRiders.forEach(async (rider) => {
+    // Clear old stop markers and route lines
+    stopMarkersRef.current.forEach(m => m.setMap(null))
+    stopMarkersRef.current = []
+    routeLinesRef.current.forEach(l => l.setMap(null))
+    routeLinesRef.current = []
+
+    // ── Draw delivery stops ──
+    visibleRiders.forEach(rider => {
+      const color = rider.riderInfo?.color || '#0f4c81'
       const riderOrders = orders.filter(o => o.rider_id === rider.rider_id)
-      const waypoints = riderOrders
-        .filter(o => o.customers?.latitude && o.customers?.longitude)
-        .map(o => [o.customers.latitude, o.customers.longitude])
+      const riderDeliveries = deliveries.filter(d => d.rider_id === rider.rider_id)
+      const deliveredIds = new Set(riderDeliveries.map(d => d.customer_id))
+      const routePoints = []
 
-      if (waypoints.length < 1) return
+      riderOrders.forEach((order, idx) => {
+        const lat = parseFloat(order.customers?.latitude)
+        const lng = parseFloat(order.customers?.longitude)
+        if (!lat || !lng) return
 
-      const origin = [rider.latitude, rider.longitude]
-      const result = await buildRoadRoute(origin, waypoints, directionsServiceRef.current)
-      if (result) {
-        const path = decodeDirectionsPath(result)
-        setRoutePaths(prev => ({ ...prev, [rider.rider_id]: path }))
-      } else {
-        // Fallback: straight lines if Directions fails
-        const fallback = [
-          { lat: rider.latitude, lng: rider.longitude },
-          ...waypoints.map(([lat, lng]) => ({ lat, lng }))
-        ]
-        setRoutePaths(prev => ({ ...prev, [rider.rider_id]: fallback }))
+        const isDone = order.status === 'completed' || deliveredIds.has(order.customer_id)
+        const name = order.customers?.full_name || 'Customer'
+        const deliveryTime = riderDeliveries.find(d => d.customer_id === order.customer_id)?.delivered_at
+
+        routePoints.push({ lat, lng })
+
+        const stopIcon = {
+          url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(`
+            <svg xmlns="http://www.w3.org/2000/svg" width="120" height="36">
+              <rect x="0" y="0" width="120" height="28" rx="5" fill="${isDone ? '#1a7a4a' : color}" stroke="white" stroke-width="2"/>
+              <text x="60" y="18" font-family="system-ui,sans-serif" font-size="11" font-weight="700" fill="white" text-anchor="middle">${isDone ? '✅' : '⏳' + (idx + 1)} ${name.length > 10 ? name.slice(0, 10) + '…' : name}</text>
+              <polygon points="55,28 65,28 60,36" fill="${isDone ? '#1a7a4a' : color}"/>
+            </svg>
+          `)}`,
+          scaledSize: new G.Size(120, 36),
+          anchor: new G.Point(60, 36),
+        }
+
+        const marker = new G.Marker({
+          position: { lat, lng },
+          map,
+          icon: stopIcon,
+          zIndex: 10,
+        })
+
+        marker.addListener('click', () => {
+          const content = `
+            <div style="font-family:system-ui,sans-serif;min-width:180px;padding:4px">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span style="font-size:18px">${isDone ? '✅' : '⏳'}</span>
+                <strong style="font-size:14px;color:#1a1a2e">${name}</strong>
+              </div>
+              ${order.customers?.address ? `<p style="font-size:11px;color:#888;margin:0 0 4px">📍 ${order.customers.address}</p>` : ''}
+              <p style="font-size:11px;color:#555;margin:0 0 4px">🍶 ${[order.qty_19l > 0 && `19L×${order.qty_19l}`, order.qty_half_litre > 0 && `½L×${order.qty_half_litre}`].filter(Boolean).join(' · ')}</p>
+              <p style="font-size:11px;margin:0 0 6px;font-weight:700;color:${isDone ? '#1a7a4a' : color}">
+                ${isDone ? `✅ Delivered${deliveryTime ? ` at ${new Date(deliveryTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}` : ''}` : '⏳ Pending'}
+              </p>
+              <p style="font-size:10px;color:#aaa;margin:0">🚴 ${rider.riderInfo?.full_name}</p>
+            </div>
+          `
+          infoWindowRef.current.setContent(content)
+          infoWindowRef.current.open(map, marker)
+        })
+
+        stopMarkersRef.current.push(marker)
+      })
+
+      // Draw route lines
+      if (routePoints.length > 1 && directionsServiceRef.current) {
+        const waypts = routePoints.slice(1, -1).map(p => ({ location: p, stopover: false }))
+        directionsServiceRef.current.route({
+          origin: routePoints[0],
+          destination: routePoints[routePoints.length - 1],
+          waypoints: waypts,
+          travelMode: G.TravelMode.DRIVING,
+        }, (result, status) => {
+          if (status === 'OK' && result.routes[0]) {
+            const path = []
+            result.routes[0].legs.forEach(leg => {
+              leg.steps.forEach(step => {
+                step.path.forEach(p => path.push({ lat: p.lat(), lng: p.lng() }))
+              })
+            })
+            const line = new G.Polyline({
+              path, map,
+              strokeColor: color,
+              strokeWeight: 4,
+              strokeOpacity: 0.7,
+              geodesic: true,
+            })
+            routeLinesRef.current.push(line)
+          } else {
+            // Fallback straight line
+            const line = new G.Polyline({
+              path: routePoints, map,
+              strokeColor: color,
+              strokeWeight: 3,
+              strokeOpacity: 0.5,
+              geodesic: true,
+              icons: [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 1, scale: 3 }, offset: '0', repeat: '12px' }],
+            })
+            routeLinesRef.current.push(line)
+          }
+        })
       }
     })
-  }, [riders, orders, selectedRider, isLoaded])
 
-  // ── Fit map bounds on first load ──────────────────────────────────────────
-  useEffect(() => {
-    if (!mapRef.current || boundsSet || riders.length === 0) return
-    const bounds = new window.google.maps.LatLngBounds()
-    riders.forEach(r => bounds.extend({ lat: r.latitude, lng: r.longitude }))
-    orders.forEach(o => {
-      if (o.customers?.latitude) bounds.extend({ lat: o.customers.latitude, lng: o.customers.longitude })
+    // ── Draw rider pins ──
+    const G2 = window.google.maps
+    visibleRiders.forEach(rider => {
+      const color = rider.riderInfo?.color || '#0f4c81'
+      const statusColor = getRiderStatusColor(rider.updated_at)
+      const name = rider.riderInfo?.full_name || 'Rider'
+      const initial = name[0]?.toUpperCase() || '?'
+      const riderOrders = orders.filter(o => o.rider_id === rider.rider_id)
+      const riderDeliveries = deliveries.filter(d => d.rider_id === rider.rider_id)
+      const deliveredIds = new Set(riderDeliveries.map(d => d.customer_id))
+      const completed = riderOrders.filter(o => o.status === 'completed' || deliveredIds.has(o.customer_id)).length
+      const total = riderOrders.length
+      const progress = total > 0 ? Math.round(completed / total * 100) : 0
+
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="80" height="68">
+          <circle cx="40" cy="24" r="22" fill="${color}" stroke="white" stroke-width="3"/>
+          <text x="40" y="30" font-family="system-ui,sans-serif" font-size="18" font-weight="900" fill="white" text-anchor="middle">${initial}</text>
+          <circle cx="56" cy="6" r="7" fill="${statusColor}" stroke="white" stroke-width="2"/>
+          <rect x="5" y="48" width="70" height="16" rx="4" fill="${color}"/>
+          <text x="40" y="59" font-family="system-ui,sans-serif" font-size="9" font-weight="700" fill="white" text-anchor="middle">🚴 ${name.length > 10 ? name.slice(0, 10) + '…' : name}</text>
+          <polygon points="35,46 45,46 40,54" fill="${color}"/>
+        </svg>
+      `
+
+      const icon = {
+        url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+        scaledSize: new G2.Size(80, 68),
+        anchor: new G2.Point(40, 68),
+      }
+
+      const popupContent = `
+        <div style="font-family:system-ui,sans-serif;min-width:200px;padding:4px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid #eee">
+            <div style="width:36px;height:36px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:15px">${initial}</div>
+            <div>
+              <p style="font-weight:700;font-size:14px;margin:0;color:#1a1a2e">🚴 ${name}</p>
+              <p style="font-size:10px;color:#888;margin:0">Updated: ${timeSince(rider.updated_at)}</p>
+            </div>
+          </div>
+          <div style="background:#f0f9ff;border-radius:6px;padding:8px;margin-bottom:8px">
+            <p style="font-size:11px;color:#0f4c81;font-weight:700;margin:0 0 4px">📊 ${completed}/${total} orders (${progress}%)</p>
+            <div style="height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${progress}%;background:${progress === 100 ? '#1a7a4a' : '#0f4c81'};border-radius:3px"></div>
+            </div>
+          </div>
+          <a href="https://www.google.com/maps?q=${rider.latitude},${rider.longitude}" target="_blank"
+            style="display:block;padding:6px;background:#0f4c81;color:white;border-radius:6px;text-align:center;font-size:11px;font-weight:700;text-decoration:none">
+            📍 Open in Google Maps
+          </a>
+        </div>
+      `
+
+      if (markersRef.current[rider.rider_id]) {
+        markersRef.current[rider.rider_id].setPosition({ lat: rider.latitude, lng: rider.longitude })
+        markersRef.current[rider.rider_id].setIcon(icon)
+        const iw = markersRef.current[rider.rider_id]._infoContent
+        if (iw !== popupContent) {
+          markersRef.current[rider.rider_id]._infoContent = popupContent
+        }
+      } else {
+        const marker = new G2.Marker({
+          position: { lat: rider.latitude, lng: rider.longitude },
+          map,
+          icon,
+          zIndex: 1000,
+        })
+        marker._infoContent = popupContent
+        marker.addListener('click', () => {
+          infoWindowRef.current.setContent(marker._infoContent)
+          infoWindowRef.current.open(map, marker)
+        })
+        markersRef.current[rider.rider_id] = marker
+      }
     })
-    mapRef.current.fitBounds(bounds, { padding: 60 })
-    setBoundsSet(true)
-  }, [riders, orders, boundsSet])
 
-  // ── Select rider & zoom ───────────────────────────────────────────────────
+    // Remove markers for riders no longer visible
+    Object.keys(markersRef.current).forEach(id => {
+      if (!visibleRiders.find(r => r.rider_id === id)) {
+        markersRef.current[id].setMap(null)
+        delete markersRef.current[id]
+      }
+    })
+
+    // Fit bounds on first load
+    if (!boundsSetRef.current && visibleRiders.length > 0) {
+      const bounds = new G.LatLngBounds()
+      visibleRiders.forEach(r => bounds.extend({ lat: r.latitude, lng: r.longitude }))
+      orders.forEach(o => {
+        if (o.customers?.latitude) bounds.extend({ lat: parseFloat(o.customers.latitude), lng: parseFloat(o.customers.longitude) })
+      })
+      if (!bounds.isEmpty()) {
+        map.fitBounds(bounds, { padding: 60 })
+        if (visibleRiders.length === 1 && orders.filter(o => o.customers?.latitude).length === 0) {
+          map.setZoom(15)
+        }
+      }
+      boundsSetRef.current = true
+    }
+  }
+
+  // ── Select rider ──────────────────────────────────────────────────────────
   function selectRider(riderId) {
     setSelectedRider(riderId)
-    setActiveInfoWindow(null)
-    setBoundsSet(false) // re-fit bounds for new selection
+    boundsSetRef.current = false
 
-    if (riderId && mapRef.current) {
+    if (riderId && mapInstanceRef.current) {
       const rider = riders.find(r => r.rider_id === riderId)
       if (rider) {
-        mapRef.current.panTo({ lat: rider.latitude, lng: rider.longitude })
-        mapRef.current.setZoom(15)
-        setBoundsSet(true)
+        mapInstanceRef.current.panTo({ lat: rider.latitude, lng: rider.longitude })
+        mapInstanceRef.current.setZoom(15)
+        boundsSetRef.current = true
       }
     }
   }
@@ -252,174 +406,6 @@ export default function RiderTrackingMap({ tenantId }) {
     return { total: riderOrders.length, completed, pending, total19l, deliveredIds, riderDeliveries }
   }
 
-  // ── Custom rider pin as SVG overlay ──────────────────────────────────────
-  function RiderPin({ rider }) {
-    const color = rider.riderInfo?.color || '#0f4c81'
-    const statusColor = getRiderStatusColor(rider.updated_at)
-    const name = rider.riderInfo?.full_name || 'Rider'
-    const initial = name[0]?.toUpperCase() || '?'
-    const stats = getRiderStats(rider.rider_id)
-    const progress = stats.total > 0 ? Math.round(stats.completed / stats.total * 100) : 0
-    const isSelected = activeInfoWindow === rider.rider_id
-
-    return (
-      <OverlayView
-        position={{ lat: rider.latitude, lng: rider.longitude }}
-        mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-        getPixelPositionOffset={(w, h) => ({ x: -(w / 2), y: -h })}
-      >
-        <div
-          onClick={() => setActiveInfoWindow(isSelected ? null : rider.rider_id)}
-          style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}
-        >
-          {/* Bubble */}
-          <div style={{
-            width: 46, height: 46, borderRadius: '50%',
-            background: color, border: '3px solid white',
-            boxShadow: `0 4px 12px rgba(0,0,0,0.4)`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontWeight: 900, fontSize: 18,
-            fontFamily: 'system-ui,sans-serif', position: 'relative',
-            transition: 'transform 0.2s',
-            transform: isSelected ? 'scale(1.15)' : 'scale(1)',
-          }}>
-            {initial}
-            {/* Status dot */}
-            <div style={{
-              position: 'absolute', top: -2, right: -2,
-              width: 13, height: 13, borderRadius: '50%',
-              background: statusColor, border: '2px solid white',
-            }} />
-          </div>
-          {/* Name tag */}
-          <div style={{
-            background: color, color: 'white',
-            fontSize: 10, fontWeight: 700,
-            padding: '2px 7px', borderRadius: 4,
-            marginTop: 2, whiteSpace: 'nowrap',
-            fontFamily: 'system-ui,sans-serif',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-          }}>
-            🚴 {name}
-          </div>
-          {/* Arrow */}
-          <div style={{
-            width: 0, height: 0,
-            borderLeft: '5px solid transparent',
-            borderRight: '5px solid transparent',
-            borderTop: `6px solid ${color}`,
-          }} />
-
-          {/* InfoWindow popup */}
-          {isSelected && (
-            <div style={{
-              position: 'absolute', bottom: '100%', left: '50%',
-              transform: 'translateX(-50%) translateY(-8px)',
-              background: 'white', borderRadius: 10,
-              padding: 14, minWidth: 210,
-              boxShadow: '0 6px 24px rgba(0,0,0,0.18)',
-              fontFamily: 'system-ui,sans-serif',
-              zIndex: 9999,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
-                <div style={{ width: 36, height: 36, borderRadius: '50%', background: color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 800, fontSize: 15 }}>{initial}</div>
-                <div>
-                  <p style={{ fontWeight: 700, fontSize: 14, margin: 0, color: '#1a1a2e' }}>🚴 {name}</p>
-                  <p style={{ fontSize: 10, color: '#888', margin: 0 }}>Updated: {timeSince(rider.updated_at)}</p>
-                </div>
-              </div>
-              <div style={{ background: '#f0f9ff', borderRadius: 6, padding: 8, marginBottom: 8 }}>
-                <p style={{ fontSize: 11, color: '#0f4c81', fontWeight: 700, margin: '0 0 4px' }}>📊 {stats.completed}/{stats.total} orders ({progress}%)</p>
-                <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${progress}%`, background: progress === 100 ? '#1a7a4a' : '#0f4c81', borderRadius: 3 }} />
-                </div>
-              </div>
-              <a
-                href={`https://www.google.com/maps?q=${rider.latitude},${rider.longitude}`}
-                target="_blank" rel="noreferrer"
-                style={{ display: 'block', padding: '6px', background: '#0f4c81', color: 'white', borderRadius: 6, textAlign: 'center', fontSize: 11, fontWeight: 700, textDecoration: 'none' }}
-              >
-                📍 Open in Google Maps
-              </a>
-            </div>
-          )}
-        </div>
-      </OverlayView>
-    )
-  }
-
-  // ── Custom stop pin ────────────────────────────────────────────────────────
-  function StopPin({ order, rider, index }) {
-    const riderDeliveries = deliveries.filter(d => d.rider_id === rider.rider_id)
-    const deliveredIds = new Set(riderDeliveries.map(d => d.customer_id))
-    const isDone = order.status === 'completed' || deliveredIds.has(order.customer_id)
-    const color = rider.riderInfo?.color || '#0f4c81'
-    const name = order.customers?.full_name || 'Customer'
-    const deliveryTime = riderDeliveries.find(d => d.customer_id === order.customer_id)?.delivered_at
-    const [open, setOpen] = useState(false)
-
-    if (!order.customers?.latitude || !order.customers?.longitude) return null
-
-    return (
-      <OverlayView
-        position={{ lat: order.customers.latitude, lng: order.customers.longitude }}
-        mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-        getPixelPositionOffset={(w, h) => ({ x: -(w / 2), y: -h })}
-      >
-        <div
-          onClick={() => setOpen(o => !o)}
-          style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', userSelect: 'none' }}
-        >
-          <div style={{
-            background: isDone ? '#1a7a4a' : color,
-            color: 'white', border: '2px solid white',
-            borderRadius: 6, padding: '2px 7px',
-            fontSize: 10, fontWeight: 700,
-            fontFamily: 'system-ui,sans-serif',
-            whiteSpace: 'nowrap',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.25)',
-            maxWidth: 130, overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {isDone ? '✅' : `⏳${index + 1}`} {name.length > 12 ? name.slice(0, 12) + '…' : name}
-          </div>
-          <div style={{
-            width: 0, height: 0,
-            borderLeft: '5px solid transparent',
-            borderRight: '5px solid transparent',
-            borderTop: `6px solid ${isDone ? '#1a7a4a' : color}`,
-          }} />
-
-          {open && (
-            <div style={{
-              position: 'absolute', bottom: '100%', left: '50%',
-              transform: 'translateX(-50%) translateY(-6px)',
-              background: 'white', borderRadius: 10, padding: 12, minWidth: 190,
-              boxShadow: '0 6px 24px rgba(0,0,0,0.15)',
-              fontFamily: 'system-ui,sans-serif', zIndex: 9999,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
-                <span style={{ fontSize: 18 }}>{isDone ? '✅' : '⏳'}</span>
-                <strong style={{ fontSize: 13, color: '#1a1a2e' }}>{name}</strong>
-              </div>
-              {order.customers?.address && (
-                <p style={{ fontSize: 11, color: '#888', margin: '0 0 4px' }}>📍 {order.customers.address}</p>
-              )}
-              <p style={{ fontSize: 11, color: '#555', margin: '0 0 4px' }}>
-                🍶 {[order.qty_19l > 0 && `19L×${order.qty_19l}`, order.qty_half_litre > 0 && `½L×${order.qty_half_litre}`].filter(Boolean).join(' · ')}
-              </p>
-              <p style={{ fontSize: 11, margin: '0 0 6px', fontWeight: 700, color: isDone ? '#1a7a4a' : color }}>
-                {isDone
-                  ? `✅ Delivered${deliveryTime ? ` at ${new Date(deliveryTime).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}` : ''}`
-                  : '⏳ Pending'}
-              </p>
-              <p style={{ fontSize: 10, color: '#aaa', margin: 0 }}>🚴 {rider.riderInfo?.full_name}</p>
-            </div>
-          )}
-        </div>
-      </OverlayView>
-    )
-  }
-
   // ── Computed ──────────────────────────────────────────────────────────────
   const visibleRiders = selectedRider ? riders.filter(r => r.rider_id === selectedRider) : riders
   const totalOrders = orders.length
@@ -427,27 +413,7 @@ export default function RiderTrackingMap({ tenantId }) {
     arr.findIndex(x => x.customer_id === d.customer_id && x.rider_id === d.rider_id) === i
   ).length
 
-  // ── Render guard ──────────────────────────────────────────────────────────
-  if (loadError && !window.google?.maps) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui,sans-serif' }}>
-        <p style={{ fontSize: 40, marginBottom: 8 }}>⚠️</p>
-        <p style={{ color: '#c62828', fontWeight: 700 }}>Google Maps failed to load</p>
-        <p style={{ color: '#888', fontSize: 13 }}>Check your VITE_GOOGLE_MAPS_KEY in .env</p>
-      </div>
-    )
-  }
-
-  if (!isLoaded && !window.google?.maps) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui,sans-serif' }}>
-        <p style={{ fontSize: 40, marginBottom: 8 }}>🗺️</p>
-        <p style={{ color: '#888', fontSize: 14 }}>Loading Google Maps...</p>
-      </div>
-    )
-  }
-
-  // ── Main render ───────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
@@ -519,70 +485,20 @@ export default function RiderTrackingMap({ tenantId }) {
       <div style={{ display: 'flex', height: isMobile ? 'auto' : 580, background: 'white', borderRadius: '0 0 12px 12px', overflow: 'hidden', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
 
         {/* Map */}
-        <div style={{ flex: 1, position: 'relative', minHeight: isMobile ? 350 : 'auto' }}>
+        <div style={{ flex: 1, position: 'relative', minHeight: isMobile ? 400 : 'auto' }}>
           {loading ? (
-            <div style={{ height: '100%', minHeight: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
+            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
               <div style={{ fontSize: 40 }}>📡</div>
               <p style={{ color: '#888', fontSize: 14, fontWeight: 600 }}>Loading live tracking...</p>
             </div>
           ) : riders.length === 0 ? (
-            <div style={{ height: '100%', minHeight: 350, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
+            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#f8fafc' }}>
               <div style={{ fontSize: 56 }}>🚴</div>
               <p style={{ color: '#555', fontSize: 15, fontWeight: 700 }}>No active riders</p>
               <p style={{ color: '#888', fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Riders appear here when they open the delivery app and allow location</p>
             </div>
           ) : (
-            <GoogleMap
-              mapContainerStyle={{ height: '100%', width: '100%' }}
-              center={mapCenter}
-              zoom={mapZoom}
-              options={{
-                styles: MAP_STYLES,
-                fullscreenControl: false,
-                streetViewControl: false,
-                mapTypeControl: false,
-                zoomControlOptions: { position: window.google.maps.ControlPosition.RIGHT_CENTER },
-                clickableIcons: false,
-              }}
-              onLoad={map => {
-                mapRef.current = map
-                directionsServiceRef.current = new window.google.maps.DirectionsService()
-              }}
-              onUnmount={() => { mapRef.current = null }}
-              onClick={() => setActiveInfoWindow(null)}
-            >
-              {/* Road-following route lines per rider */}
-              {visibleRiders.map(rider => {
-                const path = routePaths[rider.rider_id]
-                if (!path || path.length < 2) return null
-                return (
-                  <Polyline
-                    key={`route-${rider.rider_id}`}
-                    path={path}
-                    options={{
-                      strokeColor: rider.riderInfo?.color || '#0f4c81',
-                      strokeWeight: 4,
-                      strokeOpacity: 0.7,
-                      geodesic: true,
-                    }}
-                  />
-                )
-              })}
-
-              {/* Delivery stop pins */}
-              {visibleRiders.map(rider =>
-                orders
-                  .filter(o => o.rider_id === rider.rider_id)
-                  .map((order, idx) => (
-                    <StopPin key={`stop-${order.id}`} order={order} rider={rider} index={idx} />
-                  ))
-              )}
-
-              {/* Rider pins */}
-              {visibleRiders.map(rider => (
-                <RiderPin key={`rider-${rider.rider_id}`} rider={rider} />
-              ))}
-            </GoogleMap>
+            <div ref={mapDivRef} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
           )}
 
           {/* Map legend */}
@@ -610,7 +526,7 @@ export default function RiderTrackingMap({ tenantId }) {
           )}
         </div>
 
-        {/* Side Panel — unchanged from original */}
+        {/* Side Panel */}
         {showPanel && (
           <div style={{
             width: isMobile ? '100%' : 300, borderLeft: '1px solid #e0e0e0',
@@ -625,7 +541,6 @@ export default function RiderTrackingMap({ tenantId }) {
 
               return (
                 <div key={rider.rider_id} style={{ borderBottom: '1px solid #e0e0e0' }}>
-
                   {/* Rider header */}
                   <div style={{ background: color, padding: '12px 14px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
@@ -643,7 +558,6 @@ export default function RiderTrackingMap({ tenantId }) {
                         <p style={{ color: 'rgba(255,255,255,0.7)', fontSize: 10, margin: 0 }}>{stats.completed}/{stats.total}</p>
                       </div>
                     </div>
-                    {/* Progress bar */}
                     <div style={{ height: 6, background: 'rgba(255,255,255,0.25)', borderRadius: 3, overflow: 'hidden' }}>
                       <div style={{ height: '100%', width: `${progress}%`, background: 'white', borderRadius: 3, transition: 'width 0.5s' }} />
                     </div>
@@ -654,7 +568,7 @@ export default function RiderTrackingMap({ tenantId }) {
                     </div>
                   </div>
 
-                  {/* Next stops highlight */}
+                  {/* Next stops */}
                   {(() => {
                     const nextPending = riderOrders.filter(o => !stats.deliveredIds.has(o.customer_id) && o.status !== 'completed').slice(0, 4)
                     if (nextPending.length === 0) return null
