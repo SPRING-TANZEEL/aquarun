@@ -39,6 +39,8 @@ export default function RiderTrackingMap({ tenantId }) {
   const [isMobile, setIsMobile]           = useState(window.innerWidth < 768)
   const [showPanel, setShowPanel]         = useState(true)
   const [mapsReady, setMapsReady]         = useState(!!window.google?.maps)
+  const [mapError, setMapError]           = useState(null)
+  const [mapInitTries, setMapInitTries]   = useState(0)
 
   const mapDivRef           = useRef(null)
   const mapInstanceRef      = useRef(null)
@@ -134,7 +136,31 @@ export default function RiderTrackingMap({ tenantId }) {
     return () => supabase.removeChannel(channel)
   }, [tenantId, fetchAll])
 
-  // Map init handled by ref callback in JSX
+  // ── Init map when div and maps both ready ─────────────────────────────────
+  useEffect(() => {
+    if (!mapsReady || mapInstanceRef.current) return
+    if (!mapDivRef.current) return
+
+    try {
+      const map = new window.google.maps.Map(mapDivRef.current, {
+        center: { lat: 31.5204, lng: 74.3587 },
+        zoom: 12,
+        styles: MAP_STYLES,
+        fullscreenControl: false,
+        streetViewControl: false,
+        mapTypeControl: false,
+        clickableIcons: false,
+      })
+      map.addListener('click', () => {
+        if (infoWindowRef.current) infoWindowRef.current.close()
+      })
+      mapInstanceRef.current = map
+      directionsServiceRef.current = new window.google.maps.DirectionsService()
+      infoWindowRef.current = new window.google.maps.InfoWindow()
+    } catch(err) {
+      setMapError(err.message)
+    }
+  }, [mapsReady, mapInitTries])
 
   // ── Update map when data changes ──────────────────────────────────────────
   useEffect(() => {
@@ -474,6 +500,16 @@ export default function RiderTrackingMap({ tenantId }) {
               <div style={{ fontSize: 56 }}>🚴</div>
               <p style={{ color: '#555', fontSize: 15, fontWeight: 700 }}>No active riders</p>
               <p style={{ color: '#888', fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Riders appear here when they open the delivery app and allow location</p>
+            </div>
+          ) : mapError ? (
+            <div style={{ height: '100%', minHeight: 400, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 12, background: '#fff5f5', padding: 20 }}>
+              <p style={{ fontSize: 30 }}>⚠️</p>
+              <p style={{ color: '#c62828', fontWeight: 700, fontSize: 14, textAlign: 'center' }}>Map Error: {mapError}</p>
+              <p style={{ color: '#888', fontSize: 12, textAlign: 'center' }}>mapsReady: {String(mapsReady)} · google: {String(!!window.google)} · maps: {String(!!window.google?.maps)}</p>
+              <button onClick={() => { setMapError(null); setMapInitTries(t => t+1) }}
+                style={{ padding: '8px 16px', background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                🔄 Retry
+              </button>
             </div>
           ) : (
             <div ref={el => {
