@@ -134,29 +134,7 @@ export default function RiderTrackingMap({ tenantId }) {
     return () => supabase.removeChannel(channel)
   }, [tenantId, fetchAll])
 
-  // ── Init map ──────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!mapsReady || !mapDivRef.current || mapInstanceRef.current) return
-
-    const map = new window.google.maps.Map(mapDivRef.current, {
-      center: { lat: 31.5204, lng: 74.3587 },
-      zoom: 12,
-      styles: MAP_STYLES,
-      fullscreenControl: false,
-      streetViewControl: false,
-      mapTypeControl: false,
-      zoomControlOptions: { position: window.google.maps.ControlPosition.RIGHT_CENTER },
-      clickableIcons: false,
-    })
-
-    map.addListener('click', () => {
-      if (infoWindowRef.current) infoWindowRef.current.close()
-    })
-
-    mapInstanceRef.current = map
-    directionsServiceRef.current = new window.google.maps.DirectionsService()
-    infoWindowRef.current = new window.google.maps.InfoWindow()
-  }, [mapsReady])
+  // Map init handled by ref callback in JSX
 
   // ── Update map when data changes ──────────────────────────────────────────
   useEffect(() => {
@@ -498,7 +476,26 @@ export default function RiderTrackingMap({ tenantId }) {
               <p style={{ color: '#888', fontSize: 13, textAlign: 'center', maxWidth: 260 }}>Riders appear here when they open the delivery app and allow location</p>
             </div>
           ) : (
-            <div ref={mapDivRef} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
+            <div ref={el => {
+              mapDivRef.current = el
+              if (el && mapsReady && !mapInstanceRef.current) {
+                const map = new window.google.maps.Map(el, {
+                  center: { lat: 31.5204, lng: 74.3587 },
+                  zoom: 12,
+                  styles: MAP_STYLES,
+                  fullscreenControl: false,
+                  streetViewControl: false,
+                  mapTypeControl: false,
+                  clickableIcons: false,
+                })
+                map.addListener('click', () => {
+                  if (infoWindowRef.current) infoWindowRef.current.close()
+                })
+                mapInstanceRef.current = map
+                directionsServiceRef.current = new window.google.maps.DirectionsService()
+                infoWindowRef.current = new window.google.maps.InfoWindow()
+              }
+            }} style={{ height: '100%', minHeight: isMobile ? 400 : 580, width: '100%' }} />
           )}
 
           {/* Map legend */}
