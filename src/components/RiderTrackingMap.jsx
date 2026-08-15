@@ -612,18 +612,55 @@ export default function RiderTrackingMap({ tenantId }) {
           </div>
         )}
 
-        {/* Customer map legend */}
+        {/* Customer map legend + stats */}
         {mapMode === 'customers' && (
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#0f4c81', display: 'inline-block' }} />Regular
-            </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} />Assigned today
-            </span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 2, background: '#1a7a4a', display: 'inline-block' }} />Delivered today
-            </span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+            {/* Stats row */}
+            {customers.length > 0 && (() => {
+              const deliveredToday = new Set(deliveries.map(d => d.customer_id))
+              const assignedToday = new Set(orders.map(o => o.customer_id))
+              const deliveredCount = customers.filter(c => deliveredToday.has(c.id)).length
+              const assignedCount = customers.filter(c => assignedToday.has(c.id)).length
+              const percentage = assignedCount > 0 ? Math.round(deliveredCount / assignedCount * 100) : 0
+              return (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ background: 'rgba(52,211,153,0.25)', borderRadius: 16, padding: '4px 12px', fontSize: 11, color: '#6ee7b7', fontWeight: 700 }}>
+                    ✅ {deliveredCount} Delivered today
+                  </div>
+                  <div style={{ background: 'rgba(251,191,36,0.25)', borderRadius: 16, padding: '4px 12px', fontSize: 11, color: '#fde68a', fontWeight: 700 }}>
+                    ⏳ {assignedCount - deliveredCount} Pending
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 16, padding: '4px 12px', fontSize: 11, color: '#fff', fontWeight: 700 }}>
+                    👥 {customers.length} Total
+                  </div>
+                  {assignedCount > 0 && (
+                    <div style={{ flex: 1, minWidth: 120 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                        <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)' }}>Today's progress</span>
+                        <span style={{ fontSize: 10, color: '#fff', fontWeight: 700 }}>{percentage}%</span>
+                      </div>
+                      <div style={{ height: 5, background: 'rgba(255,255,255,0.2)', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ height: '100%', width: `${percentage}%`, background: percentage === 100 ? '#6ee7b7' : '#f59e0b', borderRadius: 3, transition: 'width 0.5s' }} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#0f4c81', display: 'inline-block' }} />Regular
+              </span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#f59e0b', display: 'inline-block' }} />Assigned today
+              </span>
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 2, background: '#1a7a4a', display: 'inline-block' }} />Delivered today
+              </span>
+            </div>
           </div>
         )}
       </div>
