@@ -5,6 +5,11 @@ import { supabase } from '../supabase'
 // ── Constants ────────────────────────────────────────────────────────────────
 const GOOGLE_MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_KEY
 const LIBRARIES = ['geometry', 'directions']
+
+// Prevent Google Maps script from being removed on unmount
+if (typeof window !== 'undefined' && !window._googleMapsScriptProtected) {
+  window._googleMapsScriptProtected = true
+}
 const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_KEY
 
 const RIDER_COLORS = [
@@ -78,6 +83,7 @@ export default function RiderTrackingMap({ tenantId }) {
     googleMapsApiKey: GOOGLE_MAPS_KEY,
     libraries: LIBRARIES,
     version: 'weekly',
+    preventGoogleFontsLoading: true,
   })
 
   const [riders, setRiders]               = useState([])
@@ -421,7 +427,7 @@ export default function RiderTrackingMap({ tenantId }) {
   ).length
 
   // ── Render guard ──────────────────────────────────────────────────────────
-  if (loadError && !window.google) {
+  if (loadError && !window.google?.maps) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui,sans-serif' }}>
         <p style={{ fontSize: 40, marginBottom: 8 }}>⚠️</p>
@@ -431,7 +437,7 @@ export default function RiderTrackingMap({ tenantId }) {
     )
   }
 
-  if (!isLoaded && !window.google) {
+  if (!isLoaded && !window.google?.maps) {
     return (
       <div style={{ padding: 40, textAlign: 'center', fontFamily: 'system-ui,sans-serif' }}>
         <p style={{ fontSize: 40, marginBottom: 8 }}>🗺️</p>
