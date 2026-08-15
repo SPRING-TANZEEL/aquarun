@@ -376,9 +376,9 @@ export default function RiderTrackingMap({ tenantId }) {
       })
       if (!bounds.isEmpty()) {
         map.fitBounds(bounds, { padding: 60 })
-        if (visibleRiders.length === 1 && orders.filter(o => o.customers?.latitude).length === 0) {
-          map.setZoom(15)
-        }
+        window.google.maps.event.addListenerOnce(map, 'bounds_changed', () => {
+          if (map.getZoom() > 14) map.setZoom(14)
+        })
       }
       boundsSetRef.current = true
     }
