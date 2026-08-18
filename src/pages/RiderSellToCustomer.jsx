@@ -458,7 +458,7 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
       } catch (err) { console.error('Invoice number error:', err) }
 
-      // Save GPS on first delivery
+            // Save GPS on first delivery
       if (deliveryLat && deliveryLng) {
         const { data: cust } = await supabase.from('customers')
           .select('latitude, longitude').eq('id', selectedCustomer.id).eq('tenant_id', tenantId).single()
@@ -466,6 +466,16 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
           await supabase.from('customers').update({ latitude: String(deliveryLat), longitude: String(deliveryLng) })
             .eq('id', selectedCustomer.id).eq('tenant_id', tenantId)
         }
+      }
+
+      // ── Update customer balance for advance payments ──
+      if (advancePortion > 0 && selectedCustomer.id) {
+        const currentBalance = Number(selectedCustomer.balance || 0)
+        const newBalance = currentBalance - advancePortion
+        await supabase.from('customers')
+          .update({ balance: newBalance })
+          .eq('id', selectedCustomer.id)
+          .eq('tenant_id', tenantId)
       }
     } else {
       await savePendingDelivery(deliveryData)

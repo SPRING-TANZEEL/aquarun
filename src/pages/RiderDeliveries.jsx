@@ -375,7 +375,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
       } catch (err) { console.error('Invoice number error:', err) }
 
-      if (deliveryLat && deliveryLng && selectedOrder.customer_id) {
+            if (deliveryLat && deliveryLng && selectedOrder.customer_id) {
         const hasCoords = selectedOrder.customers?.latitude && selectedOrder.customers?.longitude
         if (!hasCoords) {
           await supabase.from('customers').update({
@@ -383,6 +383,16 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
             longitude: String(deliveryLng)
           }).eq('id', selectedOrder.customer_id).eq('tenant_id', tenantId)
         }
+      }
+
+      // ── Update customer balance for advance payments ──
+      if (advancePortion > 0 && selectedOrder.customer_id) {
+        const currentBalance = Number(selectedOrder.customers?.balance || 0)
+        const newBalance = currentBalance - advancePortion
+        await supabase.from('customers')
+          .update({ balance: newBalance })
+          .eq('id', selectedOrder.customer_id)
+          .eq('tenant_id', tenantId)
       }
 
     } else {

@@ -35,8 +35,8 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
       toTimestamp = today + 'T23:59:59'
     }
 
-    const { data: deliveries } = await supabase.from('deliveries')
-      .select('*, customers(full_name, customer_code)')
+        const { data: deliveries } = await supabase.from('deliveries')
+      .select('id, amount_received, total_with_tax, total_amount, credit_amount, payment_method, qty_19l, qty_half_litre, qty_1_5l, rate_applied, jazzcash_confirmed, delivered_at, customers(full_name, customer_code)')
       .eq('tenant_id', tenantId).eq('rider_id', rider.id).eq('is_voided', false)
       .gte('delivered_at', fromTimestamp).lte('delivered_at', toTimestamp)
 
