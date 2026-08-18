@@ -320,9 +320,10 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         const isCash2   = paymentMethod === 'cash'
     const isJazz   = paymentMethod === 'jazzcash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
-    const received = isCredit ? 0 : isPending ? 0 : (cashReceived === '' ? total : Number(cashReceived))
-    const creditPortion = isCredit ? total : Math.max(0, total - received)
-    const advancePortion = received > total ? received - total : 0
+    const isAdvanceAdj = paymentMethod === 'advance_adj'
+    const received = isCredit ? 0 : isPending ? 0 : isAdvanceAdj ? 0 : (cashReceived === '' ? total : Number(cashReceived))
+    const creditPortion = isCredit ? total : isAdvanceAdj ? 0 : Math.max(0, total - received)
+    const advancePortion = (!isCredit && !isPending && !isAdvanceAdj && received > total) ? received - total : 0
     const isCash = isCash2
     const now = new Date().toISOString()
 
@@ -348,9 +349,9 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
       total_amount: sub,
       tax_amount: tax,
       total_with_tax: total,
-      payment_method: paymentMethod,
-      amount_received: isPending ? 0 : received,
-      credit_amount: creditPortion,
+            payment_method: isAdvanceAdj ? 'advance_adj' : paymentMethod,
+      amount_received: isPending ? 0 : isAdvanceAdj ? 0 : received,
+      credit_amount: isAdvanceAdj ? 0 : creditPortion,
       jazzcash_confirmed: false,
       delivered_at: now,
       is_voided: false,
@@ -458,7 +459,17 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
         await supabase.from('deliveries').update({ invoice_number: invoiceNumber }).eq('id', savedDelivery.id)
       } catch (err) { console.error('Invoice number error:', err) }
 
-            // Save GPS on first delivery
+            // ── Update customer balance for advance adjustment ──
+      if (isAdvanceAdj && selectedCustomer.id) {
+        const currentBalance = Number(selectedCustomer.balance || 0)
+        const newBalance = currentBalance + total
+        await supabase.from('customers')
+          .update({ balance: newBalance })
+          .eq('id', selectedCustomer.id)
+          .eq('tenant_id', tenantId)
+      }
+
+      // Save GPS on first delivery
       if (deliveryLat && deliveryLng) {
         const { data: cust } = await supabase.from('customers')
           .select('latitude, longitude').eq('id', selectedCustomer.id).eq('tenant_id', tenantId).single()
@@ -999,7 +1010,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     { key: 'jazzcash', label: t('جیز کیش', 'جیز کیش'), sublabel: 'JazzCash',             color: '#9c27b0' },
                     ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: t('ایزی پیسہ', 'ایزی پیسہ'), sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
                     ...(bizSettings?.bank_name ? [{ key: 'bank', label: t('بینک', 'بینک'), sublabel: 'Bank', color: '#0f4c81' }] : []),
-                    { key: 'credit',   label: t('ادھار', 'ادھار'),     sublabel: t('Credit', 'Credit'), color: '#f44336' },
+                                        { key: 'credit',   label: t('ادھار', 'ادھار'),     sublabel: t('Credit', 'Credit'), color: '#f44336' },
+                    ...(Number(selectedCustomer?.balance || 0) < 0 ? [{ key: 'advance_adj', label: t('ایڈوانس', 'ایڈوانس'), sublabel: 'Advance Adj', color: '#7c3aed' }] : []),
                   ].map(pm => (
                     <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); setCashReceived('') }}
                       style={{ flex: 1, padding: '14px 8px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -1055,9 +1067,18 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     )}
                   </div>
                 )}
-                {paymentMethod === 'jazzcash' && (
+                                {paymentMethod === 'jazzcash' && (
                   <div style={{ marginTop: '10px', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
                     <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ {t('JazzCash goes to office — admin will confirm payment.', 'جیز کیش دفتر کو جاتی ہے — ایڈمن تصدیق کرے گا۔')}</p>
+                  </div>
+                )}
+                {paymentMethod === 'advance_adj' && (
+                  <div style={{ marginTop: '10px', padding: '12px', background: '#f3e8ff', borderRadius: '8px', border: '1px solid #c4b5fd' }}>
+                    <p style={{ fontSize: '13px', color: '#7c3aed', fontWeight: 700, margin: '0 0 4px' }}>🔄 Advance Adjustment</p>
+                    <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>{t('Customer advance', 'گاہک کا ایڈوانس')}: Rs. {Math.abs(Number(selectedCustomer?.balance || 0)).toLocaleString()}</p>
+                    <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>{t('Sale amount', 'فروخت کی رقم')}: Rs. {total.toLocaleString()}</p>
+                    <p style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 700, margin: 0 }}>{t('Remaining advance', 'باقی ایڈوانس')}: Rs. {Math.abs(Number(selectedCustomer?.balance || 0) - total).toLocaleString()}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>{t('No cash collected — adjusted against advance', 'کوئی نقد نہیں — ایڈوانس سے ایڈجسٹ')}</p>
                   </div>
                 )}
               </div>
