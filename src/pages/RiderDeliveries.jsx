@@ -981,15 +981,25 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Digital payment goes to office — admin will confirm.</p>
               </div>
             )}
-            {paymentMethod === 'advance_adj' && (
-              <div style={{ marginTop: '10px', padding: '12px', background: '#f3e8ff', borderRadius: '8px', border: '1px solid #c4b5fd' }}>
-                <p style={{ fontSize: '13px', color: '#7c3aed', fontWeight: 700, margin: '0 0 4px' }}>🔄 Advance Adjustment</p>
-                <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>Customer advance: Rs. {Math.abs(Number(selectedOrder?.customers?.balance || 0)).toLocaleString()}</p>
-                <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>Delivery amount: Rs. {total.toLocaleString()}</p>
-                <p style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 700, margin: 0 }}>Remaining advance after: Rs. {Math.abs(Number(selectedOrder?.customers?.balance || 0) - total).toLocaleString()}</p>
-                <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>No cash will be collected — delivery adjusted against customer advance</p>
-              </div>
-            )}
+                        {paymentMethod === 'advance_adj' && (() => {
+              const customerAdvance = Math.abs(Number(selectedOrder?.customers?.balance || 0))
+              const canAdjust = customerAdvance >= total
+              return (
+                <div style={{ marginTop: '10px', padding: '12px', background: canAdjust ? '#f3e8ff' : '#ffebee', borderRadius: '8px', border: `1px solid ${canAdjust ? '#c4b5fd' : '#ffcdd2'}` }}>
+                  <p style={{ fontSize: '13px', color: canAdjust ? '#7c3aed' : '#c62828', fontWeight: 700, margin: '0 0 4px' }}>🔄 Advance Adjustment</p>
+                  <p style={{ fontSize: '12px', color: canAdjust ? '#6d28d9' : '#c62828', margin: '0 0 2px' }}>Customer advance: Rs. {customerAdvance.toLocaleString()}</p>
+                  <p style={{ fontSize: '12px', color: canAdjust ? '#6d28d9' : '#c62828', margin: '0 0 2px' }}>Delivery amount: Rs. {total.toLocaleString()}</p>
+                  {canAdjust ? (
+                    <>
+                      <p style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 700, margin: 0 }}>Remaining advance: Rs. {(customerAdvance - total).toLocaleString()}</p>
+                      <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>No cash collected — adjusted against advance</p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '12px', color: '#c62828', fontWeight: 700, margin: 0 }}>❌ Advance insufficient — use Cash or Credit instead</p>
+                  )}
+                </div>
+              )
+            })()}
           </div>
 
           {/* Total & Complete */}

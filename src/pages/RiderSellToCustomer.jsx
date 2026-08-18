@@ -1072,15 +1072,25 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
                     <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ {t('JazzCash goes to office — admin will confirm payment.', 'جیز کیش دفتر کو جاتی ہے — ایڈمن تصدیق کرے گا۔')}</p>
                   </div>
                 )}
-                {paymentMethod === 'advance_adj' && (
-                  <div style={{ marginTop: '10px', padding: '12px', background: '#f3e8ff', borderRadius: '8px', border: '1px solid #c4b5fd' }}>
-                    <p style={{ fontSize: '13px', color: '#7c3aed', fontWeight: 700, margin: '0 0 4px' }}>🔄 Advance Adjustment</p>
-                    <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>{t('Customer advance', 'گاہک کا ایڈوانس')}: Rs. {Math.abs(Number(selectedCustomer?.balance || 0)).toLocaleString()}</p>
-                    <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>{t('Sale amount', 'فروخت کی رقم')}: Rs. {total.toLocaleString()}</p>
-                    <p style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 700, margin: 0 }}>{t('Remaining advance', 'باقی ایڈوانس')}: Rs. {Math.abs(Number(selectedCustomer?.balance || 0) - total).toLocaleString()}</p>
-                    <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>{t('No cash collected — adjusted against advance', 'کوئی نقد نہیں — ایڈوانس سے ایڈجسٹ')}</p>
-                  </div>
-                )}
+                            {paymentMethod === 'advance_adj' && (() => {
+              const customerAdvance = Math.abs(Number(selectedCustomer?.balance || 0))
+              const canAdjust = customerAdvance >= total
+              return (
+                <div style={{ marginTop: '10px', padding: '12px', background: canAdjust ? '#f3e8ff' : '#ffebee', borderRadius: '8px', border: `1px solid ${canAdjust ? '#c4b5fd' : '#ffcdd2'}` }}>
+                  <p style={{ fontSize: '13px', color: canAdjust ? '#7c3aed' : '#c62828', fontWeight: 700, margin: '0 0 4px' }}>🔄 Advance Adjustment</p>
+                  <p style={{ fontSize: '12px', color: canAdjust ? '#6d28d9' : '#c62828', margin: '0 0 2px' }}>{t('Customer advance', 'گاہک کا ایڈوانس')}: Rs. {customerAdvance.toLocaleString()}</p>
+                  <p style={{ fontSize: '12px', color: canAdjust ? '#6d28d9' : '#c62828', margin: '0 0 2px' }}>{t('Sale amount', 'فروخت کی رقم')}: Rs. {total.toLocaleString()}</p>
+                  {canAdjust ? (
+                    <>
+                      <p style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 700, margin: 0 }}>{t('Remaining advance', 'باقی ایڈوانس')}: Rs. {(customerAdvance - total).toLocaleString()}</p>
+                      <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>{t('No cash collected — adjusted against advance', 'کوئی نقد نہیں — ایڈوانس سے ایڈجسٹ')}</p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '12px', color: '#c62828', fontWeight: 700, margin: 0 }}>❌ {t('Advance insufficient — use Cash or Credit instead', 'ایڈوانس کم ہے — نقد یا ادھار استعمال کریں')}</p>
+                  )}
+                </div>
+              )
+            })()}
               </div>
 
               {/* Total & Complete */}
