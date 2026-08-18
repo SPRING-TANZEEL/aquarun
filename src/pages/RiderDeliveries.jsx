@@ -255,7 +255,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         const received = isCredit ? 0 : isPending ? 0 : (cashReceived === '' ? total : Number(cashReceived))
     const creditPortion = isCredit ? total : Math.max(0, total - received)
     const advancePortion = (!isCredit && !isPending && received > total) ? received - total : 0
-        console.log('Payment calc - total:' + total + ' received:' + received + ' credit:' + creditPortion + ' advance:' + advancePortion)
+            // payment calculated
     const now = new Date().toISOString()
 
     const sub = subTotal()
@@ -390,12 +390,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       if (advancePortion > 0 && selectedOrder.customer_id) {
         const currentBalance = Number(selectedOrder.customers?.balance || 0)
         const newBalance = currentBalance - advancePortion
-        console.log('Advance balance update - current:' + currentBalance + ' advance:' + advancePortion + ' new:' + newBalance + ' customerId:' + selectedOrder.customer_id)
+                // advance balance update
         const { error: balErr } = await supabase.from('customers')
           .update({ balance: newBalance })
           .eq('id', selectedOrder.customer_id)
           .eq('tenant_id', tenantId)
-        console.log('Balance update result - error:' + (balErr ? balErr.message : 'none'))
+                // done
       }
 
     } else {
@@ -424,11 +424,15 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     setOtherRemarkText('')
     setSaving(false)
 
-    // Auto-advance to next order
+        // Auto-advance to next order
     setSelectedOrder(null)
     setCurrentOrderIndex(null)
     await fetchOrders()
-  }
+    // Force refresh cached customers so balance shows correctly
+    if (navigator.onLine) {
+      const { downloadRiderData } = await import('../syncManager')
+      await downloadRiderData(rider)
+    }
 
   async function saveRemark(remarkType, customText = '') {
     if (!selectedOrder || !rider) return
