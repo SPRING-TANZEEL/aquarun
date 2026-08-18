@@ -61,8 +61,13 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     let cashFromSales = 0, jazzFromSales = 0, jazzFromSalesPending = 0, creditSales = 0
     const cashDeliveries = [], jazzDeliveries = [], creditDeliveries = []
 
-    deliveries?.forEach(d => {
-      if (d.payment_method === 'cash') { cashFromSales += Number(d.amount_received) || Number(d.total_with_tax || d.total_amount); cashDeliveries.push(d) }
+        deliveries?.forEach(d => {
+      if (d.payment_method === 'cash') {
+        // Always use actual amount received — if empty fall back to total
+        const actualReceived = Number(d.amount_received) > 0 ? Number(d.amount_received) : Number(d.total_with_tax || d.total_amount)
+        cashFromSales += actualReceived
+        cashDeliveries.push(d)
+      }
       else if (d.payment_method === 'jazzcash') {
         if (d.jazzcash_confirmed) jazzFromSales += Number(d.total_with_tax || d.total_amount)
         else jazzFromSalesPending += Number(d.total_with_tax || d.total_amount)
@@ -99,8 +104,12 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     const { data: allTransfers } = await supabase.from('cash_transfers')
       .select('amount').eq('from_rider_id', rider.id).eq('tenant_id', tenantId).eq('to_office', true).eq('status', 'confirmed')
 
-    let allCashSales = 0
-    allDeliveries?.forEach(d => { if (d.payment_method === 'cash') allCashSales += Number(d.amount_received) })
+        let allCashSales = 0
+    allDeliveries?.forEach(d => {
+      if (d.payment_method === 'cash') {
+        allCashSales += Number(d.amount_received) > 0 ? Number(d.amount_received) : Number(d.total_with_tax || d.total_amount || 0)
+      }
+    })
     const allCollections = allPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
     const allExp = allExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
     const allTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
