@@ -255,7 +255,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         const received = isCredit ? 0 : isPending ? 0 : (cashReceived === '' ? total : Number(cashReceived))
     const creditPortion = isCredit ? total : Math.max(0, total - received)
     const advancePortion = (!isCredit && !isPending && received > total) ? received - total : 0
-            // payment calculated
+        
     const now = new Date().toISOString()
 
     const sub = subTotal()
@@ -390,12 +390,12 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       if (advancePortion > 0 && selectedOrder.customer_id) {
         const currentBalance = Number(selectedOrder.customers?.balance || 0)
         const newBalance = currentBalance - advancePortion
-                // advance balance update
+              
         const { error: balErr } = await supabase.from('customers')
           .update({ balance: newBalance })
           .eq('id', selectedOrder.customer_id)
           .eq('tenant_id', tenantId)
-                // done
+        
       }
 
     } else {
