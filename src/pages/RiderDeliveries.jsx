@@ -257,7 +257,6 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     const isCredit = paymentMethod === 'credit'
     const isCash = paymentMethod === 'cash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
-    const isAdvanceAdj = paymentMethod === 'advance_adj'
     const received = isCredit ? 0 : isPending ? 0 : isAdvanceAdj ? 0 : (cashReceived === '' ? total : Number(cashReceived))
     const creditPortion = isCredit ? total : isAdvanceAdj ? 0 : Math.max(0, total - received)
     const advancePortion = (!isCredit && !isPending && !isAdvanceAdj && received > total) ? received - total : 0
