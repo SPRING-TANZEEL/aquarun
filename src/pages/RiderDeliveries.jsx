@@ -386,14 +386,16 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         }
       }
 
-      // ── Update customer balance for advance payments ──
+            // ── Update customer balance for advance payments ──
       if (advancePortion > 0 && selectedOrder.customer_id) {
         const currentBalance = Number(selectedOrder.customers?.balance || 0)
         const newBalance = currentBalance - advancePortion
-        await supabase.from('customers')
+        console.log('Advance balance update - current:' + currentBalance + ' advance:' + advancePortion + ' new:' + newBalance + ' customerId:' + selectedOrder.customer_id)
+        const { error: balErr } = await supabase.from('customers')
           .update({ balance: newBalance })
           .eq('id', selectedOrder.customer_id)
           .eq('tenant_id', tenantId)
+        console.log('Balance update result - error:' + (balErr ? balErr.message : 'none'))
       }
 
     } else {
