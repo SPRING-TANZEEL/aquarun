@@ -229,11 +229,11 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     if (qty19l === 0 && qtyHalf === 0 && qty15l === 0) return alert('Please enter at least one bottle')
     if (qty19l > 0 && !selectedRate) return alert('Please select rate for 19L')
 
-    const total = totalAmount()
-    if (paymentMethod !== 'credit') {
-      const recv = Number(cashReceived) || 0
+        const total = totalAmount()
+    if (paymentMethod !== 'credit' && !['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)) {
+      const recv = cashReceived === '' ? total : Number(cashReceived)
       if (recv < 0) return alert('Amount received cannot be negative')
-      if (recv > total) return alert('Amount received cannot exceed total Rs. ' + total.toLocaleString())
+      if (paymentMethod === 'cash' && recv === 0) return alert('❌ Cash amount cannot be zero. Leave empty for full amount or enter partial amount.')
     }
 
     setSaving(true)
@@ -248,12 +248,13 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       deliveryLng = position.coords.longitude
     } catch (err) { console.log('GPS not available:', err.message) }
 
-    const isJazz = paymentMethod === 'jazzcash'
+        const isJazz = paymentMethod === 'jazzcash'
     const isCredit = paymentMethod === 'credit'
     const isCash = paymentMethod === 'cash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
-    const received = isCredit ? 0 : isPending ? 0 : (Number(cashReceived) || total)
+    const received = isCredit ? 0 : isPending ? 0 : (cashReceived === '' ? total : Number(cashReceived))
     const creditPortion = isCredit ? total : Math.max(0, total - received)
+    const advancePortion = received > total ? received - total : 0
     const now = new Date().toISOString()
 
     const sub = subTotal()
@@ -919,14 +920,23 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                     <p style={{ fontSize: '11px', color: '#e57373', margin: '4px 0 0' }}>Will be added to customer balance</p>
                   </div>
                 )}
-                {cashReceived && cashReceivedNum >= total && (
+                                {cashReceived && cashReceivedNum === total && (
                   <div style={{ marginTop: '10px', padding: '8px 10px', background: '#e8f5e9', borderRadius: '8px' }}>
                     <p style={{ fontSize: '12px', color: '#1a7a4a', fontWeight: '600', margin: 0 }}>✅ Full payment — no credit</p>
                   </div>
                 )}
-                {!cashReceived && (
-                  <div style={{ marginTop: '8px', padding: '8px 10px', background: '#fff8e1', borderRadius: '8px' }}>
-                    <p style={{ fontSize: '11px', color: '#b45309', margin: 0 }}>⚠️ Leave empty or enter 0 to add full amount to credit</p>
+                {cashReceived && cashReceivedNum > total && (
+                  <div style={{ marginTop: '10px', padding: '10px', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #86efac' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: '13px', color: '#1a7a4a', fontWeight: '600' }}>✅ Full paid + Advance</span>
+                      <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a7a4a' }}>+Rs. {(cashReceivedNum - total).toLocaleString()}</span>
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#2e7d32', margin: '4px 0 0' }}>Extra amount will be added as advance to customer account</p>
+                  </div>
+                )}
+                                {!cashReceived && (
+                  <div style={{ marginTop: '8px', padding: '8px 10px', background: '#e8f5e9', borderRadius: '8px', border: '1px solid #86efac' }}>
+                    <p style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: 700, margin: 0 }}>✅ Full amount Rs. {total.toLocaleString()} will be received — edit above to change</p>
                   </div>
                 )}
               </div>
