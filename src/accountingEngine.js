@@ -131,21 +131,28 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
     const lines = []
 
 // - DEBIT SIDE - full amount including tax -
-    if (paymentMethod === 'cash') {
+        if (paymentMethod === 'cash') {
       if (amountReceived !== null && !isRiderEntry) {
         // Compound entry: DR Cash(full received) handles sale + outstanding clearing + advance
         lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: amountReceived })
       } else {
+        const actualReceived = Number(delivery.amount_received || 0)
+        const advanceGiven = actualReceived > grandTotal ? actualReceived - grandTotal : 0
         const cashSaleAmount = grandTotal - creditPortion
         if (cashSaleAmount > 0) {
           if (isRiderEntry) {
-            lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashSaleAmount })
+            // Rider collected full amount + any advance
+            lines.push({ account_code: '1101', account_name: 'Receivable from Riders', debit: cashSaleAmount + advanceGiven })
           } else {
-            lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashSaleAmount })
+            lines.push({ account_code: '1001', account_name: 'Cash in Hand', debit: cashSaleAmount + advanceGiven })
           }
         }
         if (creditPortion > 0) {
           lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
+        }
+        if (advanceGiven > 0) {
+          // Credit customer advance account
+          lines.push({ account_code: '1100', account_name: 'Accounts Receivable', credit: advanceGiven })
         }
       }
     } else if (paymentMethod === 'jazzcash') {
