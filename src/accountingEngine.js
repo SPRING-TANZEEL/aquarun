@@ -124,10 +124,11 @@ export async function postDeliveryJournal(delivery, customerId, tenantId, isRide
     const subTotal = Number(delivery.total_amount || 0)         // pre-tax
     const taxAmount = Math.round(Number(delivery.tax_amount || 0))
 const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
-    if (grandTotal <= 0) { console.log('postDeliveryJournal skipped - total is 0'); return null }
-    const cashReceived = Number(delivery.amount_received || 0)
+        if (grandTotal <= 0 && !isAdvanceAdj) { console.log('postDeliveryJournal skipped - total is 0'); return null }
+        const cashReceived = Number(delivery.amount_received || 0)
     const creditPortion = Number(delivery.credit_amount || 0)
     const paymentMethod = delivery.payment_method
+    const isAdvanceAdj = paymentMethod === 'advance_adj'
     const lines = []
 
 // - DEBIT SIDE - full amount including tax -
@@ -169,7 +170,7 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       if (creditPortion > 0) lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
         } else if (paymentMethod === 'credit') {
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
-    } else if (paymentMethod === 'advance_adj') {
+        } else if (isAdvanceAdj) {
       // Debit Accounts Receivable — reduces customer advance (negative balance becomes less negative)
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
@@ -267,12 +268,12 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       ...productItems.filter(p => p.qty > 0).map(p => `${p.qty}x${p.name}`),
     ].filter(Boolean).join(' + ')
 
-    const entryId = await postJournalEntry({
+        const entryId = await postJournalEntry({
       tenantId,
       date: delivery.delivered_at?.split('T')[0] || new Date().toISOString().split('T')[0],
       referenceType: 'delivery',
       referenceId: delivery.id,
-      narration: `Delivery - ${narrationParts} - ${paymentMethod} - ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` - tax Rs.${taxAmount}` : ''}`,
+      narration: `Delivery - ${narrationParts} - ${isAdvanceAdj ? 'advance adjustment' : paymentMethod} - ${isRiderEntry ? 'rider' : 'admin'}${taxAmount > 0 ? ` - tax Rs.${taxAmount}` : ''}`,
       lines
     })
 
