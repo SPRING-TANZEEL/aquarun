@@ -433,6 +433,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       const { downloadRiderData } = await import('../syncManager')
       await downloadRiderData(rider)
     }
+  }
 
   async function saveRemark(remarkType, customText = '') {
     if (!selectedOrder || !rider) return
