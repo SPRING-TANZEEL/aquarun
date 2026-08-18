@@ -136,15 +136,20 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     )
   }
 
-  function DeliveryRow({ d }) {
+    function DeliveryRow({ d }) {
     const isCash = d.payment_method === 'cash'
     const creditPortion = Number(d.credit_amount || 0)
     const cashPortion = Number(d.amount_received || 0)
+    const deliveryTotal = Number(d.total_with_tax || d.total_amount)
+    const advancePortion = cashPortion > deliveryTotal ? cashPortion - deliveryTotal : 0
     return (
       <div style={{ padding: '10px 12px', background: '#f8f9fa', borderRadius: '8px', marginBottom: '6px', borderLeft: '3px solid ' + (isCash ? '#1a7a4a' : d.payment_method === 'jazzcash' ? '#9c27b0' : '#f44336') }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
           <p style={{ fontSize: '13px', fontWeight: '600', margin: 0 }}>{d.customers?.full_name || t('Walk-in', 'واک اِن')}</p>
-          <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {Number(d.total_with_tax || d.total_amount).toLocaleString()}</p>
+          <div style={{ textAlign: 'right' }}>
+            <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', margin: 0 }}>Rs. {deliveryTotal.toLocaleString()}</p>
+            {cashPortion > deliveryTotal && <p style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: 700, margin: 0 }}>💵 Received: Rs. {cashPortion.toLocaleString()}</p>}
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
           {d.qty_19l > 0 && <span style={{ fontSize: '11px', background: '#e3f0ff', color: '#0f4c81', padding: '2px 6px', borderRadius: '6px' }}>19L×{d.qty_19l} @ Rs.{d.rate_applied}</span>}
@@ -153,8 +158,9 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: '8px' }}>
-            {isCash && cashPortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Rs. {cashPortion.toLocaleString()}</span>}
+                        {isCash && cashPortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '600' }}>💵 Rs. {cashPortion.toLocaleString()}</span>}
             {creditPortion > 0 && <span style={{ fontSize: '11px', color: '#f44336', fontWeight: '600' }}>📋 Rs. {creditPortion.toLocaleString()}</span>}
+            {advancePortion > 0 && <span style={{ fontSize: '11px', color: '#1a7a4a', fontWeight: '700', background: '#e8f5e9', padding: '1px 6px', borderRadius: 6 }}>+Rs. {advancePortion.toLocaleString()} advance</span>}
             {d.payment_method === 'jazzcash' && <span style={{ fontSize: '11px', color: '#9c27b0', fontWeight: '600' }}>📱 {d.jazzcash_confirmed ? '✅' : '⏳'}</span>}
           </div>
           <span style={{ fontSize: '10px', color: '#aaa' }}>{new Date(d.delivered_at).toLocaleTimeString('en-PK', { hour: '2-digit', minute: '2-digit' })}</span>
