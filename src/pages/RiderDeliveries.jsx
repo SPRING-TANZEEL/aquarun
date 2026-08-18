@@ -904,14 +904,17 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 <label style={{ fontSize: '12px', color: '#555', display: 'block', marginBottom: '6px', fontWeight: '600' }}>
                   {isCash ? 'Cash Received' : 'Amount Received (partial allowed)'}
                 </label>
-                <input type="number" value={cashReceived} onChange={e => setCashReceived(e.target.value)}
+                                <input type="number" value={cashReceived} onChange={e => {
+                  const val = e.target.value
+                  setCashReceived(val)
+                }} min="0"
                   placeholder={total.toString()}
                   style={{ width: '100%', padding: '12px', border: '2px solid #c8e0ff', borderRadius: '8px', fontSize: '20px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', color: '#333' }} />
                 <button onClick={() => setCashReceived(String(total))}
                   style={{ marginTop: '8px', padding: '6px 14px', background: '#e3f0ff', border: '1px solid #c8e0ff', borderRadius: '6px', cursor: 'pointer', fontSize: '12px', color: '#0f4c81', fontWeight: '600' }}>
                   Full: Rs. {total.toLocaleString()}
                 </button>
-                {cashReceived && cashReceivedNum < total && cashReceivedNum >= 0 && (
+                                {cashReceived && cashReceivedNum < total && cashReceivedNum > 0 && (
                   <div style={{ marginTop: '10px', padding: '10px', background: '#ffebee', borderRadius: '8px', border: '1px solid #ffcdd2' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span style={{ fontSize: '13px', color: '#c62828', fontWeight: '600' }}>Remaining on Credit</span>
