@@ -225,15 +225,20 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
   }
 
   async function completeDelivery() {
-    if (!paymentMethod) return alert('Please select payment method')
+        if (!paymentMethod) return alert('Please select payment method')
     if (qty19l === 0 && qtyHalf === 0 && qty15l === 0) return alert('Please enter at least one bottle')
     if (qty19l > 0 && !selectedRate) return alert('Please select rate for 19L')
 
-        const total = totalAmount()
-    if (paymentMethod !== 'credit' && !['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)) {
+    const total = totalAmount()
+    const isAdvanceAdj = paymentMethod === 'advance_adj'
+    if (!isAdvanceAdj && paymentMethod !== 'credit' && !['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)) {
       const recv = cashReceived === '' ? total : Number(cashReceived)
       if (recv < 0) return alert('Amount received cannot be negative')
       if (paymentMethod === 'cash' && recv === 0) return alert('❌ Cash amount cannot be zero. Leave empty for full amount or enter partial amount.')
+    }
+    if (isAdvanceAdj) {
+      const customerAdvance = Math.abs(Number(selectedOrder?.customers?.balance || 0))
+      if (customerAdvance < total) return alert(`❌ Customer advance (Rs.${customerAdvance}) is less than delivery amount (Rs.${total}). Use Credit or Cash instead.`)
     }
 
     setSaving(true)
@@ -252,9 +257,10 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
     const isCredit = paymentMethod === 'credit'
     const isCash = paymentMethod === 'cash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
-        const received = isCredit ? 0 : isPending ? 0 : (cashReceived === '' ? total : Number(cashReceived))
-    const creditPortion = isCredit ? total : Math.max(0, total - received)
-    const advancePortion = (!isCredit && !isPending && received > total) ? received - total : 0
+    const isAdvanceAdj = paymentMethod === 'advance_adj'
+    const received = isCredit ? 0 : isPending ? 0 : isAdvanceAdj ? 0 : (cashReceived === '' ? total : Number(cashReceived))
+    const creditPortion = isCredit ? total : isAdvanceAdj ? 0 : Math.max(0, total - received)
+    const advancePortion = (!isCredit && !isPending && !isAdvanceAdj && received > total) ? received - total : 0
         
     const now = new Date().toISOString()
 
@@ -272,9 +278,9 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       total_amount: sub,
       tax_amount: tax,
       total_with_tax: total,
-      payment_method: paymentMethod,
-      amount_received: isPending ? 0 : received,
-      credit_amount: creditPortion,
+            payment_method: isAdvanceAdj ? 'advance_adj' : paymentMethod,
+      amount_received: isPending ? 0 : isAdvanceAdj ? 0 : received,
+      credit_amount: isAdvanceAdj ? 0 : creditPortion,
       jazzcash_confirmed: false,
       delivered_at: now,
       is_voided: false,
@@ -390,12 +396,20 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       if (advancePortion > 0 && selectedOrder.customer_id) {
         const currentBalance = Number(selectedOrder.customers?.balance || 0)
         const newBalance = currentBalance - advancePortion
-              
-        const { error: balErr } = await supabase.from('customers')
+        await supabase.from('customers')
           .update({ balance: newBalance })
           .eq('id', selectedOrder.customer_id)
           .eq('tenant_id', tenantId)
-        
+      }
+
+      // ── Update customer balance for advance adjustment ──
+      if (isAdvanceAdj && selectedOrder.customer_id) {
+        const currentBalance = Number(selectedOrder.customers?.balance || 0)
+        const newBalance = currentBalance + total
+        await supabase.from('customers')
+          .update({ balance: newBalance })
+          .eq('id', selectedOrder.customer_id)
+          .eq('tenant_id', tenantId)
       }
 
     } else {
@@ -898,12 +912,13 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
           <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
             <p style={{ fontSize: '13px', fontWeight: '700', color: '#555', marginBottom: '10px' }}>Payment Method</p>
             <div style={{ display: 'flex', gap: '10px' }}>
-              {[
+                            {[
                 { key: 'cash', label: 'نقد', sublabel: 'Cash', color: '#1a7a4a' },
                 { key: 'jazzcash', label: 'جیز کیش', sublabel: 'JazzCash', color: '#9c27b0' },
                 ...(bizSettings?.jazzcash_number_2 ? [{ key: 'easypaisa', label: 'ایزی پیسہ', sublabel: 'EasyPaisa', color: '#4caf50' }] : []),
                 ...(bizSettings?.bank_name ? [{ key: 'bank', label: 'بینک', sublabel: 'Bank', color: '#0f4c81' }] : []),
                 { key: 'credit', label: 'ادھار', sublabel: 'Credit', color: '#f44336' },
+                ...(Number(selectedOrder?.customers?.balance || 0) < 0 ? [{ key: 'advance_adj', label: 'ایڈوانس', sublabel: 'Advance Adj', color: '#7c3aed' }] : []),
               ].map(pm => (
                 <button key={pm.key} onClick={() => { setPaymentMethod(pm.key); setCashReceived('') }}
                   style={{ flex: 1, padding: '14px 8px', border: '2px solid', borderColor: paymentMethod === pm.key ? pm.color : '#eee', borderRadius: '10px', cursor: 'pointer', background: paymentMethod === pm.key ? pm.color : 'white', color: paymentMethod === pm.key ? 'white' : '#555', fontWeight: '700', fontSize: '14px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
@@ -962,9 +977,18 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
                 )}
               </div>
             )}
-            {isPending && (
+                        {isPending && (
               <div style={{ marginTop: '10px', padding: '10px', background: '#fff3e0', borderRadius: '8px' }}>
                 <p style={{ fontSize: '12px', color: '#e65100', margin: 0 }}>⚠️ Digital payment goes to office — admin will confirm.</p>
+              </div>
+            )}
+            {paymentMethod === 'advance_adj' && (
+              <div style={{ marginTop: '10px', padding: '12px', background: '#f3e8ff', borderRadius: '8px', border: '1px solid #c4b5fd' }}>
+                <p style={{ fontSize: '13px', color: '#7c3aed', fontWeight: 700, margin: '0 0 4px' }}>🔄 Advance Adjustment</p>
+                <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>Customer advance: Rs. {Math.abs(Number(selectedOrder?.customers?.balance || 0)).toLocaleString()}</p>
+                <p style={{ fontSize: '12px', color: '#6d28d9', margin: '0 0 2px' }}>Delivery amount: Rs. {total.toLocaleString()}</p>
+                <p style={{ fontSize: '12px', color: '#6d28d9', fontWeight: 700, margin: 0 }}>Remaining advance after: Rs. {Math.abs(Number(selectedOrder?.customers?.balance || 0) - total).toLocaleString()}</p>
+                <p style={{ fontSize: '11px', color: '#888', margin: '6px 0 0' }}>No cash will be collected — delivery adjusted against customer advance</p>
               </div>
             )}
           </div>
