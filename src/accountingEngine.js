@@ -167,7 +167,10 @@ const grandTotal = Math.round(Number(delivery.total_with_tax || subTotal))
       const bankAmount = grandTotal - creditPortion
       if (bankAmount > 0) lines.push({ account_code: '1105', account_name: 'Bank Transfer Clearing - Pending', debit: bankAmount })
       if (creditPortion > 0) lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: creditPortion })
-    } else if (paymentMethod === 'credit') {
+        } else if (paymentMethod === 'credit') {
+      lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
+    } else if (paymentMethod === 'advance_adj') {
+      // Debit Accounts Receivable — reduces customer advance (negative balance becomes less negative)
       lines.push({ account_code: '1100', account_name: 'Accounts Receivable', debit: grandTotal })
     }
 
