@@ -255,7 +255,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         const received = isCredit ? 0 : isPending ? 0 : (cashReceived === '' ? total : Number(cashReceived))
     const creditPortion = isCredit ? total : Math.max(0, total - received)
     const advancePortion = (!isCredit && !isPending && received > total) ? received - total : 0
-    console.log('Payment calc:', { total, received, creditPortion, advancePortion })
+        console.log('Payment calc - total:' + total + ' received:' + received + ' credit:' + creditPortion + ' advance:' + advancePortion)
     const now = new Date().toISOString()
 
     const sub = subTotal()
