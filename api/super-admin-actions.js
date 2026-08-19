@@ -102,7 +102,6 @@ export default async function handler(req, res) {
         // ── UPDATE EMAIL ────────────────────────────────────────────────
     if (action === 'updateEmail') {
       const { tenantId, newEmail } = req.body
-      // Get auth_user_id from tenants table
       const { data: tenant } = await supabaseAdmin
         .from('tenants').select('auth_user_id').eq('id', tenantId).single()
       if (!tenant?.auth_user_id) return res.status(404).json({ error: 'No auth user linked to this tenant' })
@@ -110,6 +109,8 @@ export default async function handler(req, res) {
         email: newEmail, email_confirm: true
       })
       if (error) return res.status(500).json({ error: error.message })
+      // Also update tenants table using admin client
+      await supabaseAdmin.from('tenants').update({ email: newEmail }).eq('id', tenantId)
       return res.json({ ok: true })
     }
 

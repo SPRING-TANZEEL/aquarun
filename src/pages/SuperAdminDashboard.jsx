@@ -173,9 +173,7 @@ export default function SuperAdminDashboard({ onLogout }) {
     setEmailSaving(true)
     try {
       // Update in Supabase Auth
-      const result = await superAdminAction({ action: 'updateEmail', tenantId: t.id, newEmail: newEmail.trim().toLowerCase() })
-      // Update in tenants table
-      await supabase.from('tenants').update({ email: newEmail.trim().toLowerCase() }).eq('id', t.id)
+            const result = await superAdminAction({ action: 'updateEmail', tenantId: t.id, newEmail: newEmail.trim().toLowerCase() })
       alert(`✅ Email updated!\n\nNew email: ${newEmail.trim().toLowerCase()}`)
       setEmailEditId(null)
       setNewEmail('')
