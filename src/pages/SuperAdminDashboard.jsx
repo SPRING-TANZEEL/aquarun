@@ -163,6 +163,29 @@ export default function SuperAdminDashboard({ onLogout }) {
     setTenants(prev => prev.map(x => x.id === t.id ? { ...x, [field]: newVal } : x))
   }
 
+    const [emailEditId, setEmailEditId] = useState(null)
+  const [newEmail, setNewEmail] = useState('')
+  const [emailSaving, setEmailSaving] = useState(false)
+
+  async function updateEmail(t) {
+    if (!newEmail.trim()) return alert('Please enter new email')
+    if (!newEmail.includes('@')) return alert('Invalid email address')
+    setEmailSaving(true)
+    try {
+      // Update in Supabase Auth
+      const result = await superAdminAction({ action: 'updateEmail', tenantId: t.id, newEmail: newEmail.trim().toLowerCase() })
+      // Update in tenants table
+      await supabase.from('tenants').update({ email: newEmail.trim().toLowerCase() }).eq('id', t.id)
+      alert(`✅ Email updated!\n\nNew email: ${newEmail.trim().toLowerCase()}`)
+      setEmailEditId(null)
+      setNewEmail('')
+      fetchTenants()
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+    setEmailSaving(false)
+  }
+
   async function resetPassword(t) {
     const newPass = prompt(`Reset password for ${t.business_name}:`)
     if (!newPass?.trim()) return
@@ -393,11 +416,33 @@ export default function SuperAdminDashboard({ onLogout }) {
                                       <button onClick={() => activateSubscription(t, 'yearly')} style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>+365d</button>
                                     </div>
                                     <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                      <button onClick={() => resetPassword(t)} style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🔑 Password</button>
+                                                            <button onClick={() => resetPassword(t)} style={{ padding: '5px 10px', background: '#e3f0ff', color: '#0f4c81', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🔑 Password</button>
+                      <button onClick={() => { setEmailEditId(emailEditId === t.id ? null : t.id); setNewEmail(t.email || '') }} style={{ padding: '5px 10px', background: '#f3e8ff', color: '#7c3aed', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>✏️ Email</button>
                                       <button onClick={() => toggleActive(t)} style={{ padding: '5px 10px', background: t.is_active ? '#fff8e1' : '#e8f5e9', color: t.is_active ? '#f57f17' : '#1a7a4a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>{t.is_active ? '⏸ Pause' : '▶ Activate'}</button>
                                       <button onClick={() => copyWhatsApp(t)} style={{ padding: '5px 10px', background: '#e8f5e9', color: '#1a7a4a', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>💬 WA</button>
                                       <button onClick={() => deleteTenant(t)} style={{ padding: '5px 10px', background: '#ffebee', color: '#c62828', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>🗑️</button>
                                     </div>
+                                                                        {/* Email Edit Form */}
+                                    {emailEditId === t.id && (
+                                      <div style={{ background: '#f3e8ff', borderRadius: 8, padding: '12px', border: '1px solid #c4b5fd', marginTop: 4 }}>
+                                        <p style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', margin: '0 0 8px' }}>✏️ Update Email</p>
+                                        <p style={{ fontSize: 11, color: '#888', margin: '0 0 8px' }}>Current: {t.email || 'No email set'}</p>
+                                        <input
+                                          type="email"
+                                          value={newEmail}
+                                          onChange={e => setNewEmail(e.target.value)}
+                                          placeholder="new@email.com"
+                                          style={{ ...inp, fontSize: 12, padding: '6px 8px', marginBottom: 8 }}
+                                        />
+                                        <div style={{ display: 'flex', gap: 6 }}>
+                                          <button onClick={() => updateEmail(t)} disabled={emailSaving} style={{ flex: 1, padding: '7px', background: '#7c3aed', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>
+                                            {emailSaving ? '⏳ Saving...' : '✓ Update Email'}
+                                          </button>
+                                          <button onClick={() => { setEmailEditId(null); setNewEmail('') }} style={{ padding: '7px 12px', background: '#f0f4f8', color: '#555', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>Cancel</button>
+                                        </div>
+                                      </div>
+                                    )}
+
                                     {/* Subscription Edit Form */}
                                     {isSubEdit && (
                                       <div style={{ background: '#f0f7ff', borderRadius: 8, padding: '12px', border: '1px solid #c8d8ff', marginTop: 4 }}>
