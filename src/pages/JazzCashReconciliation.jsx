@@ -73,6 +73,43 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
     setLoading(false)
   }
 
+    async function rejectEntry(entry) {
+    if (!window.confirm(`Reject this ${METHOD_CONFIG[entry.method]?.label} payment?\n\nCustomer: ${entry.customer}\nAmount: Rs. ${entry.amount.toLocaleString()}\n\nThis will convert it to Credit (customer will owe the amount).`)) return
+    setConfirming(entry.id)
+    try {
+      if (entry.type === 'delivery') {
+        // Change payment method to credit so customer owes the amount
+        await supabase.from('deliveries').update({
+          payment_method: 'credit',
+          credit_amount: entry.invoiceAmount,
+          amount_received: 0,
+        }).eq('id', entry.id).eq('tenant_id', tenantId)
+
+        // Fix journal — change clearing account to AR
+        const { data: je } = await supabase.from('journal_entries')
+          .select('id').eq('reference_id', entry.id).single()
+        if (je) {
+          await supabase.from('journal_entry_lines')
+            .update({ account_code: '1100', account_name: 'Accounts Receivable' })
+            .eq('journal_entry_id', je.id)
+            .in('account_code', ['1102', '1103', '1105'])
+            .gt('debit', 0)
+        }
+      } else {
+        // For payment — just delete it (payment never happened)
+        await supabase.from('payments').update({ is_voided: true })
+          .eq('id', entry.id).eq('tenant_id', tenantId)
+      }
+
+      setEntries(prev => prev.filter(e => e.id !== entry.id))
+      if (onUpdate) onUpdate()
+      alert('✅ Payment rejected — converted to credit.')
+    } catch (err) {
+      alert('Error: ' + err.message)
+    }
+    setConfirming(null)
+  }
+
   async function confirmEntry(entry) {
     setConfirming(entry.id)
     try {
@@ -274,11 +311,17 @@ export default function JazzCashReconciliation({ tenantId, onUpdate }) {
                     <td style={{ padding: '12px 14px', fontSize: 14, fontWeight: 800, color: '#1a7a4a', textAlign: 'right', whiteSpace: 'nowrap' }}>
                       Rs. {e.amount.toLocaleString()}
                     </td>
-                    <td style={{ padding: '12px 14px' }}>
-                      <button onClick={() => confirmEntry(e)} disabled={!!confirming}
-                        style={{ padding: '8px 16px', background: isConfirming ? '#e0e0e0' : cfg.color, color: 'white', border: 'none', borderRadius: 8, cursor: isConfirming ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
-                        {isConfirming ? '⏳...' : '✅ Confirm'}
-                      </button>
+                                        <td style={{ padding: '12px 14px' }}>
+                      <div style={{ display: 'flex', gap: 6, flexDirection: 'column' }}>
+                        <button onClick={() => confirmEntry(e)} disabled={!!confirming}
+                          style={{ padding: '8px 16px', background: isConfirming ? '#e0e0e0' : cfg.color, color: 'white', border: 'none', borderRadius: 8, cursor: isConfirming ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          {isConfirming ? '⏳...' : '✅ Confirm'}
+                        </button>
+                        <button onClick={() => rejectEntry(e)} disabled={!!confirming}
+                          style={{ padding: '8px 16px', background: confirming ? '#e0e0e0' : '#ffebee', color: confirming ? '#aaa' : '#c62828', border: '1px solid #ffcdd2', borderRadius: 8, cursor: confirming ? 'not-allowed' : 'pointer', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                          ❌ Reject
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
