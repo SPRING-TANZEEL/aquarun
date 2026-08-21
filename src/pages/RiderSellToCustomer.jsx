@@ -321,8 +321,8 @@ export default function RiderSellToCustomer({ rider, tenantId, preSelectedCustom
     const isJazz   = paymentMethod === 'jazzcash'
     const isPending = ['jazzcash', 'easypaisa', 'bank'].includes(paymentMethod)
     const isAdvanceAdj = paymentMethod === 'advance_adj'
-    const received = isCredit ? 0 : isPending ? 0 : isAdvanceAdj ? 0 : (cashReceived === '' ? total : Number(cashReceived))
-    const creditPortion = isCredit ? total : isAdvanceAdj ? 0 : Math.max(0, total - received)
+        const received = isCredit ? 0 : isPending ? 0 : isAdvanceAdj ? 0 : (cashReceived === '' ? total : Number(cashReceived))
+    const creditPortion = isCredit ? total : isPending ? 0 : isAdvanceAdj ? 0 : Math.max(0, total - received)
     const advancePortion = (!isCredit && !isPending && !isAdvanceAdj && received > total) ? received - total : 0
     const isCash = isCash2
     const now = new Date().toISOString()
