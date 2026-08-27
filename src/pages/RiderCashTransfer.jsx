@@ -57,21 +57,24 @@ export default function RiderCashTransfer({ rider, tenantId, lang = 'en' }) {
     const todayRec = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     setTodayBalance(todayCashSales + todayCol + todayRec - todayExp)
 
-    const { data: allDeliveries } = await supabase.from('deliveries').select('amount_received, payment_method')
-      .eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        const { data: allDeliveries } = await supabase.from('deliveries').select('amount_received, payment_method')
+      .eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('is_voided', false).limit(10000)
     const { data: allPayments } = await supabase.from('payments').select('amount')
-      .eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('payment_method', 'cash').eq('is_voided', false)
+      .eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('payment_method', 'cash').eq('is_voided', false).limit(10000)
     const { data: allExpenses } = await supabase.from('expenses').select('amount')
-      .eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('is_voided', false)
-    const { data: allTransfers } = await supabase.from('cash_transfers').select('amount')
-      .eq('from_rider_id', rider.id).eq('tenant_id', tenantId).eq('to_office', true).eq('status', 'confirmed')
+      .eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('is_voided', false).limit(10000)
+        const { data: allTransfers } = await supabase.from('cash_transfers').select('amount')
+      .eq('from_rider_id', rider.id).eq('tenant_id', tenantId).eq('status', 'confirmed')
+    const { data: allReceivedTransfers } = await supabase.from('cash_transfers').select('amount')
+      .eq('to_rider_id', rider.id).eq('tenant_id', tenantId).eq('to_office', false).eq('status', 'confirmed')
 
     let allCashSales = 0
     allDeliveries?.forEach(d => { if (d.payment_method === 'cash') allCashSales += Number(d.amount_received) })
     const allCol = allPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
     const allExp = allExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
     const allTrans = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    setTotalUncleared(allCashSales + allCol - allExp - allTrans)
+    const allReceived = allReceivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+    setTotalUncleared(allCashSales + allCol + allReceived - allExp - allTrans)
 
     const { data: pending } = await supabase.from('cash_transfers')
       .select('*, from_rider:from_rider_id(full_name)')
