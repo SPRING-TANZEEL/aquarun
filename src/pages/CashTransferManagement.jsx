@@ -55,9 +55,10 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
       const todayBalance = todayCashSales + todayCollections - todayExp
 
       // ── ALL TIME UNCLEARED (since beginning) ──
-      const { data: allDeliveries } = await supabase.from('deliveries')
+            const { data: allDeliveries } = await supabase.from('deliveries')
         .select('amount_received, payment_method')
         .eq('rider_id', r.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        .limit(10000)
 
       const { data: allPayments } = await supabase.from('payments')
         .select('amount').eq('rider_id', r.id).eq('tenant_id', tenantId)
