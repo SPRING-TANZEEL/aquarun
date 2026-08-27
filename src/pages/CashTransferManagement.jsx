@@ -69,9 +69,14 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
         .select('amount').eq('rider_id', r.id).eq('tenant_id', tenantId).eq('is_voided', false)
         .limit(10000)
 
-            const { data: allTransfers } = await supabase.from('cash_transfers')
+                  const { data: allTransfers } = await supabase.from('cash_transfers')
         .select('amount').eq('from_rider_id', r.id).eq('tenant_id', tenantId)
-        .eq('to_office', true).eq('status', 'confirmed')
+        .eq('status', 'confirmed')
+        .limit(10000)
+
+      const { data: allReceivedTransfers } = await supabase.from('cash_transfers')
+        .select('amount').eq('to_rider_id', r.id).eq('tenant_id', tenantId)
+        .eq('to_office', false).eq('status', 'confirmed')
         .limit(10000)
 
             let totalCashSales = 0
@@ -79,9 +84,9 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
       if (r.full_name === 'Adnan Sarwar') console.log('Adnan — total deliveries fetched:' + (allDeliveries?.length || 0) + ' cash deliveries:' + allDeliveries?.filter(d => d.payment_method === 'cash').length)
       const totalCollections = allPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
       const totalExpenses = allExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-      const totalTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-            const totalUncleared = totalCashSales + totalCollections - totalExpenses - totalTransferred
-            if (r.full_name === 'Adnan Sarwar') console.log('Adnan — id:' + r.id + ' sales:' + totalCashSales + ' col:' + totalCollections + ' exp:' + totalExpenses + ' trans:' + totalTransferred + ' uncleared:' + totalUncleared)
+            const totalTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+      const totalReceivedFromRiders = allReceivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+            const totalUncleared = totalCashSales + totalCollections + totalReceivedFromRiders - totalExpenses - totalTransferred
 
       balances.push({
         ...r,
