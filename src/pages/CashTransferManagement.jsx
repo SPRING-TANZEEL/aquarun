@@ -75,7 +75,8 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
       const totalCollections = allPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
       const totalExpenses = allExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
       const totalTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-      const totalUncleared = totalCashSales + totalCollections - totalExpenses - totalTransferred
+            const totalUncleared = totalCashSales + totalCollections - totalExpenses - totalTransferred
+      if (r.full_name === 'Adnan Sarwar') console.log('Adnan — sales:' + totalCashSales + ' col:' + totalCollections + ' exp:' + totalExpenses + ' trans:' + totalTransferred + ' uncleared:' + totalUncleared)
 
       balances.push({
         ...r,
