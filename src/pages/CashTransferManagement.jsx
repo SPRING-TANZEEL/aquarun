@@ -60,16 +60,19 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
         .eq('rider_id', r.id).eq('tenant_id', tenantId).eq('is_voided', false)
         .limit(10000)
 
-      const { data: allPayments } = await supabase.from('payments')
+            const { data: allPayments } = await supabase.from('payments')
         .select('amount').eq('rider_id', r.id).eq('tenant_id', tenantId)
         .eq('payment_method', 'cash').eq('is_voided', false)
+        .limit(10000)
 
-      const { data: allExpenses } = await supabase.from('expenses')
+            const { data: allExpenses } = await supabase.from('expenses')
         .select('amount').eq('rider_id', r.id).eq('tenant_id', tenantId).eq('is_voided', false)
+        .limit(10000)
 
-      const { data: allTransfers } = await supabase.from('cash_transfers')
+            const { data: allTransfers } = await supabase.from('cash_transfers')
         .select('amount').eq('from_rider_id', r.id).eq('tenant_id', tenantId)
         .eq('to_office', true).eq('status', 'confirmed')
+        .limit(10000)
 
             let totalCashSales = 0
       allDeliveries?.forEach(d => { if (d.payment_method === 'cash') totalCashSales += Number(d.amount_received) })
