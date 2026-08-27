@@ -70,8 +70,9 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
         .select('amount').eq('from_rider_id', r.id).eq('tenant_id', tenantId)
         .eq('to_office', true).eq('status', 'confirmed')
 
-      let totalCashSales = 0
+            let totalCashSales = 0
       allDeliveries?.forEach(d => { if (d.payment_method === 'cash') totalCashSales += Number(d.amount_received) })
+      if (r.full_name === 'Adnan Sarwar') console.log('Adnan — total deliveries fetched:' + (allDeliveries?.length || 0) + ' cash deliveries:' + allDeliveries?.filter(d => d.payment_method === 'cash').length)
       const totalCollections = allPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
       const totalExpenses = allExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
       const totalTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
