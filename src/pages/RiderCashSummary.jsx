@@ -79,7 +79,7 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     const totalExpenses = expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
     const totalSent = sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
     const totalReceived = receivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    const totalCashIn = cashFromSales + cashFromPayments
+        const totalCashIn = cashFromSales + cashFromPayments + totalReceived
     const cashInHand = totalCashIn - totalExpenses - (sentTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0)
 
     setSummary({
@@ -101,8 +101,10 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
       .select('amount').eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('payment_method', 'cash').eq('is_voided', false)
     const { data: allExpenses } = await supabase.from('expenses')
       .select('amount').eq('rider_id', rider.id).eq('tenant_id', tenantId).eq('is_voided', false)
-    const { data: allTransfers } = await supabase.from('cash_transfers')
-      .select('amount').eq('from_rider_id', rider.id).eq('tenant_id', tenantId).eq('to_office', true).eq('status', 'confirmed')
+        const { data: allTransfers } = await supabase.from('cash_transfers')
+      .select('amount').eq('from_rider_id', rider.id).eq('tenant_id', tenantId).eq('status', 'confirmed')
+    const { data: allReceivedTransfers } = await supabase.from('cash_transfers')
+      .select('amount').eq('to_rider_id', rider.id).eq('tenant_id', tenantId).eq('to_office', false).eq('status', 'confirmed')
 
         let allCashSales = 0
     allDeliveries?.forEach(d => {
@@ -112,8 +114,9 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
     })
     const allCollections = allPayments?.reduce((s, p) => s + Number(p.amount), 0) || 0
     const allExp = allExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
-    const allTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
-    const uncleared = allCashSales + allCollections - allExp - allTransferred
+        const allTransferred = allTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+    const allReceivedFromRiders = allReceivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
+    const uncleared = allCashSales + allCollections + allReceivedFromRiders - allExp - allTransferred
 
     setTotalUncleared({ uncleared, allCashSales, allCollections, allExp, allTransferred })
     setLoading(false)
@@ -293,7 +296,7 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
       {(summary.totalSent > 0 || summary.totalReceived > 0) && (
         <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e3f0ff' }}>
           <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', marginBottom: '4px' }}>🔄 {t('Transfers (Informational)', 'منتقلیاں (معلوماتی)')}</p>
-          <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>{t('These are not deducted from cash in hand', 'یہ کیش سے منہا نہیں ہوتیں')}</p>
+                    <p style={{ fontSize: '11px', color: '#888', margin: '0 0 12px' }}>{t('Sent transfers reduce your cash. Received transfers increase your cash.', 'بھیجی گئی منتقلی کیش کم کرتی ہے۔ موصول منتقلی کیش بڑھاتی ہے۔')}</p>
           {summary.totalSent > 0 && (
             <>
               <SectionHeader sectionKey="sentTransfers" title={t('Sent to Office', 'دفتر کو بھیجی')} amount={summary.totalSent} color="#0f4c81" count={summary.sentTransfers.length} />
@@ -357,8 +360,9 @@ export default function RiderCashSummary({ rider, tenantId, lang = 'en' }) {
       <div style={{ background: 'white', borderRadius: '12px', padding: '16px', marginBottom: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '2px solid #e3f0ff' }}>
         <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f4c81', marginBottom: '12px' }}>🔍 {t('RECONCILIATION', 'مطابقت')}</p>
         {[
-          { label: t('+ Cash from Deliveries', '+ ڈیلیوری سے کیش'), value: summary.cashFromSales, color: '#1a7a4a' },
+                    { label: t('+ Cash from Deliveries', '+ ڈیلیوری سے کیش'), value: summary.cashFromSales, color: '#1a7a4a' },
           { label: t('+ Cash from Collections', '+ وصولی سے کیش'), value: summary.cashFromPayments, color: '#1a7a4a' },
+          { label: t('+ Received from Rider', '+ رائیڈر سے موصول'), value: summary.totalReceived, color: '#7c3aed' },
           { label: t('− Field Expenses', '− فیلڈ خرچے'), value: summary.totalExpenses, color: '#f44336' },
         ].filter(r => r.value !== 0).map(r => (
           <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid #f0f0f0' }}>

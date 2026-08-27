@@ -88,7 +88,7 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
       const totalReceivedFromRiders = allReceivedTransfers?.reduce((s, t) => s + Number(t.amount), 0) || 0
             const totalUncleared = totalCashSales + totalCollections + totalReceivedFromRiders - totalExpenses - totalTransferred
 
-      balances.push({
+            balances.push({
         ...r,
         todayBalance,
         todayCashSales,
@@ -99,6 +99,7 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
         totalCollections,
         totalExpenses,
         totalTransferred,
+        totalReceivedFromRiders,
       })
     }
     setRiderBalances(balances)
@@ -192,6 +193,7 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
                 { label: '💰 Total Collections', value: selectedRider.totalCollections, color: '#1a7a4a' },
                 { label: '🧾 Total Expenses', value: -selectedRider.totalExpenses, color: '#f44336' },
                 { label: '🏦 Transferred to Office', value: -selectedRider.totalTransferred, color: '#0f4c81' },
+                ...(selectedRider.totalReceivedFromRiders > 0 ? [{ label: '🔄 Received from Rider', value: selectedRider.totalReceivedFromRiders, color: '#7c3aed' }] : []),
               ].map(row => (
                 <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
                   <span style={{ fontSize: '13px', color: '#555' }}>{row.label}</span>
