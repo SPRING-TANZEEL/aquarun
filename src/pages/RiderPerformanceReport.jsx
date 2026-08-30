@@ -218,7 +218,7 @@ export default function RiderPerformanceReport({ rider, tenantId, onClose }) {
               <div key={f.label}>
                 <label style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', display: 'block', marginBottom: 4 }}>{f.label}</label>
                 <input type="date" value={f.value} onChange={e => f.onChange(e.target.value)}
-                  style={{ padding: '6px 10px', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, fontSize: 13, background: 'rgba(255,255,255,0.1)', color: 'white', outline: 'none' }} />
+                style={{ padding: '6px 10px', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 6, fontSize: 13, background: 'white', color: '#0f2235', outline: 'none' }} />
               </div>
             ))}
             {[
@@ -243,18 +243,24 @@ export default function RiderPerformanceReport({ rider, tenantId, onClose }) {
           <div style={{ padding: '20px 24px' }}>
 
             {/* KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
               {[
-                { label: 'Deliveries', value: report.deliveriesCount, icon: '📦', color: '#0f4c81' },
-                { label: 'Customers', value: report.customersCount, icon: '👥', color: '#7c3aed' },
-                { label: '19L Bottles', value: report.totalBottles19, icon: '🍶', color: '#0891b2' },
-                { label: 'Total Sales', value: 'Rs. ' + report.totalSales.toLocaleString(), icon: '💰', color: '#1a7a4a' },
-                { label: 'Collection Rate', value: report.collectionRate + '%', icon: '📈', color: report.collectionRate >= 80 ? '#1a7a4a' : '#c62828' },
-                { label: 'Net to Office', value: 'Rs. ' + report.netToOffice.toLocaleString(), icon: '🏢', color: '#0f4c81' },
+                { label: 'Deliveries', value: report.deliveriesCount.toLocaleString(), sub: 'Total trips', icon: '📦', bg: 'linear-gradient(135deg,#0f4c81,#1a6bad)', text: 'white' },
+                { label: 'Customers', value: report.customersCount.toLocaleString(), sub: 'Unique served', icon: '👥', bg: 'linear-gradient(135deg,#5b21b6,#7c3aed)', text: 'white' },
+                { label: '19L Bottles', value: report.totalBottles19.toLocaleString(), sub: 'Units delivered', icon: '🍶', bg: 'linear-gradient(135deg,#0e7490,#0891b2)', text: 'white' },
+                { label: 'Total Sales', value: 'Rs. ' + report.totalSales.toLocaleString(), sub: 'All methods', icon: '💰', bg: 'linear-gradient(135deg,#065f46,#059669)', text: 'white' },
+                { label: 'Collection', value: report.collectionRate + '%', sub: 'Of total sales', icon: '📈', bg: report.collectionRate >= 80 ? 'linear-gradient(135deg,#065f46,#059669)' : report.collectionRate >= 60 ? 'linear-gradient(135deg,#92400e,#d97706)' : 'linear-gradient(135deg,#7f1d1d,#dc2626)', text: 'white' },
+                { label: 'Net to Office', value: 'Rs. ' + report.netToOffice.toLocaleString(), sub: 'Cash − Exp − Trans', icon: '🏦', bg: report.netToOffice >= 0 ? 'linear-gradient(135deg,#0f4c81,#1a6bad)' : 'linear-gradient(135deg,#7f1d1d,#dc2626)', text: 'white' },
               ].map(k => (
-                <div key={k.label} style={{ background: '#f8fafc', border: '1px solid #e0e7ff', borderRadius: 12, padding: '14px 16px', borderLeft: `4px solid ${k.color}` }}>
-                  <p style={{ fontSize: 11, color: '#888', margin: '0 0 4px' }}>{k.icon} {k.label}</p>
-                  <p style={{ fontSize: 16, fontWeight: 800, color: k.color, margin: 0 }}>{k.value}</p>
+                <div key={k.label} style={{
+                  background: k.bg, borderRadius: 12, padding: '16px',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                  position: 'relative', overflow: 'hidden',
+                }}>
+                  <div style={{ position: 'absolute', right: -8, top: -8, fontSize: 40, opacity: 0.15 }}>{k.icon}</div>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, margin: '0 0 8px' }}>{k.label}</p>
+                  <p style={{ fontSize: 20, fontWeight: 900, color: 'white', margin: '0 0 2px', lineHeight: 1 }}>{k.value}</p>
+                  <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', margin: 0 }}>{k.sub}</p>
                 </div>
               ))}
             </div>
