@@ -372,9 +372,11 @@ export default function RiderPerformanceReport({ rider, tenantId, onClose }) {
 
       <style>{`
         @media print {
-          body * { visibility: hidden; }
-          .print-area, .print-area * { visibility: visible; }
-          .print-area { position: fixed; top: 0; left: 0; width: 100%; }
+          body { margin: 0; padding: 0; }
+          body > * { display: none !important; }
+          .rider-report-printable { display: block !important; position: fixed !important; inset: 0 !important; background: white !important; overflow: auto !important; z-index: 999999 !important; padding: 20px !important; }
+          .rider-report-printable * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+          .no-print { display: none !important; }
         }
       `}</style>
     </div>
