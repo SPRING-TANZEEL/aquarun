@@ -194,8 +194,68 @@ export default function RiderPerformanceReport({ rider, tenantId, onClose }) {
               </p>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button onClick={handlePrint}
-                style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
+              <button onClick={() => {
+                const printWindow = window.open('', '_blank')
+                printWindow.document.write(`
+                  <html><head><title>Rider Report - ${rider.full_name}</title>
+                  <style>
+                    * { margin: 0; padding: 0; box-sizing: border-box; }
+                    body { font-family: 'Segoe UI', system-ui, sans-serif; background: white; padding: 20px; }
+                    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                    th { background: #0f4c81; color: white; padding: 8px 10px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+                    td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; font-size: 12px; }
+                    tr:nth-child(even) td { background: #f8fafc; }
+                    .header { background: linear-gradient(135deg,#0f4c81,#1a6bad); color: white; padding: 20px 24px; border-radius: 10px; margin-bottom: 20px; }
+                    .kpi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 20px; }
+                    .kpi { border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; border-top: 3px solid #0f4c81; }
+                    .kpi-label { font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+                    .kpi-value { font-size: 18px; font-weight: 800; color: #0f4c81; }
+                    .section-title { font-size: 12px; font-weight: 700; color: #0f4c81; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 2px solid #0f4c81; }
+                    .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+                    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+                    .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #aaa; border-top: 1px solid #f0f0f0; padding-top: 12px; }
+                    @media print { body { padding: 10px; } }
+                  </style></head><body>
+                  <div class="header">
+                    <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:6px;letter-spacing:1px">RIDER PERFORMANCE REPORT</div>
+                    <div style="font-size:24px;font-weight:800;margin-bottom:4px">🚴 ${rider.full_name}</div>
+                    <div style="font-size:12px;color:rgba(255,255,255,0.7)">${new Date(dateFrom).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})} — ${new Date(dateTo).toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})}</div>
+                  </div>
+                  <div class="kpi-grid">
+                    <div class="kpi"><div class="kpi-label">Deliveries</div><div class="kpi-value">${report.deliveriesCount.toLocaleString()}</div></div>
+                    <div class="kpi"><div class="kpi-label">Customers Served</div><div class="kpi-value">${report.customersCount.toLocaleString()}</div></div>
+                    <div class="kpi"><div class="kpi-label">19L Bottles</div><div class="kpi-value">${report.totalBottles19.toLocaleString()}</div></div>
+                    <div class="kpi"><div class="kpi-label">Total Sales</div><div class="kpi-value">Rs. ${report.totalSales.toLocaleString()}</div></div>
+                    <div class="kpi"><div class="kpi-label">Collection Rate</div><div class="kpi-value" style="color:${report.collectionRate>=80?'#1a7a4a':report.collectionRate>=60?'#f59e0b':'#c62828'}">${report.collectionRate}%</div></div>
+                    <div class="kpi"><div class="kpi-label">Net to Office</div><div class="kpi-value" style="color:${report.netToOffice>=0?'#1a7a4a':'#c62828'}">Rs. ${report.netToOffice.toLocaleString()}</div></div>
+                  </div>
+                  <div class="two-col">
+                    <div>
+                      <div class="section-title">💰 Sales Breakdown</div>
+                      ${[['Cash Sales',report.cashSales],['JazzCash Sales',report.jazzSales],['Credit Sales',report.creditSales],['Cash Collections',report.cashCollections],['JazzCash Collections',report.jazzCollections]].filter(r=>r[1]>0).map(r=>`<div class="row"><span>${r[0]}</span><span>Rs. ${r[1].toLocaleString()}</span></div>`).join('')}
+                      <div class="row" style="font-weight:700;border-top:2px solid #0f4c81;margin-top:4px"><span>Total Sales</span><span>Rs. ${report.totalSales.toLocaleString()}</span></div>
+                    </div>
+                    <div>
+                      <div class="section-title">🧾 Expenses by Category</div>
+                      ${Object.entries(report.expByCategory).map(([cat,amt])=>`<div class="row"><span style="text-transform:capitalize">${cat}</span><span style="color:#c62828">Rs. ${amt.toLocaleString()}</span></div>`).join('')}
+                      <div class="row" style="font-weight:700;color:#c62828;border-top:2px solid #c62828;margin-top:4px"><span>Total Expenses</span><span>Rs. ${report.totalExpenses.toLocaleString()}</span></div>
+                    </div>
+                  </div>
+                  <div class="section-title">👥 Customer Breakdown (${report.customers.length} customers)</div>
+                  <table>
+                    <thead><tr><th>#</th><th>Customer</th><th style="text-align:center">Deliveries</th><th style="text-align:center">19L</th><th style="text-align:right">Total Sales</th><th style="text-align:right">Cash</th><th style="text-align:right">JazzCash</th><th style="text-align:right">Credit</th><th style="text-align:right">Last Visit</th></tr></thead>
+                    <tbody>
+                      ${report.customers.map((c,i)=>`<tr><td>${i+1}</td><td>${c.name}</td><td style="text-align:center">${c.deliveries}</td><td style="text-align:center">${c.bottles19}</td><td style="text-align:right">Rs. ${c.totalSales.toLocaleString()}</td><td style="text-align:right">${c.cash>0?'Rs. '+c.cash.toLocaleString():'—'}</td><td style="text-align:right">${c.jazz>0?'Rs. '+c.jazz.toLocaleString():'—'}</td><td style="text-align:right">${c.credit>0?'Rs. '+c.credit.toLocaleString():'—'}</td><td style="text-align:right">${c.lastDate||'—'}</td></tr>`).join('')}
+                      <tr style="background:#0f4c81"><td colspan="2" style="color:white;font-weight:700;padding:8px 10px">TOTAL</td><td style="color:white;font-weight:700;text-align:center;padding:8px 10px">${report.deliveriesCount}</td><td style="color:white;font-weight:700;text-align:center;padding:8px 10px">${report.totalBottles19}</td><td style="color:#6ee7b7;font-weight:700;text-align:right;padding:8px 10px">Rs. ${report.totalSales.toLocaleString()}</td><td style="color:#6ee7b7;font-weight:700;text-align:right;padding:8px 10px">Rs. ${(report.cashSales+report.cashCollections).toLocaleString()}</td><td style="color:#c4b5fd;font-weight:700;text-align:right;padding:8px 10px">Rs. ${(report.jazzSales+report.jazzCollections).toLocaleString()}</td><td style="color:#fca5a5;font-weight:700;text-align:right;padding:8px 10px">Rs. ${report.creditSales.toLocaleString()}</td><td></td></tr>
+                    </tbody>
+                  </table>
+                  <div class="footer">AquaRun · Generated ${new Date().toLocaleDateString('en-PK',{day:'2-digit',month:'short',year:'numeric'})}</div>
+                  </body></html>
+                `)
+                printWindow.document.close()
+                printWindow.focus()
+                setTimeout(() => printWindow.print(), 500)
+              }} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', color: 'white', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
                 🖨️ Print / PDF
               </button>
               <button onClick={handleExcelExport}
