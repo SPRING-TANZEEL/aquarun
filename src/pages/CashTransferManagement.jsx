@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import * as AccountingEngine from '../accountingEngine'
+import RiderPerformanceReport from './RiderPerformanceReport'
 
 export default function CashTransferManagement({ tenantId, onUpdate }) {
   const [pendingTransfers, setPendingTransfers] = useState([])
@@ -16,6 +17,7 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
   })
   const [dateTo, setDateTo] = useState(new Date().toISOString().split('T')[0])
   const [selectedRider, setSelectedRider] = useState(null) // for detail popup
+  const [reportRider, setReportRider] = useState(null) // for performance report
 
   useEffect(() => { if (tenantId) fetchData() }, [filter, dateFrom, dateTo, tenantId])
 
@@ -148,9 +150,15 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
   const totalPendingAmount = pendingTransfers.reduce((s, t) => s + Number(t.amount), 0)
   const totalConfirmedAmount = confirmedTransfers.reduce((s, t) => s + Number(t.amount), 0)
   const totalOutstanding = riderBalances.reduce((s, r) => s + Math.max(0, r.totalUncleared), 0)
-
-  return (
+    return (
     <div>
+      {reportRider && (
+        <RiderPerformanceReport
+          rider={reportRider}
+          tenantId={tenantId}
+          onClose={() => setReportRider(null)}
+        />
+      )}
       {/* ── RIDER DETAIL POPUP ── */}
       {selectedRider && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -257,10 +265,14 @@ export default function CashTransferManagement({ tenantId, onUpdate }) {
                   <p style={{ fontSize: '14px', fontWeight: '700', margin: '0 0 2px', color: r.totalUncleared > 0 ? '#c62828' : '#1a7a4a' }}>
                     Rs. {r.totalUncleared.toLocaleString()}
                   </p>
-                  <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
+                                  <p style={{ fontSize: '10px', color: '#aaa', margin: 0 }}>
                     Sales+Col−Exp−Transferred
                   </p>
                 </div>
+                <button onClick={e => { e.stopPropagation(); setReportRider(r) }}
+                  style={{ marginTop: 8, width: '100%', padding: '6px', background: '#f0f4ff', border: '1px solid #c8d8ff', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700, color: '#0f4c81' }}>
+                  📊 View Report
+                </button>
               </div>
             ))}
           </div>
