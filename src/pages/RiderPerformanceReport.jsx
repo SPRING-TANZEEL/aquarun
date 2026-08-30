@@ -215,6 +215,7 @@ export default function RiderPerformanceReport({ rider, tenantId, onClose }) {
                     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
                     .footer { margin-top: 20px; text-align: center; font-size: 11px; color: #aaa; border-top: 1px solid #f0f0f0; padding-top: 12px; }
                     @media print { body { padding: 10px; } }
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
                   </style></head><body>
                   <div class="header">
                     <div style="font-size:11px;color:rgba(255,255,255,0.7);margin-bottom:6px;letter-spacing:1px">RIDER PERFORMANCE REPORT</div>
