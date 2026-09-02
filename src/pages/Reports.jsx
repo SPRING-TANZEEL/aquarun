@@ -6,28 +6,28 @@ export default function Reports({ tenantId }) {
   const [activeTab, setActiveTab] = useState('daily')
   const [hasPremiumReports, setHasPremiumReports] = useState(false)
 
-  useEffect(() => {
-    if (!tenantId) return
-    supabase.from('tenants').select('has_premium_reports').eq('id', tenantId).maybeSingle().then(({ data }) => {
-      setHasPremiumReports(data?.has_premium_reports || false)
-    })
-  }, [tenantId])
-  const tabs = [
-    { key: 'daily', label: '💵 Cash Flow' },
-    { key: 'ledger', label: '📒 Customer Ledger' },
-    
-    { key: 'ageing', label: '⏳ Receivables' },
-    { key: 'sales', label: '📊 Sales Summary' },
-    { key: 'pl', label: '📈 P&L' },
-    { key: 'tax', label: '🧾 Tax Report' },
-    { key: 'executive', label: '📋 Executive' },
-    { key: 'churn', label: '📋 Churn Risk' },
-    { key: 'collection', label: '📥 Collections' },
-    { key: 'bottles', label: '🫙 Bottles' },
-    { key: 'custsales', label: '👤 Customer Sales' },
-    { key: 'bulk', label: '📨 Bulk Share' },
-    { key: 'bulk_ledger', label: '📋', sub: 'Bulk Ledger' },
-  ]
+    useEffect(() => {
+      if (!tenantId) return
+      supabase.from('tenants').select('has_premium_reports').eq('id', tenantId).maybeSingle().then(({ data }) => {
+        setHasPremiumReports(data?.has_premium_reports || false)
+      })
+    }, [tenantId])
+    const tabs = [
+      { key: 'daily', label: '💵 Cash Flow' },
+      { key: 'ledger', label: '📒 Customer Ledger' },
+      
+      { key: 'ageing', label: '⏳ Receivables' },
+      { key: 'sales', label: '📊 Sales Summary' },
+      { key: 'pl', label: '📈 P&L' },
+      { key: 'tax', label: '🧾 Tax Report' },
+      { key: 'executive', label: '📋 Executive' },
+      { key: 'churn', label: '📋 Churn Risk' },
+      { key: 'collection', label: '📥 Collections' },
+      { key: 'bottles', label: '🫙 Bottles' },
+      { key: 'custsales', label: '👤 Customer Sales' },
+      { key: 'bulk', label: '📨 Bulk Share' },
+      { key: 'bulk_ledger', label: '📋', sub: 'Bulk Ledger' },
+    ]
   return (
     <div>
       <div style={{ marginBottom: '20px' }}>
@@ -2002,12 +2002,14 @@ function BottleBalance({ tenantId }) {
       .order('delivered_at', { ascending: true })
 
     // Fetch bottle return journal entries (from Return Bottles tab)
-    const { data: bottleJournals } = await supabase.from('journal_entries')
-      .select('id, entry_date, narration, total_amount')
+    // Get delivery IDs for this customer first
+    const deliveryIds = (deliveries || []).map(d => d.id)
+    const { data: bottleJournals } = deliveryIds.length > 0 ? await supabase.from('journal_entries')
+      .select('id, entry_date, narration, total_amount, reference_id')
       .eq('tenant_id', tenantId)
-      .eq('reference_id', customer.id)
+      .in('reference_id', deliveryIds)
       .eq('reference_type', 'bottle_movement')
-      .order('entry_date', { ascending: true })
+      .order('entry_date', { ascending: true }) : { data: [] }
 
     // Build delivery rows
     const deliveryRows = (deliveries || []).map(d => ({
@@ -2037,8 +2039,8 @@ function BottleBalance({ tenantId }) {
       }
     })
 
-    // Merge and sort by date
-    const allRows = [...deliveryRows, ...returnRows].sort((a, b) => new Date(a.date) - new Date(b.date))
+    // Use delivery rows only — journals would double count
+    const allRows = [...deliveryRows].sort((a, b) => new Date(a.date) - new Date(b.date))
 
     // Calculate running balance
     let runningBalance = 0
