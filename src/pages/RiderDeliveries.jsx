@@ -350,7 +350,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       const currentOtherBrands = Number(selectedOrder.customers?.other_brand_bottles_held || 0)
       const newBottlesWithCustomer = Math.max(0, currentBottles + qty19l - bottlesReturned)
       const newOtherBrandsHeld = Math.max(0, currentOtherBrands - otherBrands)
-      console.log('Bottle update — customer:' + selectedOrder.customer_id + ' current:' + currentBottles + ' delivered:' + qty19l + ' returned:' + bottlesReturned + ' new:' + newBottlesWithCustomer)
+
       const { error: bottleErr } = await supabase.from('customers')
         .update({
           our_bottles_placed: newBottlesWithCustomer,
@@ -358,7 +358,7 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
         })
         .eq('id', selectedOrder.customer_id)
         .eq('tenant_id', tenantId)
-      console.log('Bottle update result — error:' + (bottleErr ? bottleErr.message : 'none'))
+
 
       try {
         const { postDeliveryJournal } = AccountingEngine
