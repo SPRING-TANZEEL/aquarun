@@ -346,18 +346,19 @@ export default function RiderDeliveries({ rider, tenantId, isOnline, dbReady, sa
       // Balance calculated dynamically from customer_balances view — no manual update needed
 
       // ✅ Update our_bottles_placed
-      // + qty delivered - bottles returned by customer
       const currentBottles = Number(selectedOrder.customers?.our_bottles_placed || 0)
       const currentOtherBrands = Number(selectedOrder.customers?.other_brand_bottles_held || 0)
       const newBottlesWithCustomer = Math.max(0, currentBottles + qty19l - bottlesReturned)
       const newOtherBrandsHeld = Math.max(0, currentOtherBrands - otherBrands)
-      await supabase.from('customers')
+      console.log('Bottle update — customer:' + selectedOrder.customer_id + ' current:' + currentBottles + ' delivered:' + qty19l + ' returned:' + bottlesReturned + ' new:' + newBottlesWithCustomer)
+      const { error: bottleErr } = await supabase.from('customers')
         .update({
           our_bottles_placed: newBottlesWithCustomer,
           other_brand_bottles_held: newOtherBrandsHeld,
         })
         .eq('id', selectedOrder.customer_id)
         .eq('tenant_id', tenantId)
+      console.log('Bottle update result — error:' + (bottleErr ? bottleErr.message : 'none'))
 
       try {
         const { postDeliveryJournal } = AccountingEngine
