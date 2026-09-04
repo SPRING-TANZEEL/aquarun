@@ -116,6 +116,9 @@ export default function Signup({ onSuccess }) {
       const authUserId = authData.user?.id
       if (!authUserId) { setError('Signup failed. Please try again.'); setLoading(false); return }
 
+      // Sign out immediately to prevent auto-login before email confirmation
+      await supabase.auth.signOut()
+
       // 2 — Generate unique tenant code
       let tenantCode = generateTenantCode(form.businessName)
       const { data: existing } = await supabase.from('tenants').select('id').eq('tenant_code', tenantCode)
