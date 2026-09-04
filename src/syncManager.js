@@ -33,7 +33,11 @@ export async function downloadRiderData(rider) {
       .eq('status', 'assigned')
       .lte('delivery_date', today)
 
-    if (orders) await saveOrdersOffline(orders)
+    // Clear existing orders cache before saving fresh data
+    if (orders) {
+      await clearOrdersOffline()
+      await saveOrdersOffline(orders)
+    }
 
     const { data: customers } = await supabase
       .from('customer_balances')
