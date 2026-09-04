@@ -428,16 +428,6 @@ export default function App() {
     return <ConfirmEmail />
   }
 
-  // Handle email confirmation
-  if (window.location.pathname === '/confirm-email') {
-    return <ConfirmEmail />
-  }
-
-  // Handle signup page
-  if (window.location.pathname === '/signup') {
-    return <Signup onSuccess={() => window.location.href = '/'} />
-  }
-
   // Show landing page if not logged in and no session being checked
   if (!checkingSession && !userRole && showLanding) {
     return <Landing onLogin={() => {
