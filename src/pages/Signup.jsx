@@ -130,7 +130,7 @@ export default function Signup({ onSuccess }) {
         mobile: form.mobile.trim() || null,
         city: form.city.trim() || null,
         plan: 'free',
-        status: 'active',
+        subscription_status: 'active',
         is_active: true,
         auth_user_id: authUserId,
         has_tracking_feature: false,
