@@ -11,6 +11,7 @@ import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
 import ResetPassword from './pages/ResetPassword'
 import Signup from './pages/Signup'
+import ConfirmEmail from './pages/ConfirmEmail'
 import aquarunLogo from './assets/aquarun-logo.png'
 import Landing from './pages/Landing'
 
@@ -420,6 +421,16 @@ export default function App() {
   // Handle signup page
   if (window.location.pathname === '/signup') {
     return <Signup />
+  }
+
+  // Handle email confirmation
+  if (window.location.pathname === '/confirm-email') {
+    return <ConfirmEmail />
+  }
+
+  // Handle email confirmation
+  if (window.location.pathname === '/confirm-email') {
+    return <ConfirmEmail />
   }
 
   // Handle signup page
