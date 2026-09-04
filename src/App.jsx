@@ -423,17 +423,17 @@ export default function App() {
     return <Signup />
   }
 
-  // Handle email confirmation
-  if (window.location.pathname === '/confirm-email') {
-    return <ConfirmEmail />
-  }
-
   // Show landing page if not logged in and no session being checked
   if (!checkingSession && !userRole && showLanding) {
     return <Landing onLogin={() => {
       sessionStorage.setItem('aquarun_show_login', 'true')
       setShowLanding(false)
     }} />
+  }
+
+  // Handle email confirmation — must be before session check
+  if (window.location.pathname === '/confirm-email') {
+    return <ConfirmEmail />
   }
 
   if (checkingSession) {
