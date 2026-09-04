@@ -240,7 +240,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
       .map(p => `${p.name} × ${orderForm.quantities[p.id]}`).join(', ')
 
     const productItems = products
-      .filter(p => !p.bottle_type && (orderForm.quantities[p.id] || 0) > 0)
+      .filter(p => (orderForm.quantities[p.id] || 0) > 0)
       .map(p => ({ product_id: p.id, qty: orderForm.quantities[p.id], name: p.name, price: p.sale_price || 0 }))
 
     const { error } = await supabase.from('orders').insert([{
@@ -252,7 +252,7 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
       source: 'portal',
       product_items: productItems.length > 0 ? productItems : null,
     }])
-    
+
     if (error) { alert('Error: ' + error.message); setPlacingOrder(false); return }
     setOrderSuccess(true)
     const q = {}; products.forEach(p => { q[p.id] = 0 })
