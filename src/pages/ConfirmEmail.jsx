@@ -4,11 +4,20 @@ import { supabase } from '../supabase'
 export default function ConfirmEmail() {
   useEffect(() => {
     async function activate() {
-      // Wait for Supabase to process the token from URL hash
-      await new Promise(resolve => setTimeout(resolve, 2000))
+      // Let Supabase process the hash token from URL
+      const hashParams = new URLSearchParams(window.location.hash.slice(1))
+      const accessToken = hashParams.get('access_token')
+      const refreshToken = hashParams.get('refresh_token')
       
-      const { data: { session } } = await supabase.auth.getSession()
-      console.log('ConfirmEmail session:', session?.user?.id, session?.user?.email)
+      let session = null
+      if (accessToken) {
+        const { data } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken })
+        session = data.session
+      } else {
+        const { data } = await supabase.auth.getSession()
+        session = data.session
+      }
+        console.log('activateTenant result:', data)
       
       if (session?.user) {
         const res = await fetch('/api/super-admin-actions', {
@@ -20,7 +29,7 @@ export default function ConfirmEmail() {
         console.log('activateTenant result:', data)
         window.location.href = '/'
       } else {
-        console.log('No session — retrying...')
+
         // Listen for auth state change
         supabase.auth.onAuthStateChange(async (event, session) => {
           if (event === 'SIGNED_IN' && session?.user) {
