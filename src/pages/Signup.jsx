@@ -81,6 +81,7 @@ export default function Signup({ onSuccess }) {
 
     if (!form.businessName.trim()) return setError('Please enter your business name')
     if (!form.email.trim()) return setError('Please enter your email')
+    if (!form.mobile.trim()) return setError('Please enter your mobile number')
     if (form.password.length < 8) return setError('Password must be at least 8 characters')
     if (form.password !== form.confirmPassword) return setError('Passwords do not match')
 
@@ -193,7 +194,7 @@ export default function Signup({ onSuccess }) {
         </div>
 
         <h1 style={{ fontSize: 22, color: '#1a1a2e', marginBottom: 6 }}>Create Your Account</h1>
-        <p style={{ color: '#888', fontSize: 13, marginBottom: 24 }}>Start your 14-day free trial. No credit card required.</p>
+        <p style={{ color: '#888', fontSize: 13, marginBottom: 24 }}>No credit card required.</p>
 
         {error && (
           <div style={{ background: '#ffebee', border: '1px solid #ffcdd2', borderRadius: 8, padding: '10px 14px', marginBottom: 16 }}>
@@ -225,9 +226,9 @@ export default function Signup({ onSuccess }) {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mobile (optional)</label>
-              <input style={inp} placeholder="+92 300 1234567" value={form.mobile} onChange={f('mobile')} />
-            </div>
+              <label style={{ fontSize: 12, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mobile *</label>
+              <input style={inp} placeholder="+92 300 1234567" value={form.mobile} onChange={f('mobile')} required />
+            </div>  
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>City (optional)</label>
               <input style={inp} placeholder="Lahore" value={form.city} onChange={f('city')} />
