@@ -1,12 +1,25 @@
 ﻿{
-  "name": "AquaRun",
+  "name": "AquaRun - Water Delivery Management",
   "short_name": "AquaRun",
-  "description": "Water Delivery Management System",
+  "description": "Complete water delivery management system for Pakistani water businesses. Manage riders, customers, deliveries, payments and accounts in one place.",
+  "id": "pk.aquarun.app",
   "start_url": "/",
+  "scope": "/",
+  "lang": "en",
   "display": "standalone",
   "background_color": "#0f4c81",
   "theme_color": "#0f4c81",
   "orientation": "portrait",
+  "categories": ["business", "utilities"],
+  "screenshots": [
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "AquaRun Dashboard"
+    }
+  ],
   "icons": [
     {
       "src": "/android-chrome-192x192.png",
