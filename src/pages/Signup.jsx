@@ -168,21 +168,20 @@ export default function Signup({ onSuccess }) {
     return (
       <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg,#0a3d6b,#0d2d52)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
         <div style={{ background: 'white', borderRadius: 16, padding: 40, maxWidth: 480, width: '100%', textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>📧</div>
-          <h2 style={{ color: '#0f4c81', marginBottom: 12, fontSize: 22 }}>Check Your Email!</h2>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
+          <h2 style={{ color: '#0f4c81', marginBottom: 12, fontSize: 22 }}>Account Created!</h2>
           <p style={{ color: '#555', marginBottom: 24, lineHeight: 1.6 }}>
-            We sent a verification link to <strong>{form.email}</strong>.<br/>
-            Click the link in the email to activate your account.
+            Welcome to AquaRun! Your account is ready.<br/>
+            Login with your email and password to get started.
           </p>
           <div style={{ background: '#e8f5e9', borderRadius: 10, padding: 16, marginBottom: 24 }}>
-            <p style={{ color: '#1b5e20', fontWeight: 700, margin: '0 0 6px' }}>✅ Account Created!</p>
-            <p style={{ color: '#2e7d32', fontSize: 13, margin: 0 }}>After verifying your email, login at <strong>aquarun.pk</strong> with your email and password.</p>
+            <p style={{ color: '#1b5e20', fontWeight: 700, margin: '0 0 6px' }}>✅ Free Plan Activated</p>
+            <p style={{ color: '#2e7d32', fontSize: 13, margin: 0 }}>You can add up to <strong>20 customers</strong> for free. Upgrade anytime to add more.</p>
           </div>
           <button onClick={() => window.location.href = '/'} style={{ width: '100%', padding: 13, background: '#0f4c81', color: 'white', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-            Go to Login →
+            Login Now →
           </button>
-          <p style={{ marginTop: 16, fontSize: 12, color: '#888' }}>Didn't receive the email? Check your spam folder or <a href="/signup" style={{ color: '#0f4c81' }}>try again</a></p>
-          <p style={{ marginTop: 8, fontSize: 12, color: '#e65100' }}>⚠️ Open the confirmation link in your <strong>browser (Chrome/Safari)</strong>, not in the app.</p>
+          
         </div>
       </div>
     )
