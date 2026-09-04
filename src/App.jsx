@@ -147,7 +147,7 @@ export default function App() {
       if (role === 'admin' && tenantId) {
         // Check Supabase Auth session first
         const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
+        if (session && session.user.email_confirmed_at) {
           const { data: tenant } = await supabase.from('tenants').select('*').eq('auth_user_id', session.user.id).single()
           if (tenant && tenant.is_active) {
             const subCheck = checkSubscription(tenant)
