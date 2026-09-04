@@ -142,12 +142,15 @@ export default function Signup({ onSuccess }) {
           }
         })
       })
+
       const setupData = await setupRes.json()
       if (!setupRes.ok) {
         setError('Error creating account: ' + (setupData.error || 'Unknown error'))
         setLoading(false)
         return
       }
+
+      setStep(2)
     } catch (err) {
       setError('Unexpected error: ' + err.message)
     }
