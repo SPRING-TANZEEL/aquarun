@@ -239,14 +239,20 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
       .filter(p => !p.bottle_type && (orderForm.quantities[p.id] || 0) > 0)
       .map(p => `${p.name} × ${orderForm.quantities[p.id]}`).join(', ')
 
+    const productItems = products
+      .filter(p => !p.bottle_type && (orderForm.quantities[p.id] || 0) > 0)
+      .map(p => ({ product_id: p.id, qty: orderForm.quantities[p.id], name: p.name, price: p.sale_price || 0 }))
+
     const { error } = await supabase.from('orders').insert([{
       tenant_id: tenantId, customer_id: customer.id,
       qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
       notes: [orderForm.notes, customItems].filter(Boolean).join(' | '),
       delivery_date: orderForm.delivery_date,
       status: 'pending',
-      source: 'portal'
+      source: 'portal',
+      product_items: productItems.length > 0 ? productItems : null,
     }])
+    
     if (error) { alert('Error: ' + error.message); setPlacingOrder(false); return }
     setOrderSuccess(true)
     const q = {}; products.forEach(p => { q[p.id] = 0 })
