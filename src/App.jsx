@@ -10,6 +10,7 @@ import RiderDashboard from './pages/RiderDashboard'
 import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
 import ResetPassword from './pages/ResetPassword'
+import Signup from './pages/Signup'
 import aquarunLogo from './assets/aquarun-logo.png'
 import Landing from './pages/Landing'
 
@@ -402,6 +403,16 @@ export default function App() {
   // Handle password reset page
   if (window.location.pathname === '/reset-password') {
     return <ResetPassword />
+  }
+
+  // Handle signup page
+  if (window.location.pathname === '/signup') {
+    return <Signup />
+  }
+
+  // Handle signup page
+  if (window.location.pathname === '/signup') {
+    return <Signup onSuccess={() => window.location.href = '/'} />
   }
 
   // Show landing page if not logged in and no session being checked
