@@ -121,48 +121,25 @@ export default function Signup({ onSuccess }) {
       const { data: existing } = await supabase.from('tenants').select('id').eq('tenant_code', tenantCode)
       if (existing?.length > 0) tenantCode = tenantCode.slice(0, 3) + Math.floor(100 + Math.random() * 900)
 
-      // 3 — Create tenant record
-
-      const { data: tenant, error: tenantError } = await supabase.from('tenants').insert([{
-        tenant_code: tenantCode,
-        business_name: form.businessName.trim(),
-        email: form.email.trim().toLowerCase(),
-        mobile: form.mobile.trim() || null,
-        city: form.city.trim() || null,
-        plan: 'free',
-        subscription_status: 'active',
-        is_active: true,
-        auth_user_id: authUserId,
-        has_tracking_feature: false,
-        has_map_feature: false,
-        has_premium_reports: false,
-      }]).select().single()
-
-      if (tenantError) { setError('Error creating account: ' + tenantError.message); setLoading(false); return }
-
-      const tenantId = tenant.id
-
-      // 4 — Seed COA
-      const coaRows = DEFAULT_COA.map(a => ({ ...a, tenant_id: tenantId, is_active: true }))
-      await supabase.from('chart_of_accounts').insert(coaRows)
-
-      // 5 — Seed default products
-      const products = [
-        { tenant_id: tenantId, name: '19 Litre Water Bottle (Tracking Only)', product_type: 'trading', bottle_type: '19l', unit: 'piece', current_stock: 0, average_cost: 900, sale_price: 0, is_active: true, is_saleable: false, income_account_code: '4001', income_account_name: 'Water Sales - 19L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tenantId, name: 'Table Top Dispenser', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tenantId, name: 'Bottle Tap', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tenantId, name: 'Bottle Stand', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tenantId, name: 'Half Litre PET (Pure)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tenantId, name: '1.5 Litre PET (Pure)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-      ]
-      await supabase.from('products').insert(products)
-
-      // 6 — Seed COA, products, BOM via existing SuperAdmin API
-      await fetch('/api/super-admin-actions', {
+      // 3 — Create tenant + seed all data via API (server-side)
+      const setupRes = await fetch('/api/super-admin-actions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'seedTenant', tenantId, businessName: form.businessName.trim() })
+        body: JSON.stringify({
+          action: 'createTenantFromSignup',
+          tenantCode,
+          businessName: form.businessName.trim(),
+          email: form.email.trim().toLowerCase(),
+          mobile: form.mobile.trim() || null,
+          authUserId,
+        })
       })
+      const setupData = await setupRes.json()
+      if (!setupRes.ok || !setupData.tenantId) {
+        setError('Error creating account: ' + (setupData.error || 'Unknown error'))
+        setLoading(false)
+        return
+      }
     } catch (err) {
       setError('Unexpected error: ' + err.message)
     }
