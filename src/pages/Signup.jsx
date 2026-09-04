@@ -182,6 +182,7 @@ export default function Signup({ onSuccess }) {
             Go to Login →
           </button>
           <p style={{ marginTop: 16, fontSize: 12, color: '#888' }}>Didn't receive the email? Check your spam folder or <a href="/signup" style={{ color: '#0f4c81' }}>try again</a></p>
+          <p style={{ marginTop: 8, fontSize: 12, color: '#e65100' }}>⚠️ Open the confirmation link in your <strong>browser (Chrome/Safari)</strong>, not in the app.</p>
         </div>
       </div>
     )
