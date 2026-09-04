@@ -157,14 +157,12 @@ export default function Signup({ onSuccess }) {
       ]
       await supabase.from('products').insert(products)
 
-      // 6 — Seed default business settings
-      await supabase.from('business_settings').insert([
-        { tenant_id: tenantId, setting_key: 'bottle_replacement_cost', setting_value: '900' },
-        { tenant_id: tenantId, setting_key: 'sales_tax_rate', setting_value: '16' },
-      ])
-
-      setSuccess(true)
-      setStep(2)
+      // 6 — Seed COA, products, BOM via existing SuperAdmin API
+      await fetch('/api/super-admin-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'seedTenant', tenantId, businessName: form.businessName.trim() })
+      })
     } catch (err) {
       setError('Unexpected error: ' + err.message)
     }

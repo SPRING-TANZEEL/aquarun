@@ -132,6 +132,148 @@ export default async function handler(req, res) {
       return res.json({ ok: true, auth_user_id: authUser.user.id })
     }
 
+    // ── SEED TENANT (called from self-signup) ────────────────────────
+    if (action === 'seedTenant') {
+      const { tenantId, businessName } = req.body
+      if (!tenantId) return res.status(400).json({ error: 'tenantId required' })
+      const tid = tenantId
+
+      // Seed COA
+      const accounts = [
+        { tenant_id: tid, account_code: '1001', account_name: 'Cash in Hand', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1002', account_name: 'JazzCash Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1003', account_name: 'Bank Account', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1004', account_name: 'EasyPaisa Account', account_type: 'asset', account_subtype: 'cash', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1100', account_name: 'Accounts Receivable', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1101', account_name: 'Receivable from Riders', account_type: 'asset', account_subtype: 'receivable', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1102', account_name: 'JazzCash Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1103', account_name: 'EasyPaisa Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1104', account_name: 'Salary Advances to Riders', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1105', account_name: 'Bank Transfer Clearing - Pending', account_type: 'asset', account_subtype: 'clearing', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1106', account_name: 'Bottles with Customers', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1200', account_name: 'Inventory - Raw Materials', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1201', account_name: 'Inventory - Finished Goods', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1202', account_name: 'Inventory - Trading Items', account_type: 'asset', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1300', account_name: 'Prepaid Expenses', account_type: 'asset', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1500', account_name: 'Vehicle - Delivery', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1501', account_name: 'Machinery & Equipment', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '1502', account_name: 'Accumulated Depreciation', account_type: 'asset', account_subtype: 'fixed', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '2001', account_name: 'Accounts Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '2100', account_name: 'Salary Payable', account_type: 'liability', account_subtype: 'current', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '2200', account_name: 'Advance from Customers', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '2300', account_name: 'Tax Payable', account_type: 'liability', account_subtype: 'current', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '3001', account_name: 'Owner Capital', account_type: 'equity', account_subtype: 'capital', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '3002', account_name: 'Owner Drawings', account_type: 'equity', account_subtype: 'drawings', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '3003', account_name: 'Retained Earnings', account_type: 'equity', account_subtype: 'capital', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '4001', account_name: 'Water Sales - 19L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '4002', account_name: 'Water Sales - Half Litre', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '4003', account_name: 'Water Sales - 1.5L', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '4004', account_name: 'Other Sales', account_type: 'revenue', account_subtype: 'sales', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '4100', account_name: 'Delivery Charges', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '4200', account_name: 'Other Income', account_type: 'revenue', account_subtype: 'other', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '5001', account_name: 'Raw Material Cost', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '5002', account_name: 'Production Overhead', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '5003', account_name: 'Cost of Goods Sold', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '5004', account_name: 'Raw Material Consumed', account_type: 'expense', account_subtype: 'cogs', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6001', account_name: 'Rider Salaries', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6002', account_name: 'Salary Advances', account_type: 'expense', account_subtype: 'salary', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6003', account_name: 'Rider Field Expenses', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6004', account_name: 'Rent', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6005', account_name: 'Electricity', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6006', account_name: 'Fuel - Office', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6007', account_name: 'Maintenance', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6008', account_name: 'Supplies', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6009', account_name: 'Other Expenses', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6010', account_name: 'Water Testing Fees', account_type: 'expense', account_subtype: 'admin', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6011', account_name: 'Vehicle Running Cost', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6012', account_name: 'Depreciation', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6013', account_name: 'Telephone & Internet', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6014', account_name: 'Bank Charges', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6015', account_name: 'Printing & Stationery', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6016', account_name: 'Advertising & Marketing', account_type: 'expense', account_subtype: 'admin', is_system: false, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6017', account_name: 'Rider Fuel & Vehicle', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6018', account_name: 'Rider Refreshments', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+        { tenant_id: tid, account_code: '6019', account_name: 'Rider Repairs', account_type: 'expense', account_subtype: 'field', is_system: true, is_active: true, opening_balance: 0 },
+      ]
+      await supabaseAdmin.from('chart_of_accounts').insert(accounts)
+
+      // Seed products
+      const products = [
+        { tenant_id: tid, name: '19 Litre Water Bottle (Tracking Only)', product_type: 'trading', bottle_type: '19l', unit: 'piece', current_stock: 0, average_cost: 900, sale_price: 0, is_active: true, is_saleable: false, income_account_code: '4001', income_account_name: 'Water Sales - 19L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Table Top Dispenser', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Bottle Tap', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Bottle Stand', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'T-Pump', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Grip Handle', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: '19 Liter Empty Bottle', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Half Litre PET (Pure)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: '1.5 Litre PET (Pure)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Half Litre PET (Mix)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: '1.5 Litre PET (Mix)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+        { tenant_id: tid, name: 'Bottle Cap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: '1.5 Litre Bottle Label', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: '1.5 Litre Empty Bottle (Pure)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: '1.5 Litre Empty Bottle (Mix)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: '1.5 Litre Paper Wrap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: 'Half Litre Bottle Label', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: 'Half Litre Empty Bottle (Pure)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: 'Half Litre Empty Bottle (Mix)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        { tenant_id: tid, name: 'Half Litre Paper Wrap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+      ]
+      const { data: insertedProducts } = await supabaseAdmin.from('products').insert(products).select()
+
+      // Seed BOM
+      if (insertedProducts && insertedProducts.length > 0) {
+        const findProduct = (name) => insertedProducts.find(p => p.name === name)
+        const halfPure = findProduct('Half Litre PET (Pure)'), halfMix = findProduct('Half Litre PET (Mix)')
+        const l15Pure = findProduct('1.5 Litre PET (Pure)'), l15Mix = findProduct('1.5 Litre PET (Mix)')
+        const cap = findProduct('Bottle Cap'), halfLabelP = findProduct('Half Litre Bottle Label')
+        const halfEmptyP = findProduct('Half Litre Empty Bottle (Pure)'), halfEmptyM = findProduct('Half Litre Empty Bottle (Mix)')
+        const halfWrap = findProduct('Half Litre Paper Wrap'), l15LabelP = findProduct('1.5 Litre Bottle Label')
+        const l15EmptyP = findProduct('1.5 Litre Empty Bottle (Pure)'), l15EmptyM = findProduct('1.5 Litre Empty Bottle (Mix)')
+        const l15Wrap = findProduct('1.5 Litre Paper Wrap')
+        const boms = []
+        if (halfPure && halfEmptyP && cap && halfLabelP && halfWrap) boms.push(
+          { tenant_id: tid, product_id: halfPure.id, raw_material_id: halfEmptyP.id, quantity: 12, unit: 'piece' },
+          { tenant_id: tid, product_id: halfPure.id, raw_material_id: cap.id, quantity: 12, unit: 'piece' },
+          { tenant_id: tid, product_id: halfPure.id, raw_material_id: halfLabelP.id, quantity: 12, unit: 'piece' },
+          { tenant_id: tid, product_id: halfPure.id, raw_material_id: halfWrap.id, quantity: 1, unit: 'piece' },
+        )
+        if (halfMix && halfEmptyM && cap && halfLabelP && halfWrap) boms.push(
+          { tenant_id: tid, product_id: halfMix.id, raw_material_id: halfEmptyM.id, quantity: 12, unit: 'piece' },
+          { tenant_id: tid, product_id: halfMix.id, raw_material_id: cap.id, quantity: 12, unit: 'piece' },
+          { tenant_id: tid, product_id: halfMix.id, raw_material_id: halfLabelP.id, quantity: 12, unit: 'piece' },
+          { tenant_id: tid, product_id: halfMix.id, raw_material_id: halfWrap.id, quantity: 1, unit: 'piece' },
+        )
+        if (l15Pure && l15EmptyP && cap && l15LabelP && l15Wrap) boms.push(
+          { tenant_id: tid, product_id: l15Pure.id, raw_material_id: l15EmptyP.id, quantity: 6, unit: 'piece' },
+          { tenant_id: tid, product_id: l15Pure.id, raw_material_id: cap.id, quantity: 6, unit: 'piece' },
+          { tenant_id: tid, product_id: l15Pure.id, raw_material_id: l15LabelP.id, quantity: 6, unit: 'piece' },
+          { tenant_id: tid, product_id: l15Pure.id, raw_material_id: l15Wrap.id, quantity: 1, unit: 'piece' },
+        )
+        if (l15Mix && l15EmptyM && cap && l15LabelP && l15Wrap) boms.push(
+          { tenant_id: tid, product_id: l15Mix.id, raw_material_id: l15EmptyM.id, quantity: 6, unit: 'piece' },
+          { tenant_id: tid, product_id: l15Mix.id, raw_material_id: cap.id, quantity: 6, unit: 'piece' },
+          { tenant_id: tid, product_id: l15Mix.id, raw_material_id: l15LabelP.id, quantity: 6, unit: 'piece' },
+          { tenant_id: tid, product_id: l15Mix.id, raw_material_id: l15Wrap.id, quantity: 1, unit: 'piece' },
+        )
+        if (boms.length > 0) await supabaseAdmin.from('bill_of_materials').insert(boms)
+      }
+
+      // Seed business settings
+      await supabaseAdmin.from('business_settings').insert([
+        { tenant_id: tid, setting_key: 'business_name', setting_value: businessName || '' },
+        { tenant_id: tid, setting_key: 'setup_completed', setting_value: 'false' },
+        { tenant_id: tid, setting_key: 'opening_cash_balance', setting_value: '0' },
+        { tenant_id: tid, setting_key: 'opening_jazzcash_balance', setting_value: '0' },
+        { tenant_id: tid, setting_key: 'opening_bank_balance', setting_value: '0' },
+        { tenant_id: tid, setting_key: 'sales_tax_rate', setting_value: '16' },
+        { tenant_id: tid, setting_key: 'jazzcash_opening_balance', setting_value: '0' },
+      ])
+
+      return res.json({ ok: true })
+    }
+
     // ── CREATE TENANT ────────────────────────────────────────────────
     if (action === 'createTenant') {
       const { tenantData } = req.body
@@ -223,35 +365,35 @@ export default async function handler(req, res) {
         } catch (err) { console.error('Auth creation error:', err.message) }
       }
 
-      // Seed default products
-      const products = [
-        // Tracking product (not saleable)
-        { tenant_id: tid, name: '19 Litre Water Bottle (Tracking Only)', product_type: 'trading', bottle_type: '19l', unit: 'piece', current_stock: 0, average_cost: 900, sale_price: 0, is_active: true, is_saleable: false, income_account_code: '4001', income_account_name: 'Water Sales - 19L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        // Trading products (accessories)
-        { tenant_id: tid, name: 'Table Top Dispenser', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: 'Bottle Tap', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: 'Bottle Stand', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: 'T-Pump', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: 'Grip Handle', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: '19 Liter Empty Bottle', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        // Finished Goods
-        { tenant_id: tid, name: 'Half Litre PET (Pure)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: '1.5 Litre PET (Pure)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: 'Half Litre PET (Mix)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        { tenant_id: tid, name: '1.5 Litre PET (Mix)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
-        // Raw Materials (no income/COGS accounts needed)
-        { tenant_id: tid, name: 'Bottle Cap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: '1.5 Litre Bottle Label', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: '1.5 Litre Empty Bottle (Pure)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: '1.5 Litre Empty Bottle (Mix)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: '1.5 Litre Paper Wrap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: 'Half Litre Bottle Label', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: 'Half Litre Empty Bottle (Pure)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: 'Half Litre Empty Bottle (Mix)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-        { tenant_id: tid, name: 'Half Litre Paper Wrap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
-      ]
-      const { data: insertedProducts, error: productsError } = await supabaseAdmin.from('products').insert(products).select()
-      if (productsError) console.error('Products seed error:', productsError.message)
+        // Seed default products
+        const products = [
+          // Tracking product (not saleable)
+          { tenant_id: tid, name: '19 Litre Water Bottle (Tracking Only)', product_type: 'trading', bottle_type: '19l', unit: 'piece', current_stock: 0, average_cost: 900, sale_price: 0, is_active: true, is_saleable: false, income_account_code: '4001', income_account_name: 'Water Sales - 19L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          // Trading products (accessories)
+          { tenant_id: tid, name: 'Table Top Dispenser', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: 'Bottle Tap', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: 'Bottle Stand', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: 'T-Pump', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: 'Grip Handle', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: '19 Liter Empty Bottle', product_type: 'trading', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4004', income_account_name: 'Other Sales', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          // Finished Goods
+          { tenant_id: tid, name: 'Half Litre PET (Pure)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: '1.5 Litre PET (Pure)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: 'Half Litre PET (Mix)', product_type: 'finished_good', bottle_type: 'half_litre', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4002', income_account_name: 'Water Sales - Half Litre', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          { tenant_id: tid, name: '1.5 Litre PET (Mix)', product_type: 'finished_good', bottle_type: '1_5l', unit: 'pet', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: true, income_account_code: '4003', income_account_name: 'Water Sales - 1.5L', cogs_account_code: '5003', cogs_account_name: 'Cost of Goods Sold' },
+          // Raw Materials (no income/COGS accounts needed)
+          { tenant_id: tid, name: 'Bottle Cap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: '1.5 Litre Bottle Label', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: '1.5 Litre Empty Bottle (Pure)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: '1.5 Litre Empty Bottle (Mix)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: '1.5 Litre Paper Wrap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: 'Half Litre Bottle Label', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: 'Half Litre Empty Bottle (Pure)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: 'Half Litre Empty Bottle (Mix)', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+          { tenant_id: tid, name: 'Half Litre Paper Wrap', product_type: 'raw_material', unit: 'piece', current_stock: 0, average_cost: 0, sale_price: 0, is_active: true, is_saleable: false },
+        ]
+        const { data: insertedProducts, error: productsError } = await supabaseAdmin.from('products').insert(products).select()
+        if (productsError) console.error('Products seed error:', productsError.message)
 
       // Seed Bill of Materials
       if (insertedProducts && insertedProducts.length > 0) {
