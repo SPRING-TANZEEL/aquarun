@@ -306,7 +306,19 @@ export default function App() {
         })
 
         if (authError) {
-          setError('❌ Invalid email or password')
+          if (authError.message?.includes('Email not confirmed')) {
+            setError('❌ Please confirm your email first. Check your inbox for the verification link.')
+          } else {
+            setError('❌ Invalid email or password')
+          }
+          setLoading(false)
+          return
+        }
+
+        // Check email confirmation
+        if (!authData.user.email_confirmed_at) {
+          setError('❌ Please confirm your email first. Check your inbox for the verification link.')
+          await supabase.auth.signOut()
           setLoading(false)
           return
         }
