@@ -245,8 +245,8 @@ export default function CustomerDashboard({ customer: initialCustomer, onLogout 
 
     const { error } = await supabase.from('orders').insert([{
       tenant_id: tenantId, customer_id: customer.id,
-      qty_19l: qty19l, qty_half_litre: qtyHalf, qty_1_5l: qty15l,
-      notes: [orderForm.notes, customItems].filter(Boolean).join(' | '),
+      qty_19l: qty19l, qty_half_litre: 0, qty_1_5l: 0,
+      notes: orderForm.notes || '',
       delivery_date: orderForm.delivery_date,
       status: 'pending',
       source: 'portal',
