@@ -108,8 +108,6 @@ export default function Signup({ onSuccess }) {
       if (existing?.length > 0) tenantCode = tenantCode.slice(0, 3) + Math.floor(100 + Math.random() * 900)
 
       // 3 — Create tenant record
-      const trialEnd = new Date()
-      trialEnd.setDate(trialEnd.getDate() + 14)
 
       const { data: tenant, error: tenantError } = await supabase.from('tenants').insert([{
         tenant_code: tenantCode,
@@ -118,8 +116,7 @@ export default function Signup({ onSuccess }) {
         mobile: form.mobile.trim() || null,
         city: form.city.trim() || null,
         plan: 'free',
-        status: 'trial',
-        trial_end_date: trialEnd.toISOString().split('T')[0],
+        status: 'active',
         is_active: true,
         auth_user_id: authUserId,
         has_tracking_feature: false,
@@ -237,8 +234,8 @@ export default function Signup({ onSuccess }) {
             </div>
           </div>
 
-          <div style={{ background: '#e8f5e9', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
-            <p style={{ fontSize: 12, color: '#1b5e20', margin: 0 }}>✅ <strong>14 days free trial</strong> · Up to 20 customers free forever · No credit card needed</p>
+        <div style={{ background: '#e8f5e9', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
+            <p style={{ fontSize: 12, color: '#1b5e20', margin: 0 }}>✅ <strong>Free forever</strong> for up to 20 customers · No credit card needed</p>
           </div>
 
           <button type="submit" disabled={loading} style={{ width: '100%', padding: 14, background: loading ? '#ccc' : '#0f4c81', color: 'white', border: 'none', borderRadius: 8, fontSize: 15, fontWeight: 700, cursor: loading ? 'not-allowed' : 'pointer' }}>
