@@ -557,9 +557,9 @@ export default function Orders({ tenantId, hasMapFeature = false }) {
     setLoading(false)
   }
 
-  async function fetchRiders() {
+async function fetchRiders() {
     const { data } = await supabase.from('riders')
-      .select('*').eq('tenant_id', tenantId).eq('is_active', true)
+      .select('*').eq('tenant_id', tenantId).eq('is_active', true).eq('staff_type', 'rider')
     setRiders(data || [])
   }
 
