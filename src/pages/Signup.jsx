@@ -106,7 +106,7 @@ export default function Signup({ onSuccess }) {
         email: form.email.trim().toLowerCase(),
         password: form.password,
         options: {
-          emailRedirectTo: 'https://aquarun.pk/confirm-email',
+          emailRedirectTo: 'https://aquarun.pk/',
           data: { business_name: form.businessName.trim() }
         }
       })
@@ -134,7 +134,7 @@ export default function Signup({ onSuccess }) {
             mobile: form.mobile.trim() || null,
             plan: 'free',
             subscription_status: 'active',
-            is_active: false,
+            is_active: true,
             auth_user_id: authUserId,
             has_tracking_feature: false,
             has_map_feature: false,

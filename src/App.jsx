@@ -11,7 +11,10 @@ import CustomerDashboard from './pages/CustomerDashboard'
 import SuperAdminDashboard from './pages/SuperAdminDashboard'
 import ResetPassword from './pages/ResetPassword'
 import Signup from './pages/Signup'
-import ConfirmEmail from './pages/ConfirmEmail'
+  // Handle email confirmation
+  if (window.location.pathname === '/confirm-email') {
+    return <ConfirmEmail />
+  }
 import aquarunLogo from './assets/aquarun-logo.png'
 import Landing from './pages/Landing'
 
@@ -148,7 +151,7 @@ export default function App() {
       if (role === 'admin' && tenantId) {
         // Check Supabase Auth session first
         const { data: { session } } = await supabase.auth.getSession()
-        if (session && session.user.email_confirmed_at) {
+        if (session) {
           const { data: tenant } = await supabase.from('tenants').select('*').eq('auth_user_id', session.user.id).single()
           if (tenant && tenant.is_active) {
             const subCheck = checkSubscription(tenant)
@@ -316,13 +319,7 @@ export default function App() {
           return
         }
 
-        // Check email confirmation
-        if (!authData.user.email_confirmed_at) {
-          setError('❌ Please confirm your email first. Check your inbox for the verification link.')
-          await supabase.auth.signOut()
-          setLoading(false)
-          return
-        }
+
 
         const { data: tenant, error: tenantError } = await supabase
           .from('tenants')
