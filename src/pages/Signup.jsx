@@ -75,6 +75,19 @@ export default function Signup({ onSuccess }) {
 
   function f(k) { return e => setForm(p => ({ ...p, [k]: e.target.value })) }
 
+  function formatMobile(e) {
+    let val = e.target.value.replace(/[^\d+]/g, '')
+    if (val.startsWith('0') && val.length > 1) val = '+92' + val.slice(1)
+    else if (val.startsWith('3') && !val.startsWith('+')) val = '+92' + val
+    if (val.startsWith('+92') && val.length > 3) {
+      const num = val.slice(3)
+      if (num.length <= 3) val = '+92 ' + num
+      else if (num.length <= 7) val = '+92 ' + num.slice(0, 3) + ' ' + num.slice(3)
+      else val = '+92 ' + num.slice(0, 3) + ' ' + num.slice(3, 7) + ' ' + num.slice(7, 11) 
+    }
+    setForm(p => ({ ...p, mobile: val }))
+  }
+
   async function handleSignup(e) {
     e.preventDefault()
     setError('')
@@ -227,7 +240,7 @@ export default function Signup({ onSuccess }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>Mobile *</label>
-              <input style={inp} placeholder="+92 300 1234567" value={form.mobile} onChange={f('mobile')} required />
+              <input style={inp} placeholder="+92 300 1234567" value={form.mobile} onChange={formatMobile} required />
             </div>  
             <div>
               <label style={{ fontSize: 12, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>City (optional)</label>
