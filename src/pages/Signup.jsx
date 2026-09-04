@@ -126,16 +126,24 @@ export default function Signup({ onSuccess }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'createTenantFromSignup',
-          tenantCode,
-          businessName: form.businessName.trim(),
-          email: form.email.trim().toLowerCase(),
-          mobile: form.mobile.trim() || null,
-          authUserId,
+          action: 'createTenant',
+          tenantData: {
+            tenant_code: tenantCode,
+            business_name: form.businessName.trim(),
+            email: form.email.trim().toLowerCase(),
+            mobile: form.mobile.trim() || null,
+            plan: 'free',
+            subscription_status: 'active',
+            is_active: true,
+            auth_user_id: authUserId,
+            has_tracking_feature: false,
+            has_map_feature: false,
+            has_premium_reports: false,
+          }
         })
       })
       const setupData = await setupRes.json()
-      if (!setupRes.ok || !setupData.tenantId) {
+      if (!setupRes.ok) {
         setError('Error creating account: ' + (setupData.error || 'Unknown error'))
         setLoading(false)
         return
