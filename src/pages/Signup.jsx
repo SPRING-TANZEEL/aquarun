@@ -116,9 +116,6 @@ export default function Signup({ onSuccess }) {
       const authUserId = authData.user?.id
       if (!authUserId) { setError('Signup failed. Please try again.'); setLoading(false); return }
 
-      // Sign out immediately to prevent auto-login before email confirmation
-      await supabase.auth.signOut()
-
       // 2 — Generate unique tenant code
       let tenantCode = generateTenantCode(form.businessName)
       const { data: existing } = await supabase.from('tenants').select('id').eq('tenant_code', tenantCode)
@@ -153,6 +150,11 @@ export default function Signup({ onSuccess }) {
         return
       }
 
+      // Force sign out so user must confirm email before logging in
+      await supabase.auth.signOut()
+      // Clear any stored session
+      localStorage.removeItem('aquarun_tenant_id')
+      localStorage.removeItem('aquarun_role')
       setStep(2)
     } catch (err) {
       setError('Unexpected error: ' + err.message)
