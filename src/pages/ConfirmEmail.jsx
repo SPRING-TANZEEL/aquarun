@@ -6,7 +6,11 @@ export default function ConfirmEmail() {
     async function activate() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session?.user) {
-        await supabase.from('tenants').update({ is_active: true }).eq('auth_user_id', session.user.id)
+        await fetch('/api/super-admin-actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'activateTenant', authUserId: session.user.id })
+        })
       }
       window.location.href = '/'
     }

@@ -132,6 +132,16 @@ export default async function handler(req, res) {
       return res.json({ ok: true, auth_user_id: authUser.user.id })
     }
 
+    // ── ACTIVATE TENANT (called from email confirmation) ──────────────
+    if (action === 'activateTenant') {
+      const { authUserId } = req.body
+      const { error } = await supabaseAdmin.from('tenants')
+        .update({ is_active: true })
+        .eq('auth_user_id', authUserId)
+      if (error) return res.status(500).json({ error: error.message })
+      return res.json({ ok: true })
+    }
+
     // ── SEED TENANT (called from self-signup) ────────────────────────
     if (action === 'seedTenant') {
       const { tenantId, businessName } = req.body
