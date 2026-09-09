@@ -100,13 +100,10 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     if (paid > total) return alert('Paid amount cannot exceed total amount')
     const isPartial = paid < total
     if (isPartial && !vendorName.trim()) return alert('Please enter vendor name for partial payment')
-    setSaving(true)
-    const paidBy = isCEO ? 'ceo' : 'main_rider'
-
-    const total = Number(totalAmount || amount || 0)
-    const paid = Number(paidAmount || totalAmount || amount || total)
     const remaining = Math.max(0, total - paid)
     const paymentStatus = remaining > 0 ? 'partial' : 'paid'
+    setSaving(true)
+    const paidBy = isCEO ? 'ceo' : 'main_rider'
 
     const { data: saved, error } = await supabase.from('office_expenses').insert([{
       tenant_id: tenantId,
