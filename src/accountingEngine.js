@@ -499,13 +499,15 @@ export async function postRiderExpenseJournal(expense, tenantId) {
 }
 
 // - 5. POST OFFICE EXPENSE JOURNAL ENTRY -
-// Admin pays expense directly from cash/jazz/bank - no change needed
 export async function postOfficeExpenseJournal(expense, tenantId) {
   try {
-    const amount = Number(expense.amount || 0)
-    if (amount <= 0) { console.log('postOfficeExpenseJournal skipped - amount is 0'); return null }
-    // Use custom COA account if provided, otherwise use category mapping
-// Salary payments settle the payable - DR 2100, not expense account
+    const totalAmt = Number(expense.total_amount || expense.amount || 0)
+    const paidAmt = Number(expense.paid_amount || expense.amount || totalAmt)
+    const remainingAmt = Math.max(0, totalAmt - paidAmt)
+    const isPartial = remainingAmt > 0
+
+    if (totalAmt <= 0) { console.log('postOfficeExpenseJournal skipped - amount is 0'); return null }
+
     const expenseAcc = expense.category === 'salary'
       ? { code: '2100', name: 'Salary Payable' }
       : expense._customAccount
@@ -516,16 +518,27 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
     const cashAcc = getCashAccount(expense.payment_method || 'cash')
 
     const lines = [
-      { account_code: expenseAcc.code, account_name: expenseAcc.name, debit: amount },
-      { account_code: cashAcc.code, account_name: cashAcc.name, credit: amount }
+      // Always debit full expense amount
+      { account_code: expenseAcc.code, account_name: expenseAcc.name, debit: totalAmt },
+      // Credit cash only for paid amount
+      { account_code: cashAcc.code, account_name: cashAcc.name, credit: paidAmt },
     ]
+
+    // If partial — credit remaining to Accounts Payable
+    if (isPartial) {
+      lines.push({ account_code: '2001', account_name: 'Accounts Payable', credit: remainingAmt })
+    }
+
+    const narration = isPartial
+      ? `Office expense - ${expense.category} - ${expense.description || ''} - partial paid Rs.${paidAmt} of Rs.${totalAmt}${expense.vendor_name ? ' - ' + expense.vendor_name : ''}`
+      : `Office expense - ${expense.category} - ${expense.description || ''} - paid from ${expense.payment_method || 'cash'}`
 
     const entryId = await postJournalEntry({
       tenantId,
       date: expense.expense_date || new Date().toISOString().split('T')[0],
       referenceType: 'office_expense',
       referenceId: expense.id,
-      narration: `Office expense - ${expense.category} - ${expense.description || ""} - paid from ${expense.payment_method || "cash"}`,
+      narration,
       lines
     })
 

@@ -23,6 +23,9 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState(null)
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [totalAmount, setTotalAmount] = useState('')
+  const [paidAmount, setPaidAmount] = useState('')
+  const [vendorName, setVendorName] = useState('')
   const [amount, setAmount] = useState('')
   const [description, setDescription] = useState('')
   const [expenseDate, setExpenseDate] = useState(new Date().toISOString().split('T')[0])
@@ -91,16 +94,31 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
   async function saveExpense() {
     if (!category) return alert('Please select a category')
     if (!selectedCoa) return alert('Please select a chart of account')
-    if (!amount || Number(amount) <= 0) return alert('Please enter amount')
+    const total = Number(totalAmount || amount || 0)
+    const paid = Number(paidAmount || totalAmount || amount || 0)
+    if (total <= 0) return alert('Please enter total amount')
+    if (paid > total) return alert('Paid amount cannot exceed total amount')
+    const isPartial = paid < total
+    if (isPartial && !vendorName.trim()) return alert('Please enter vendor name for partial payment')
     setSaving(true)
     const paidBy = isCEO ? 'ceo' : 'main_rider'
+
+    const total = Number(totalAmount || amount || 0)
+    const paid = Number(paidAmount || totalAmount || amount || total)
+    const remaining = Math.max(0, total - paid)
+    const paymentStatus = remaining > 0 ? 'partial' : 'paid'
 
     const { data: saved, error } = await supabase.from('office_expenses').insert([{
       tenant_id: tenantId,
       paid_by: paidBy,
       paid_by_rider_id: rider?.id || null,
       category,
-      amount: Number(amount),
+      amount: total,
+      total_amount: total,
+      paid_amount: paid,
+      remaining_amount: remaining,
+      payment_status: paymentStatus,
+      vendor_name: vendorName.trim() || null,
       description,
       payment_method: paymentMethod,
       expense_date: expenseDate,
@@ -112,13 +130,22 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
 
     try {
       const { postOfficeExpenseJournal } = AccountingEngine
-      await postOfficeExpenseJournal(saved, tenantId)
+      await postOfficeExpenseJournal({
+        ...saved,
+        total_amount: total,
+        paid_amount: paid,
+        remaining_amount: remaining,
+        vendor_name: vendorName.trim() || null,
+      }, tenantId)
     } catch (err) { console.error('Journal post error:', err) }
 
     setCategory(null)
     setSelectedCoa(null)
     setCoaSearch('')
     setAmount('')
+    setTotalAmount('')
+    setPaidAmount('')
+    setVendorName('')
     setDescription('')
     setPaymentMethod('cash')
     setExpenseDate(new Date().toISOString().split('T')[0])
@@ -257,10 +284,24 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
         </div>
 
         {/* Amount */}
-        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Amount (Rs.)</p>
-        <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Total Bill Amount (Rs.)</p>
+        <input type="number" value={totalAmount} onChange={e => { setTotalAmount(e.target.value); setPaidAmount(e.target.value) }}
           placeholder="0"
-          style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '12px' }} />
+          style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '8px' }} />
+        <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Amount Paid Now (Rs.)</p>
+        <input type="number" value={paidAmount} onChange={e => setPaidAmount(e.target.value)}
+          placeholder="Leave same if fully paid"
+          style={{ width: '100%', padding: '12px', border: '2px solid #ddd', borderRadius: '8px', fontSize: '24px', fontWeight: '700', outline: 'none', boxSizing: 'border-box', textAlign: 'center', marginBottom: '8px' }} />
+        {Number(paidAmount) < Number(totalAmount) && totalAmount && paidAmount && (
+          <div style={{ background: '#fff3e0', border: '1px solid #f59e0b', borderRadius: 8, padding: '10px 12px', marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: '#e65100', fontWeight: 700, margin: '0 0 6px' }}>
+              ⚠️ Remaining: Rs. {(Number(totalAmount) - Number(paidAmount)).toLocaleString()} — Vendor name required
+            </p>
+            <input type="text" value={vendorName} onChange={e => setVendorName(e.target.value)}
+              placeholder="Vendor / Supplier name *"
+              style={{ width: '100%', padding: '8px 12px', border: '1px solid #f59e0b', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+        )}
 
         {/* Description */}
         <p style={{ fontSize: '12px', fontWeight: '700', color: '#555', marginBottom: '6px', textTransform: 'uppercase' }}>Description (optional)</p>
@@ -369,7 +410,12 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
                   </div>
                 </div>
                 <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>
-                  Rs. {Number(e.amount).toLocaleString()}
+                  Rs. {Number(e.total_amount || e.amount).toLocaleString()}
+                  {e.payment_status === 'partial' && (
+                    <span style={{ marginLeft: 8, background: '#fff3e0', color: '#e65100', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 10 }}>
+                      ⚠️ Rs. {Number(e.remaining_amount).toLocaleString()} remaining
+                    </span>
+                  )}
                 </p>
               </div>
             )
