@@ -382,7 +382,7 @@ export default function Transactions({ tenantId }) {
   const paymentColors = { cash: '#1a7a4a', jazzcash: '#9c27b0', credit: '#f44336', bank: '#0f4c81' }
 
   // Which types can be voided
-  const voidableTypes = ['delivery', 'payment', 'expense', 'cash_transfer', 'salary_advance']
+  const voidableTypes = ['delivery', 'payment', 'expense', 'office_expense', 'cash_transfer', 'salary_advance']
 
   return (
     <div>
