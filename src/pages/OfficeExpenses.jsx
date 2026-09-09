@@ -91,6 +91,37 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
     a.account_code.includes(coaSearch)
   )
 
+  async function handlePayRemaining(expense) {
+    const remaining = Number(expense.remaining_amount)
+    const payNow = window.prompt(`Pay remaining amount for ${expense.vendor_name || expense.coa_account_name}?\n\nRemaining: Rs. ${remaining.toLocaleString()}\n\nEnter amount to pay now:`, remaining)
+    if (!payNow || Number(payNow) <= 0) return
+    const payAmount = Math.min(Number(payNow), remaining)
+    const newRemaining = remaining - payAmount
+    const newStatus = newRemaining > 0 ? 'partial' : 'paid'
+
+    // Update expense record
+    await supabase.from('office_expenses').update({
+      paid_amount: Number(expense.paid_amount) + payAmount,
+      remaining_amount: newRemaining,
+      payment_status: newStatus,
+    }).eq('id', expense.id).eq('tenant_id', tenantId)
+
+    // Post journal — Dr Accounts Payable, Cr Cash
+    const { postOfficeExpenseJournal } = AccountingEngine
+    await postOfficeExpenseJournal({
+      ...expense,
+      amount: payAmount,
+      total_amount: payAmount,
+      paid_amount: payAmount,
+      remaining_amount: 0,
+      payment_status: 'paid',
+      _payRemainingEntry: true,
+    }, tenantId)
+
+    fetchExpenses()
+    alert(`✅ Rs. ${payAmount.toLocaleString()} paid. ${newRemaining > 0 ? `Rs. ${newRemaining.toLocaleString()} still remaining.` : 'Fully paid!'}`)
+  }
+
   async function saveExpense() {
     if (!category) return alert('Please select a category')
     if (!selectedCoa) return alert('Please select a chart of account')
@@ -406,14 +437,23 @@ export default function OfficeExpenses({ rider, isCEO, tenantId }) {
                     )}
                   </div>
                 </div>
-                <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: 0 }}>
-                  Rs. {Number(e.total_amount || e.amount).toLocaleString()}
+                <div style={{ textAlign: 'right' }}>
+                  <p style={{ fontSize: '14px', fontWeight: '700', color: '#e65100', margin: '0 0 4px' }}>
+                    Rs. {Number(e.total_amount || e.amount).toLocaleString()}
+                  </p>
                   {e.payment_status === 'partial' && (
-                    <span style={{ marginLeft: 8, background: '#fff3e0', color: '#e65100', fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 10 }}>
-                      ⚠️ Rs. {Number(e.remaining_amount).toLocaleString()} remaining
-                    </span>
+                    <div>
+                      <p style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 700, margin: '0 0 4px' }}>
+                        ⚠️ Rs. {Number(e.remaining_amount).toLocaleString()} unpaid
+                        {e.vendor_name && ` — ${e.vendor_name}`}
+                      </p>
+                      <button onClick={() => handlePayRemaining(e)}
+                        style={{ padding: '4px 10px', background: '#1a7a4a', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 700 }}>
+                        💵 Pay Remaining
+                      </button>
+                    </div>
                   )}
-                </p>
+                </div>
               </div>
             )
           })}

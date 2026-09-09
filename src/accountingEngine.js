@@ -517,17 +517,18 @@ export async function postOfficeExpenseJournal(expense, tenantId) {
           : getExpenseAccount(expense.category))
     const cashAcc = getCashAccount(expense.payment_method || 'cash')
 
-    const lines = [
-      // Always debit full expense amount
-      { account_code: expenseAcc.code, account_name: expenseAcc.name, debit: totalAmt },
-      // Credit cash only for paid amount
-      { account_code: cashAcc.code, account_name: cashAcc.name, credit: paidAmt },
-    ]
-
-    // If partial — credit remaining to Accounts Payable
-    if (isPartial) {
-      lines.push({ account_code: '2001', account_name: 'Accounts Payable', credit: remainingAmt })
-    }
+    const lines = expense._payRemainingEntry
+      ? [
+          // Paying off accounts payable
+          { account_code: '2001', account_name: 'Accounts Payable', debit: paidAmt },
+          { account_code: cashAcc.code, account_name: cashAcc.name, credit: paidAmt },
+        ]
+      : [
+          // Normal expense entry
+          { account_code: expenseAcc.code, account_name: expenseAcc.name, debit: totalAmt },
+          { account_code: cashAcc.code, account_name: cashAcc.name, credit: paidAmt },
+          ...(isPartial ? [{ account_code: '2001', account_name: 'Accounts Payable', credit: remainingAmt }] : []),
+        ]
 
     const narration = isPartial
       ? `Office expense - ${expense.category} - ${expense.description || ''} - partial paid Rs.${paidAmt} of Rs.${totalAmt}${expense.vendor_name ? ' - ' + expense.vendor_name : ''}`
