@@ -141,7 +141,7 @@ export default function Transactions({ tenantId }) {
         .eq('tenant_id', tenantId)
         .gte('expense_date', dateFrom)
         .lte('expense_date', dateTo)
-        .eq('is_voided', false)
+        .eq('is_voided', showVoided)
         .order('created_at', { ascending: false })
       data?.forEach(a => all.push({
         id: a.id, type: 'office_expense', table: 'office_expenses',
@@ -150,8 +150,9 @@ export default function Transactions({ tenantId }) {
         party: '—', party_code: '—', rider: '—',
         amount: Number(a.amount),
         payment_method: a.payment_method || 'cash',
-        is_voided: false,
-        void_reason: null, voided_at: null,
+        is_voided: a.is_voided || false,
+        void_reason: a.void_reason || null,
+        voided_at: a.voided_at || null,
         raw: a
       }))
     }
@@ -185,7 +186,7 @@ export default function Transactions({ tenantId }) {
         .select('*, riders!salary_advances_rider_id_fkey(full_name)')
         .eq('tenant_id', tenantId)
         .eq('status', 'approved')
-        .eq('is_voided', false)
+        .eq('is_voided', showVoided)
         .gte('created_at', dateFrom + 'T00:00:00')
         .lte('created_at', dateTo + 'T23:59:59')
         .order('created_at', { ascending: false })
@@ -220,8 +221,9 @@ export default function Transactions({ tenantId }) {
         rider: p.riders?.full_name || '—',
         amount: Number(p.amount_paid),
         payment_method: p.payment_method || 'cash',
-        is_voided: false,
-        void_reason: null, voided_at: null,
+        is_voided: a.is_voided || false,
+        void_reason: a.void_reason || null,
+        voided_at: a.voided_at || null,
         raw: p
       }))
     }
@@ -270,6 +272,29 @@ export default function Transactions({ tenantId }) {
       await reverseJournalEntry(tx.raw.journal_entry_id, tx.id, tx.type, tenantId)
     }
 
+
+    if (tx.type === 'office_expense' || tx.type === 'expense') {
+      // Just reverse the journal — no customer balance update needed
+      if (!tx.raw.journal_entry_id) {
+        // Find journal by reference_id
+        const { data: je } = await supabase.from('journal_entries')
+          .select('id').eq('tenant_id', tenantId)
+          .eq('reference_id', tx.id).eq('reference_type', tx.type === 'office_expense' ? 'office_expense' : 'rider_expense')
+          .single()
+        if (je) await reverseJournalEntry(je.id, tx.id, tx.type, tenantId)
+      }
+    }
+
+    if (tx.type === 'office_expense' || tx.type === 'expense') {
+      if (!tx.raw.journal_entry_id) {
+        const { data: je } = await supabase.from('journal_entries')
+          .select('id').eq('tenant_id', tenantId)
+          .eq('reference_id', tx.id)
+          .eq('reference_type', tx.type === 'office_expense' ? 'office_expense' : 'rider_expense')
+          .maybeSingle()
+        if (je) await reverseJournalEntry(je.id, tx.id, tx.type, tenantId)
+      }
+    }
 
     if (tx.type === 'delivery' && tx.raw.customer_id) {
       const { data: customer } = await supabase.from('customers').select('balance').eq('id', tx.raw.customer_id).eq('tenant_id', tenantId).single()
